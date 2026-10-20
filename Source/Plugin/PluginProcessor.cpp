@@ -30,6 +30,7 @@ OpenEdmFilterProcessor::OpenEdmFilterProcessor()
               raw(params::kOutput), raw(params::kLimiter), raw(params::kCeiling), raw(params::kInertia)
           };
       }()) {
+    setLatencySamples(core::FilterEngine::kLatencySamples);
 }
 
 void OpenEdmFilterProcessor::prepareToPlay(double sampleRate, int) {

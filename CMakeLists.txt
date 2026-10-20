@@ -19,6 +19,7 @@ add_library(openedm_core STATIC
     Source/Core/MultiModeFilter.cpp
     Source/Core/Modulators.cpp
     Source/Core/Effects.cpp
+    Source/Core/Oversampler.cpp
     Source/Core/FilterEngine.cpp)
 target_include_directories(openedm_core PUBLIC Source/Core)
 set_target_properties(openedm_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -88,7 +89,8 @@ if(OEF_BUILD_TESTS)
         Tests/MultiModeFilterTests.cpp
         Tests/ModulatorsTests.cpp
         Tests/EffectsTests.cpp
-        Tests/FilterEngineTests.cpp)
+        Tests/FilterEngineTests.cpp
+        Tests/OversamplerTests.cpp)
 
     target_include_directories(openedm_tests PRIVATE Tests)
     target_link_libraries(openedm_tests PRIVATE openedm_core Catch2::Catch2WithMain)

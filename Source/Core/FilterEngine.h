@@ -3,6 +3,7 @@
 #include "Effects.h"
 #include "Modulators.h"
 #include "MultiModeFilter.h"
+#include "Oversampler.h"
 #include <array>
 #include <optional>
 
@@ -51,11 +52,13 @@ struct Transport {
 };
 
 // Full signal chain: drive and crush (pre or post), band A into band B, ring mod, dry/wet, output, limiter.
+// Everything before the limiter runs at twice the host rate, so drive, ring mod and FM alias less.
 class FilterEngine {
 public:
     static constexpr int kNumBands = 2;
     static constexpr float kModulationOctaves = 6.0f;
     static constexpr float kFmOctaves = 3.0f;
+    static constexpr int kLatencySamples = Oversampler::kLatency;
 
     void prepare(double sampleRate) noexcept;
     void reset() noexcept;
@@ -66,12 +69,13 @@ public:
     [[nodiscard]] std::array<float, kNumBands> currentCutoffs() const noexcept;
 
 private:
-    double sampleRate_ = 44100.0;
+    double sampleRate_ = 88200.0; // the oversampled rate
     std::array<MultiModeFilter, kNumBands> filters_{};
     std::array<Lfo, kNumBands> lfos_{};
     std::array<EnvelopeFollower, kNumBands> envelopes_{};
     std::array<float, kNumBands> logCutoffs_{}; // smoothed, in log2 Hz
     BitCrusher crusher_{};
+    Oversampler oversampler_{};
     PeakLimiter limiter_{};
     double fmPhase_ = 0.0;
     double ringPhase_ = 0.0;

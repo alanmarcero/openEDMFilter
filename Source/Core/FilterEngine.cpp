@@ -22,7 +22,7 @@ float onePoleCoefficient(double seconds, double sampleRate) noexcept {
 } // namespace
 
 void FilterEngine::prepare(double sampleRate) noexcept {
-    sampleRate_ = sampleRate;
+    sampleRate_ = sampleRate * Oversampler::kFactor;
     parameterSmoothing_ = onePoleCoefficient(kParameterSmoothingSeconds, sampleRate);
     limiter_.prepare(sampleRate);
     reset();
@@ -32,6 +32,7 @@ void FilterEngine::reset() noexcept {
     std::ranges::for_each(filters_, [](MultiModeFilter& filter) { filter.reset(); });
     std::ranges::for_each(envelopes_, [](EnvelopeFollower& envelope) { envelope.reset(); });
     crusher_.reset();
+    oversampler_.reset();
     limiter_.reset();
     needsSnap_ = true;
 }
@@ -72,53 +73,64 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
     });
 
     std::ranges::for_each(std::views::iota(0, numSamples), [&](int sample) {
-        const float monoInput = std::accumulate(channelIndices.begin(), channelIndices.end(), 0.0f,
-            [&](float sum, int channel) { return sum + channels[channel][sample]; }) / static_cast<float>(channelCount);
-
-        const auto fmOctaves = static_cast<float>(settings.fmDepth * kFmOctaves * std::sin(kTwoPi * fmPhase_));
-        const auto ringCarrier = static_cast<float>(std::sin(kTwoPi * ringPhase_));
-        const double nextFmPhase = fmPhase_ + settings.fmRateHz / sampleRate_;
-        const double nextRingPhase = ringPhase_ + settings.ringFrequencyHz / sampleRate_;
-        fmPhase_ = nextFmPhase - std::floor(nextFmPhase);
-        ringPhase_ = nextRingPhase - std::floor(nextRingPhase);
-
-        std::array<float, kNumBands> modulationOctaves{};
-        std::ranges::transform(bandIndices, modulationOctaves.begin(), [&](int band) {
-            const BandSettings& bandSettings = settings.bands[band];
-            const float lfoValue = lfos_[band].next(bandSettings.lfoShape, lfoIncrements[band]);
-            const float envelopeValue = envelopes_[band].process(monoInput);
-            const float octaves = kModulationOctaves * (bandSettings.lfoDepth * lfoValue + bandSettings.envDepth * envelopeValue);
-            const float targetLogCutoff = std::log2(bandSettings.cutoffHz) + octaves;
-            logCutoffs_[band] = targetLogCutoff + cutoffSmoothing[band] * (logCutoffs_[band] - targetLogCutoff);
-            // FM skips the smoother, which would otherwise filter out audio-rate FM.
-            filters_[band].update(bandSettings.shape, std::exp2(logCutoffs_[band] + fmOctaves), sampleRate_);
-            return octaves + fmOctaves;
+        std::array<Oversampler::Frame, MultiModeFilter::kMaxChannels> upsampled{};
+        std::ranges::for_each(channelIndices, [&](int channel) {
+            upsampled[channel] = oversampler_.upsample(channel, channels[channel][sample]);
         });
 
-        const bool followsBandA = settings.crushLinked && settings.bands[0].shape.enabled;
-        const float crushOctaves = followsBandA ? modulationOctaves[0] : 0.0f;
-        const float crushRateHz = std::clamp(settings.crushRateHz * std::exp2(crushOctaves),
-                                             kMinCrushRateHz, static_cast<float>(sampleRate_));
-        mix_ = settings.mix + parameterSmoothing_ * (mix_ - settings.mix);
-        outputGain_ = settings.outputGain + parameterSmoothing_ * (outputGain_ - settings.outputGain);
+        std::ranges::for_each(std::views::iota(0, Oversampler::kFactor), [&](int phase) {
+            const float monoInput = std::accumulate(channelIndices.begin(), channelIndices.end(), 0.0f,
+                [&](float sum, int channel) { return sum + upsampled[channel][phase]; }) / static_cast<float>(channelCount);
+
+            const auto fmOctaves = static_cast<float>(settings.fmDepth * kFmOctaves * std::sin(kTwoPi * fmPhase_));
+            const auto ringCarrier = static_cast<float>(std::sin(kTwoPi * ringPhase_));
+            const double nextFmPhase = fmPhase_ + settings.fmRateHz / sampleRate_;
+            const double nextRingPhase = ringPhase_ + settings.ringFrequencyHz / sampleRate_;
+            fmPhase_ = nextFmPhase - std::floor(nextFmPhase);
+            ringPhase_ = nextRingPhase - std::floor(nextRingPhase);
+
+            std::array<float, kNumBands> modulationOctaves{};
+            std::ranges::transform(bandIndices, modulationOctaves.begin(), [&](int band) {
+                const BandSettings& bandSettings = settings.bands[band];
+                const float lfoValue = lfos_[band].next(bandSettings.lfoShape, lfoIncrements[band]);
+                const float envelopeValue = envelopes_[band].process(monoInput);
+                const float octaves = kModulationOctaves * (bandSettings.lfoDepth * lfoValue + bandSettings.envDepth * envelopeValue);
+                const float targetLogCutoff = std::log2(bandSettings.cutoffHz) + octaves;
+                logCutoffs_[band] = targetLogCutoff + cutoffSmoothing[band] * (logCutoffs_[band] - targetLogCutoff);
+                // FM skips the smoother, which would otherwise filter out audio-rate FM.
+                filters_[band].update(bandSettings.shape, std::exp2(logCutoffs_[band] + fmOctaves), sampleRate_);
+                return octaves + fmOctaves;
+            });
+
+            const bool followsBandA = settings.crushLinked && settings.bands[0].shape.enabled;
+            const float crushOctaves = followsBandA ? modulationOctaves[0] : 0.0f;
+            const float crushRateHz = std::clamp(settings.crushRateHz * std::exp2(crushOctaves),
+                                                 kMinCrushRateHz, static_cast<float>(sampleRate_));
+            mix_ = settings.mix + parameterSmoothing_ * (mix_ - settings.mix);
+            outputGain_ = settings.outputGain + parameterSmoothing_ * (outputGain_ - settings.outputGain);
+
+            std::ranges::for_each(channelIndices, [&](int channel) {
+                const auto colour = [&](float signal, Placement placement) {
+                    const float drive = settings.drivePlacement == placement ? settings.drive : 0.0f;
+                    const float driven = saturate(signal, drive);
+                    if (settings.crushPlacement != placement || settings.crushMix <= 0.0f) {
+                        return driven;
+                    }
+                    const float crushed = crusher_.process(channel, driven, crushRateHz, settings.crushBits, sampleRate_);
+                    return driven + settings.crushMix * (crushed - driven);
+                };
+
+                const float dry = upsampled[channel][phase];
+                const float preColoured = colour(dry, Placement::PreFilter);
+                const float filtered = filters_[1].process(channel, filters_[0].process(channel, preColoured));
+                const float postColoured = colour(filtered, Placement::PostFilter);
+                const float ringModulated = postColoured + settings.ringMix * (postColoured * ringCarrier - postColoured);
+                upsampled[channel][phase] = (dry + mix_ * (ringModulated - dry)) * outputGain_;
+            });
+        });
 
         std::ranges::for_each(channelIndices, [&](int channel) {
-            const auto colour = [&](float signal, Placement placement) {
-                const float drive = settings.drivePlacement == placement ? settings.drive : 0.0f;
-                const float driven = saturate(signal, drive);
-                if (settings.crushPlacement != placement || settings.crushMix <= 0.0f) {
-                    return driven;
-                }
-                const float crushed = crusher_.process(channel, driven, crushRateHz, settings.crushBits, sampleRate_);
-                return driven + settings.crushMix * (crushed - driven);
-            };
-
-            const float dry = channels[channel][sample];
-            const float preColoured = colour(dry, Placement::PreFilter);
-            const float filtered = filters_[1].process(channel, filters_[0].process(channel, preColoured));
-            const float postColoured = colour(filtered, Placement::PostFilter);
-            const float ringModulated = postColoured + settings.ringMix * (postColoured * ringCarrier - postColoured);
-            channels[channel][sample] = (dry + mix_ * (ringModulated - dry)) * outputGain_;
+            channels[channel][sample] = oversampler_.downsample(channel, upsampled[channel]);
         });
     });
 

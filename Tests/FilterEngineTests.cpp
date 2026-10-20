@@ -29,22 +29,28 @@ std::vector<float> runEngine(const EngineSettings& settings, std::vector<float> 
     return samples;
 }
 
-} // namespace
-
-TEST_CASE("Engine with every stage neutral returns the input unchanged", "[engine]") {
-    const auto input = sine(440.0, kNumSamples);
-    const auto output = runEngine(transparentSettings(), input);
-    REQUIRE(output == input);
+// The oversampler delays the whole chain by kLatencySamples. The first samples ring from the sine's abrupt start.
+void requireDelayedCopy(const std::vector<float>& output, const std::vector<float>& input) {
+    for (size_t i = FilterEngine::kLatencySamples; i + FilterEngine::kLatencySamples < output.size(); ++i) {
+        REQUIRE_THAT(output[i + FilterEngine::kLatencySamples], WithinAbs(input[i], 1e-3));
+    }
 }
 
-TEST_CASE("Engine at zero mix returns the dry signal", "[engine]") {
+} // namespace
+
+TEST_CASE("Engine with every stage neutral returns the input delayed by its latency", "[engine]") {
+    const auto input = sine(440.0, kNumSamples);
+    requireDelayedCopy(runEngine(transparentSettings(), input), input);
+}
+
+TEST_CASE("Engine at zero mix returns the delayed dry signal", "[engine]") {
     EngineSettings settings = transparentSettings();
     settings.bands[0].shape = FilterShape{ true, FilterType::LowPass, FilterSlope::Slope96dB, 1.0f, 0.0f };
     settings.bands[0].cutoffHz = 100.0f;
     settings.drive = 1.0f;
     settings.mix = 0.0f;
     const auto input = sine(3000.0, kNumSamples);
-    REQUIRE(runEngine(settings, input) == input);
+    requireDelayedCopy(runEngine(settings, input), input);
 }
 
 TEST_CASE("Engine output gain scales the signal", "[engine]") {
@@ -88,4 +94,14 @@ TEST_CASE("Engine cutoff FM reaches audio rate", "[engine]") {
 
     settings.fmDepth = 1.0f;
     REQUIRE(settledRms(runEngine(settings, input)) > 4.0f * unmodulated);
+}
+
+TEST_CASE("Engine oversampling keeps drive harmonics from folding back", "[engine]") {
+    EngineSettings settings = transparentSettings();
+    settings.drive = 0.3f;
+    const auto output = runEngine(settings, sine(7000.0, kNumSamples));
+
+    // At the host rate, the 5th harmonic (35 kHz) would fold to 13 kHz.
+    const double fundamental = toneLevel(output, 7000.0);
+    REQUIRE(toneLevel(output, 13000.0) < fundamental * 1e-3);
 }
