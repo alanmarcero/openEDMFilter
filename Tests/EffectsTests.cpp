@@ -44,12 +44,28 @@ TEST_CASE("Limiter keeps peaks at or below the ceiling", "[limiter]") {
     REQUIRE(peak(right) <= 0.5f);
 }
 
-TEST_CASE("Limiter leaves a signal under the ceiling unchanged", "[limiter]") {
+TEST_CASE("Limiter delays a signal under the ceiling without changing it", "[limiter]") {
     PeakLimiter limiter;
     limiter.prepare(kSampleRate);
     const auto input = sine(200.0, 4800, 0.1f);
     auto output = input;
     float* channels[] = { output.data() };
     limiter.process(channels, 1, 4800, 1.0f);
-    REQUIRE(output == input);
+    REQUIRE(std::equal(input.begin(), input.end() - PeakLimiter::kLatency, output.begin() + PeakLimiter::kLatency));
+}
+
+TEST_CASE("Limiter ramps the gain down before a peak arrives", "[limiter]") {
+    constexpr int kJump = 1000;
+    PeakLimiter limiter;
+    limiter.prepare(kSampleRate);
+    std::vector<float> samples(2000, 0.1f);
+    std::fill(samples.begin() + kJump, samples.end(), 1.0f);
+    float* channels[] = { samples.data() };
+    limiter.process(channels, 1, 2000, 0.5f);
+
+    const int jumpOut = kJump + PeakLimiter::kLatency;
+    REQUIRE(samples[jumpOut - PeakLimiter::kLookahead / 2] < 0.1f);
+    REQUIRE(samples[jumpOut - PeakLimiter::kLookahead / 2] > 0.05f);
+    REQUIRE(peak(samples) <= 0.5f);
+    REQUIRE_THAT(samples[jumpOut], WithinAbs(0.5, 1e-5));
 }

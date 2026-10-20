@@ -1,6 +1,7 @@
 #include "FilterEngine.h"
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <numbers>
 #include <numeric>
 #include <ranges>
@@ -134,9 +135,9 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
         });
     });
 
-    if (settings.limiterEnabled) {
-        limiter_.process(channels, channelCount, numSamples, settings.ceiling);
-    }
+    // With the limiter off, it still runs with no ceiling, so the latency does not change.
+    const float ceiling = settings.limiterEnabled ? settings.ceiling : std::numeric_limits<float>::infinity();
+    limiter_.process(channels, channelCount, numSamples, ceiling);
 }
 
 } // namespace openedm::core

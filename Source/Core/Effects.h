@@ -20,16 +20,25 @@ private:
     std::array<float, kMaxChannels> held_{};
 };
 
-// Stereo-linked peak limiter with instant attack. Peaks never exceed the ceiling.
+// Stereo-linked lookahead peak limiter. Peaks never exceed the ceiling, and each gain drop ramps in over
+// the lookahead window instead of jumping, so limiting does not clip the waveform.
 class PeakLimiter {
 public:
+    static constexpr int kMaxChannels = 2;
+    static constexpr int kLookahead = 64;
+    static constexpr int kLatency = kLookahead - 1;
+
     void prepare(double sampleRate) noexcept;
     void reset() noexcept;
     void process(float* const* channels, int numChannels, int numSamples, float ceiling) noexcept;
 
 private:
     float releaseCoefficient_ = 0.0f;
-    float gain_ = 1.0f;
+    float releasedGain_ = 1.0f;
+    int position_ = 0;
+    std::array<float, kLookahead> requiredGains_{};
+    std::array<float, kLookahead> releasedGains_{};
+    std::array<std::array<float, kLookahead>, kMaxChannels> delayLines_{};
 };
 
 } // namespace openedm::core

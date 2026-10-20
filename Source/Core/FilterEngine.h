@@ -58,7 +58,7 @@ public:
     static constexpr int kNumBands = 2;
     static constexpr float kModulationOctaves = 6.0f;
     static constexpr float kFmOctaves = 3.0f;
-    static constexpr int kLatencySamples = Oversampler::kLatency;
+    static constexpr int kLatencySamples = Oversampler::kLatency + PeakLimiter::kLatency;
 
     void prepare(double sampleRate) noexcept;
     void reset() noexcept;
