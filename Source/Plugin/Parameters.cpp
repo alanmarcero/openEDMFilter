@@ -16,7 +16,9 @@ const Formatter kFormatBipolar = [](float value, int) {
     const int percent = juce::roundToInt(value * 100.0f);
     return (percent > 0 ? "+" : "") + juce::String(percent) + "%";
 };
-const Formatter kFormatMs = [](float ms, int) { return juce::String(ms, ms < 10.0f ? 1 : 0) + " ms"; };
+const Formatter kFormatMs = [](float ms, int) {
+    return (ms < 10.0f ? juce::String(ms, 1) : juce::String(juce::roundToInt(ms))) + " ms";
+};
 const Formatter kFormatDb = [](float db, int) { return juce::String(db, 1) + " dB"; };
 
 juce::NormalisableRange<float> skewedRange(float min, float max, float centre) {
@@ -67,7 +69,8 @@ juce::String formatHz(float hz) {
     if (hz >= 1000.0f) {
         return juce::String(hz / 1000.0f, 2) + " kHz";
     }
-    return juce::String(hz, hz < 100.0f ? 1 : 0) + " Hz";
+    // juce::String(float, 0) prints every digit, so whole numbers go through roundToInt.
+    return (hz < 100.0f ? juce::String(hz, 1) : juce::String(juce::roundToInt(hz))) + " Hz";
 }
 
 juce::String bandId(int band, const char* suffix) {
