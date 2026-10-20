@@ -77,3 +77,15 @@ TEST_CASE("Engine LFO synced to the transport sets the cutoff from the bar posit
 
     REQUIRE_THAT(engine.currentCutoffs()[0], WithinRel(2000.0f, 0.02f));
 }
+
+TEST_CASE("Engine cutoff FM reaches audio rate", "[engine]") {
+    EngineSettings settings = transparentSettings();
+    settings.bands[0].shape = FilterShape{ true, FilterType::LowPass, FilterSlope::Slope12dB, 0.0f, 0.5f };
+    settings.bands[0].cutoffHz = 1000.0f;
+    settings.fmRateHz = 1000.0f;
+    const auto input = sine(4000.0, kNumSamples);
+    const float unmodulated = settledRms(runEngine(settings, input));
+
+    settings.fmDepth = 1.0f;
+    REQUIRE(settledRms(runEngine(settings, input)) > 4.0f * unmodulated);
+}

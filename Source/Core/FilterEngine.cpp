@@ -87,11 +87,12 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
             const BandSettings& bandSettings = settings.bands[band];
             const float lfoValue = lfos_[band].next(bandSettings.lfoShape, lfoIncrements[band]);
             const float envelopeValue = envelopes_[band].process(monoInput);
-            const float octaves = kModulationOctaves * (bandSettings.lfoDepth * lfoValue + bandSettings.envDepth * envelopeValue) + fmOctaves;
+            const float octaves = kModulationOctaves * (bandSettings.lfoDepth * lfoValue + bandSettings.envDepth * envelopeValue);
             const float targetLogCutoff = std::log2(bandSettings.cutoffHz) + octaves;
             logCutoffs_[band] = targetLogCutoff + cutoffSmoothing[band] * (logCutoffs_[band] - targetLogCutoff);
-            filters_[band].update(bandSettings.shape, std::exp2(logCutoffs_[band]), sampleRate_);
-            return octaves;
+            // FM skips the smoother, which would otherwise filter out audio-rate FM.
+            filters_[band].update(bandSettings.shape, std::exp2(logCutoffs_[band] + fmOctaves), sampleRate_);
+            return octaves + fmOctaves;
         });
 
         const bool followsBandA = settings.crushLinked && settings.bands[0].shape.enabled;
