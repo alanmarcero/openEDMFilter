@@ -128,3 +128,19 @@ TEST_CASE("Engine crossfades a filter type change instead of jumping", "[engine]
     }
     REQUIRE(largestStep < 0.01f);
 }
+
+TEST_CASE("Engine smooths output gain over 10 ms at the host rate", "[engine]") {
+    EngineSettings settings = transparentSettings();
+    std::vector<float> samples(4000, 1.0f);
+    float* channels[] = { samples.data() };
+    FilterEngine engine;
+    engine.prepare(kSampleRate);
+    engine.process(settings, Transport{}, channels, 1, 1000);
+    settings.outputGain = 0.0f;
+    float* rest[] = { samples.data() + 1000 };
+    engine.process(settings, Transport{}, rest, 1, 3000);
+
+    // One time constant (480 samples at 48 kHz) after the change, a one-pole smoother sits at 1/e.
+    const auto afterOneTimeConstant = samples[1000 + FilterEngine::kLatencySamples + 480];
+    REQUIRE_THAT(afterOneTimeConstant, WithinAbs(std::exp(-1.0), 0.03));
+}

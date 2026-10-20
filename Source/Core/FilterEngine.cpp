@@ -29,7 +29,7 @@ float onePoleCoefficient(double seconds, double sampleRate) noexcept {
 
 void FilterEngine::prepare(double sampleRate) noexcept {
     sampleRate_ = sampleRate * Oversampler::kFactor;
-    parameterSmoothing_ = onePoleCoefficient(kParameterSmoothingSeconds, sampleRate);
+    parameterSmoothing_ = onePoleCoefficient(kParameterSmoothingSeconds, sampleRate_);
     fadeSamples_ = std::max(1, static_cast<int>(kTopologyFadeSeconds * sampleRate_));
     limiter_.prepare(sampleRate);
     reset();
