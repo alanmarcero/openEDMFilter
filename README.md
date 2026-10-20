@@ -14,10 +14,11 @@ A dual multimode filter plugin for EDM production. It covers the feature set of 
 - Drive. tanh saturation, before or after the filters.
 - Crush. A sample-rate reducer and bit crusher, before or after the filters. LINK A makes the crush rate follow filter A's cutoff modulation.
 - Ring modulator with frequency and mix controls.
-- Output section. Dry/wet, gain, and a stereo-linked peak limiter with a ceiling.
+- Output section. Dry/wet, gain, and a stereo-linked lookahead peak limiter with a ceiling.
 - Filter inertia. This smooths cutoff moves on 48 and 96 dB slopes to stop clicks. Turn it off for faster, harder gating.
 - 18 factory presets, available from the preset menu and as host programs.
-- Live response display. It shows both curves and the combined curve, and follows the LFO, envelope and FM in real time.
+- Live response display. It shows both curves and the combined curve, and follows the LFO, envelope and FM in real time. Drag a band's marker to set its cutoff (left and right) and resonance (up and down).
+- 2x oversampling. Everything before the limiter runs at twice the host rate, so drive, ring mod and fast FM alias less. The plugin reports 110 samples of latency (47 for the oversampler, 63 for the limiter lookahead), so hosts compensate for it.
 - All parameters can be automated in the host.
 
 The original also ships VST2 and AAX. This build does not: Steinberg no longer licenses the VST2 SDK, and AAX needs Avid's SDK and signing.
