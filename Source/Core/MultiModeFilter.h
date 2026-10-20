@@ -39,8 +39,9 @@ public:
     void update(const FilterShape& shape, double cutoffHz, double sampleRate) noexcept;
     [[nodiscard]] float process(int channel, float input) noexcept;
 
-    // Analog magnitude response, for drawing the curve in the editor.
-    [[nodiscard]] static double magnitudeAt(const FilterShape& shape, double cutoffHz, double frequencyHz) noexcept;
+    // Magnitude response of the digital filter at sampleRate, for drawing the curve in the editor.
+    [[nodiscard]] static double magnitudeAt(const FilterShape& shape, double cutoffHz, double frequencyHz,
+                                            double sampleRate) noexcept;
 
 private:
     float activeMix_ = -1.0f; // 0 bypassed, 1 active; negative until the first update snaps it

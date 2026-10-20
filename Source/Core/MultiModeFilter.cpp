@@ -13,6 +13,7 @@ namespace {
 constexpr float kMaxPeakGain = 5.0f;    // about +15.6 dB at full resonance
 constexpr float kNarrowQ = 12.0f;
 constexpr float kWideQ = 0.6f;
+constexpr double kMinCutoffHz = 10.0;
 constexpr double kMaxCutoffRatio = 0.45; // of the sample rate
 constexpr double kBypassFadeSeconds = 0.01;
 
@@ -48,7 +49,7 @@ void MultiModeFilter::reset() noexcept {
 
 void MultiModeFilter::update(const FilterShape& shape, double cutoffHz, double sampleRate) noexcept {
     const StageDesign design = designStages(shape);
-    const double safeCutoff = std::clamp(cutoffHz, 10.0, sampleRate * kMaxCutoffRatio);
+    const double safeCutoff = std::clamp(cutoffHz, kMinCutoffHz, sampleRate * kMaxCutoffRatio);
     const float g = static_cast<float>(std::tan(std::numbers::pi * safeCutoff / sampleRate));
 
     const float targetMix = shape.enabled ? 1.0f : 0.0f;
@@ -99,13 +100,18 @@ float MultiModeFilter::process(int channel, float input) noexcept {
     return input + activeMix_ * (wet - input);
 }
 
-double MultiModeFilter::magnitudeAt(const FilterShape& shape, double cutoffHz, double frequencyHz) noexcept {
+double MultiModeFilter::magnitudeAt(const FilterShape& shape, double cutoffHz, double frequencyHz,
+                                    double sampleRate) noexcept {
     if (!shape.enabled) {
         return 1.0;
     }
     using Complex = std::complex<double>;
     const StageDesign design = designStages(shape);
-    const Complex s(0.0, frequencyHz / cutoffHz);
+    // The TPT SVF is the prewarped bilinear transform of the analog one, so warping the frequency axis
+    // turns the analog prototype into the exact digital response.
+    const double safeCutoff = std::clamp(cutoffHz, kMinCutoffHz, sampleRate * kMaxCutoffRatio);
+    const double warped = std::tan(std::numbers::pi * frequencyHz / sampleRate) / std::tan(std::numbers::pi * safeCutoff / sampleRate);
+    const Complex s(0.0, warped);
 
     const Complex cascade = std::accumulate(design.qs.begin(), design.qs.begin() + design.count, Complex(1.0),
         [&](Complex response, float q) {

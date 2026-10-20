@@ -7,15 +7,25 @@
 namespace openedm::ui {
 
 // Live response curve of both filters, including LFO, envelope and FM movement.
+// Dragging a band's marker sets its cutoff (horizontal) and resonance (vertical).
 class ResponseView : public juce::Component, private juce::Timer {
 public:
     explicit ResponseView(OpenEdmFilterProcessor& processor);
     void paint(juce::Graphics& g) override;
+    void mouseDown(const juce::MouseEvent& event) override;
+    void mouseDrag(const juce::MouseEvent& event) override;
+    void mouseUp(const juce::MouseEvent& event) override;
 
 private:
     void timerCallback() override { repaint(); }
+    [[nodiscard]] juce::Rectangle<float> plotArea() const;
+    [[nodiscard]] float xForHz(double hz) const;
+    [[nodiscard]] double displayCutoff(int band) const;
 
     OpenEdmFilterProcessor& processor_;
+    juce::RangedAudioParameter* dragCutoff_ = nullptr;
+    juce::RangedAudioParameter* dragResonance_ = nullptr;
+    float resonanceAtDragStart_ = 0.0f;
 };
 
 class BandPanel : public juce::Component {

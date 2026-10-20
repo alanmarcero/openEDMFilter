@@ -18,6 +18,8 @@ constexpr float kMaxDb = 24.0f;
 constexpr float kMinDb = -48.0f;
 constexpr int kCurvePoints = 240;
 constexpr int kRefreshHz = 30;
+constexpr float kResonanceDragPixels = 150.0f;
+constexpr double kFallbackSampleRate = 44100.0;
 constexpr int kCaptionHeight = 14;
 constexpr int kSectionGap = 10;
 
@@ -25,7 +27,59 @@ constexpr int kSectionGap = 10;
 
 ResponseView::ResponseView(OpenEdmFilterProcessor& processor)
     : processor_(processor) {
+    setMouseCursor(juce::MouseCursor::CrosshairCursor);
     startTimerHz(kRefreshHz);
+}
+
+juce::Rectangle<float> ResponseView::plotArea() const {
+    return getLocalBounds().toFloat().reduced(14.0f, 12.0f);
+}
+
+float ResponseView::xForHz(double hz) const {
+    const auto plot = plotArea();
+    return plot.getX() + plot.getWidth() * static_cast<float>(std::log(hz / kMinHz) / std::log(kMaxHz / kMinHz));
+}
+
+// Before the first processed block there is no modulated cutoff yet, so show the knob value.
+double ResponseView::displayCutoff(int band) const {
+    const double modulated = processor_.displayCutoffs[static_cast<size_t>(band)].load();
+    if (modulated > 0.0) {
+        return modulated;
+    }
+    return processor_.parameters.getRawParameterValue(params::bandId(band, params::kCutoff))->load();
+}
+
+void ResponseView::mouseDown(const juce::MouseEvent& event) {
+    const auto distanceTo = [&](int band) { return std::abs(event.position.x - xForHz(displayCutoff(band))); };
+    const int band = distanceTo(0) <= distanceTo(1) ? 0 : 1;
+    dragCutoff_ = processor_.parameters.getParameter(params::bandId(band, params::kCutoff));
+    dragResonance_ = processor_.parameters.getParameter(params::bandId(band, params::kResonance));
+    resonanceAtDragStart_ = dragResonance_->getValue();
+    dragCutoff_->beginChangeGesture();
+    dragResonance_->beginChangeGesture();
+    mouseDrag(event);
+}
+
+void ResponseView::mouseDrag(const juce::MouseEvent& event) {
+    if (dragCutoff_ == nullptr) {
+        return;
+    }
+    const auto plot = plotArea();
+    const float proportion = juce::jlimit(0.0f, 1.0f, (event.position.x - plot.getX()) / plot.getWidth());
+    const auto hz = static_cast<float>(kMinHz * std::pow(kMaxHz / kMinHz, static_cast<double>(proportion)));
+    dragCutoff_->setValueNotifyingHost(dragCutoff_->convertTo0to1(hz));
+    const float resonance = resonanceAtDragStart_ - static_cast<float>(event.getDistanceFromDragStartY()) / kResonanceDragPixels;
+    dragResonance_->setValueNotifyingHost(juce::jlimit(0.0f, 1.0f, resonance));
+}
+
+void ResponseView::mouseUp(const juce::MouseEvent&) {
+    if (dragCutoff_ == nullptr) {
+        return;
+    }
+    dragCutoff_->endChangeGesture();
+    dragResonance_->endChangeGesture();
+    dragCutoff_ = nullptr;
+    dragResonance_ = nullptr;
 }
 
 void ResponseView::paint(juce::Graphics& g) {
@@ -35,11 +89,7 @@ void ResponseView::paint(juce::Graphics& g) {
     g.setColour(theme::kPanelEdge);
     g.drawRoundedRectangle(bounds.reduced(0.5f), 8.0f, 1.0f);
 
-    const auto plot = bounds.reduced(14.0f, 12.0f);
-    const double logSpan = std::log(kMaxHz / kMinHz);
-    const auto xForHz = [&](double hz) {
-        return plot.getX() + plot.getWidth() * static_cast<float>(std::log(hz / kMinHz) / logSpan);
-    };
+    const auto plot = plotArea();
     const auto yForMagnitude = [&](double magnitude) {
         const auto db = static_cast<float>(juce::Decibels::gainToDecibels(magnitude, static_cast<double>(kMinDb)));
         return juce::jmap(juce::jlimit(kMinDb, kMaxDb, db), kMaxDb, kMinDb, plot.getY(), plot.getBottom());
@@ -61,6 +111,9 @@ void ResponseView::paint(juce::Graphics& g) {
         const float y = yForMagnitude(juce::Decibels::decibelsToGain(static_cast<double>(db)));
         g.setColour(db == 0.0f ? theme::kTrack : theme::kPanelEdge);
         g.drawHorizontalLine(juce::roundToInt(y), plot.getX(), plot.getRight());
+        g.setColour(theme::kTextDim.withAlpha(0.6f));
+        g.drawText((db > 0.0f ? "+" : "") + juce::String(juce::roundToInt(db)) + " dB",
+                   juce::Rectangle<float>(plot.getX() + 3.0f, y + 1.0f, 50.0f, 12.0f), juce::Justification::centredLeft);
     });
 
     const auto& state = processor_.parameters;
@@ -74,19 +127,13 @@ void ResponseView::paint(juce::Graphics& g) {
                                   value(band, params::kResonance), value(band, params::kWidth) };
     };
     const std::array<core::FilterShape, 2> shapes{ shapeFor(0), shapeFor(1) };
-    // Before the first processed block there is no modulated cutoff yet, so show the knob value.
-    const auto displayCutoff = [&](size_t band) {
-        const double modulated = processor_.displayCutoffs[band].load();
-        if (modulated > 0.0) {
-            return modulated;
-        }
-        return static_cast<double>(value(band, params::kCutoff));
-    };
     const std::array<double, 2> displayCutoffs{ displayCutoff(0), displayCutoff(1) };
     const std::array<juce::Colour, 2> accents{ theme::kAccentA, theme::kAccentB };
+    const double hostRate = processor_.getSampleRate() > 0.0 ? processor_.getSampleRate() : kFallbackSampleRate;
+    const double filterRate = hostRate * core::Oversampler::kFactor;
 
     const auto bandMagnitude = [&](size_t band, double hz) {
-        return core::MultiModeFilter::magnitudeAt(shapes[band], displayCutoffs[band], hz);
+        return core::MultiModeFilter::magnitudeAt(shapes[band], displayCutoffs[band], hz, filterRate);
     };
     const auto combinedMagnitude = [&](double hz) { return bandMagnitude(0, hz) * bandMagnitude(1, hz); };
     const auto curve = [&](const auto& magnitudeAt) {
