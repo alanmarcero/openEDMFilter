@@ -70,7 +70,12 @@ public:
 
 private:
     double sampleRate_ = 88200.0; // the oversampled rate
-    std::array<MultiModeFilter, kNumBands> filters_{};
+    // Two filters per band. A type or slope change starts the new one clean and crossfades from the old one.
+    std::array<std::array<MultiModeFilter, 2>, kNumBands> filters_{};
+    std::array<std::array<FilterShape, 2>, kNumBands> slotShapes_{};
+    std::array<int, kNumBands> activeSlot_{};
+    std::array<int, kNumBands> fadeRemaining_{};
+    int fadeSamples_ = 1;
     std::array<Lfo, kNumBands> lfos_{};
     std::array<EnvelopeFollower, kNumBands> envelopes_{};
     std::array<float, kNumBands> logCutoffs_{}; // smoothed, in log2 Hz

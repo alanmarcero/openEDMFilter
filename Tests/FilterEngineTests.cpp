@@ -105,3 +105,26 @@ TEST_CASE("Engine oversampling keeps drive harmonics from folding back", "[engin
     const double fundamental = toneLevel(output, 7000.0);
     REQUIRE(toneLevel(output, 13000.0) < fundamental * 1e-3);
 }
+
+TEST_CASE("Engine crossfades a filter type change instead of jumping", "[engine]") {
+    EngineSettings settings = transparentSettings();
+    settings.bands[0].shape = FilterShape{ true, FilterType::LowPass, FilterSlope::Slope24dB, 0.0f, 0.5f };
+    settings.bands[0].cutoffHz = 1000.0f;
+    auto samples = sine(100.0, kNumSamples);
+    float* channels[] = { samples.data() };
+
+    FilterEngine engine;
+    engine.prepare(kSampleRate);
+    engine.process(settings, Transport{}, channels, 1, kNumSamples / 2);
+    settings.bands[0].shape.type = FilterType::HighPass;
+    settings.bands[0].shape.slope = FilterSlope::Slope96dB;
+    float* secondHalf[] = { samples.data() + kNumSamples / 2 };
+    engine.process(settings, Transport{}, secondHalf, 1, kNumSamples / 2);
+
+    // A 0.5 amplitude 100 Hz sine moves at most 0.0066 per sample at 48 kHz.
+    float largestStep = 0.0f;
+    for (size_t i = kNumSamples / 4; i + 1 < samples.size(); ++i) {
+        largestStep = std::max(largestStep, std::abs(samples[i + 1] - samples[i]));
+    }
+    REQUIRE(largestStep < 0.01f);
+}

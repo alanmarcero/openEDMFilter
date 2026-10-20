@@ -15,6 +15,11 @@ constexpr double kInertiaSeconds = 0.03;
 constexpr double kFastSmoothingSeconds = 0.002;
 constexpr double kParameterSmoothingSeconds = 0.01;
 constexpr float kMinCrushRateHz = 50.0f;
+constexpr double kTopologyFadeSeconds = 0.01;
+
+bool topologyDiffers(const FilterShape& a, const FilterShape& b) noexcept {
+    return a.type != b.type || a.slope != b.slope;
+}
 
 float onePoleCoefficient(double seconds, double sampleRate) noexcept {
     return static_cast<float>(std::exp(-1.0 / (seconds * sampleRate)));
@@ -25,12 +30,14 @@ float onePoleCoefficient(double seconds, double sampleRate) noexcept {
 void FilterEngine::prepare(double sampleRate) noexcept {
     sampleRate_ = sampleRate * Oversampler::kFactor;
     parameterSmoothing_ = onePoleCoefficient(kParameterSmoothingSeconds, sampleRate);
+    fadeSamples_ = std::max(1, static_cast<int>(kTopologyFadeSeconds * sampleRate_));
     limiter_.prepare(sampleRate);
     reset();
 }
 
 void FilterEngine::reset() noexcept {
-    std::ranges::for_each(filters_, [](MultiModeFilter& filter) { filter.reset(); });
+    std::ranges::for_each(filters_, [](auto& slots) { slots = {}; });
+    fadeRemaining_ = {};
     std::ranges::for_each(envelopes_, [](EnvelopeFollower& envelope) { envelope.reset(); });
     crusher_.reset();
     oversampler_.reset();
@@ -56,6 +63,7 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
             [](const BandSettings& band) { return std::log2(band.cutoffHz); });
         mix_ = settings.mix;
         outputGain_ = settings.outputGain;
+        std::ranges::for_each(bandIndices, [&](int band) { slotShapes_[band][activeSlot_[band]] = settings.bands[band].shape; });
         needsSnap_ = false;
     }
 
@@ -98,8 +106,25 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
                 const float octaves = kModulationOctaves * (bandSettings.lfoDepth * lfoValue + bandSettings.envDepth * envelopeValue);
                 const float targetLogCutoff = std::log2(bandSettings.cutoffHz) + octaves;
                 logCutoffs_[band] = targetLogCutoff + cutoffSmoothing[band] * (logCutoffs_[band] - targetLogCutoff);
+                auto& slots = filters_[band];
+                auto& shapes = slotShapes_[band];
+                const FilterShape& live = bandSettings.shape;
+                if (fadeRemaining_[band] == 0 && topologyDiffers(shapes[activeSlot_[band]], live)) {
+                    activeSlot_[band] = 1 - activeSlot_[band];
+                    slots[activeSlot_[band]] = MultiModeFilter{};
+                    shapes[activeSlot_[band]] = live;
+                    fadeRemaining_[band] = fadeSamples_;
+                }
+                // A topology change during a fade waits for the fade to end. The other settings follow at once.
+                const int active = activeSlot_[band];
+                shapes[active] = { live.enabled, shapes[active].type, shapes[active].slope, live.resonance, live.width };
+
                 // FM skips the smoother, which would otherwise filter out audio-rate FM.
-                filters_[band].update(bandSettings.shape, std::exp2(logCutoffs_[band] + fmOctaves), sampleRate_);
+                const double cutoffHz = std::exp2(logCutoffs_[band] + fmOctaves);
+                slots[active].update(shapes[active], cutoffHz, sampleRate_);
+                if (fadeRemaining_[band] > 0) {
+                    slots[1 - active].update(shapes[1 - active], cutoffHz, sampleRate_);
+                }
                 return octaves + fmOctaves;
             });
 
@@ -123,11 +148,23 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
 
                 const float dry = upsampled[channel][phase];
                 const float preColoured = colour(dry, Placement::PreFilter);
-                const float filtered = filters_[1].process(channel, filters_[0].process(channel, preColoured));
+                const auto filterBand = [&](int band, float input) {
+                    auto& slots = filters_[band];
+                    const int active = activeSlot_[band];
+                    const float incoming = slots[active].process(channel, input);
+                    if (fadeRemaining_[band] == 0) {
+                        return incoming;
+                    }
+                    const float outgoing = slots[1 - active].process(channel, input);
+                    const float progress = 1.0f - static_cast<float>(fadeRemaining_[band]) / static_cast<float>(fadeSamples_);
+                    return outgoing + progress * (incoming - outgoing);
+                };
+                const float filtered = filterBand(1, filterBand(0, preColoured));
                 const float postColoured = colour(filtered, Placement::PostFilter);
                 const float ringModulated = postColoured + settings.ringMix * (postColoured * ringCarrier - postColoured);
                 upsampled[channel][phase] = (dry + mix_ * (ringModulated - dry)) * outputGain_;
             });
+            std::ranges::for_each(fadeRemaining_, [](int& remaining) { remaining = std::max(0, remaining - 1); });
         });
 
         std::ranges::for_each(channelIndices, [&](int channel) {
