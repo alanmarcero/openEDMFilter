@@ -1,0 +1,141 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths-ignore: ['**.md']
+  pull_request:
+    paths-ignore: ['**.md']
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ARTEFACTS: build/OpenEDMFilter_artefacts/Release
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Sign ad hoc
+        run: |
+          codesign --force --deep --sign - "$ARTEFACTS/VST3/openEDMFilter.vst3"
+          codesign --force --deep --sign - "$ARTEFACTS/AU/openEDMFilter.component"
+          codesign --force --deep --sign - "$ARTEFACTS/Standalone/openEDMFilter.app"
+
+      - name: Validate with pluginval
+        run: |
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_macOS.zip
+          unzip -q pluginval.zip
+          ./pluginval.app/Contents/MacOS/pluginval --strictness-level 5 --validate "$ARTEFACTS/VST3/openEDMFilter.vst3"
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          ditto "$ARTEFACTS/VST3/openEDMFilter.vst3" "dist/openEDMFilter.vst3"
+          ditto "$ARTEFACTS/AU/openEDMFilter.component" "dist/openEDMFilter.component"
+          ditto "$ARTEFACTS/LV2/openEDMFilter.lv2" "dist/openEDMFilter.lv2"
+          ditto "$ARTEFACTS/Standalone/openEDMFilter.app" "dist/openEDMFilter.app"
+          ditto -c -k dist openEDMFilter-macOS.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openEDMFilter-macOS
+          path: openEDMFilter-macOS.zip
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Unit tests
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Validate with pluginval
+        run: |
+          Invoke-WebRequest -Uri https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_Windows.zip -OutFile pluginval.zip
+          Expand-Archive pluginval.zip -DestinationPath pluginval
+          ./pluginval/pluginval.exe --strictness-level 5 --validate "$env:ARTEFACTS/VST3/openEDMFilter.vst3"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package
+        run: |
+          New-Item -ItemType Directory -Path dist | Out-Null
+          Copy-Item -Recurse "$env:ARTEFACTS/VST3/openEDMFilter.vst3" dist/
+          Copy-Item -Recurse "$env:ARTEFACTS/LV2/openEDMFilter.lv2" dist/
+          Copy-Item "$env:ARTEFACTS/Standalone/openEDMFilter.exe" dist/
+          Compress-Archive -Path dist/* -DestinationPath openEDMFilter-Windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openEDMFilter-Windows
+          path: openEDMFilter-Windows.zip
+
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libjack-jackd2-dev libfreetype-dev libfontconfig1-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev \
+            libxrender-dev libglu1-mesa-dev mesa-common-dev
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp -r "$ARTEFACTS/VST3/openEDMFilter.vst3" "$ARTEFACTS/LV2/openEDMFilter.lv2" dist/
+          cp "$ARTEFACTS/Standalone/openEDMFilter" dist/
+          (cd dist && zip -qr ../openEDMFilter-Linux.zip .)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openEDMFilter-Linux
+          path: openEDMFilter-Linux.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos, windows, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: openEDMFilter-*.zip
+          generate_release_notes: true
