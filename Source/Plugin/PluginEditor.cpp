@@ -2,6 +2,7 @@
 #include "Parameters.h"
 #include "Presets.h"
 #include "Theme.h"
+#include "BinaryData.h"
 
 namespace {
 
@@ -25,6 +26,7 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
       bandB_(processorToEdit.parameters, 1),
       effects_(processorToEdit.parameters) {
     setLookAndFeel(&lookAndFeel_);
+    faceplate_ = juce::ImageCache::getFromMemory(BinaryData::analogcyberfaceplate_png, BinaryData::analogcyberfaceplate_pngSize);
 
     const auto& presets = openedm::presets::factoryPresets();
     std::ranges::for_each(presets, [&, id = 1](const auto& preset) mutable { presetBox_.addItem(preset.name, id++); });
@@ -47,8 +49,13 @@ OpenEdmFilterEditor::~OpenEdmFilterEditor() {
 
 void OpenEdmFilterEditor::paint(juce::Graphics& g) {
     g.fillAll(theme::kBackground);
+    g.setOpacity(0.75f);
+    g.drawImage(faceplate_, getLocalBounds().toFloat(), juce::RectanglePlacement::stretchToFit);
+    g.setOpacity(1.0f);
+    g.setColour(theme::kPanelEdge);
+    g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(4), 5, 1);
 
-    const auto header = getLocalBounds().reduced(kMargin, 0).removeFromTop(kHeaderHeight + kMargin).withTrimmedTop(kMargin);
+    const auto header = getLocalBounds().reduced(kMargin, 0).removeFromTop(kHeaderHeight + kMargin).withTrimmedTop(kMargin).withHeight(28);
     g.setFont(juce::FontOptions(24.0f, juce::Font::bold));
     g.setColour(theme::kText);
     g.drawText("open", header, juce::Justification::centredLeft);
@@ -61,7 +68,7 @@ void OpenEdmFilterEditor::paint(juce::Graphics& g) {
 
     g.setFont(juce::FontOptions(11.0f));
     g.setColour(theme::kTextDim);
-    g.drawText("DUAL MULTIMODE FILTER  /  12-96 dB  /  LFO  /  ENVELOPE  /  FM", header.withTrimmedLeft(200),
+    g.drawText("Dual multimode filter  /  12-96 dB  /  LFO / Envelope / FM", header.translated(2, 28).withHeight(14).withWidth(590),
                juce::Justification::centredLeft);
 }
 
