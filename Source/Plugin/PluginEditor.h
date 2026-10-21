@@ -15,6 +15,7 @@ public:
 private:
     OpenEdmFilterProcessor& processor_;
     openedm::ui::EdmLookAndFeel lookAndFeel_;
+    juce::Image faceplate_;
     juce::ComboBox presetBox_;
     openedm::ui::Toggle inertia_;
     openedm::ui::ResponseView response_;

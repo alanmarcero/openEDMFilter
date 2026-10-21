@@ -58,11 +58,15 @@ void EdmLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int width
 
     const float bodyRadius = arcRadius - kArcThickness - 2.0f;
     const auto body = juce::Rectangle<float>(bodyRadius * 2.0f, bodyRadius * 2.0f).withCentre(centre);
-    g.setGradientFill(juce::ColourGradient(theme::kKnobBody.brighter(0.15f), centre.x, body.getY(),
+    g.setColour(juce::Colours::black.withAlpha(0.5f));
+    g.fillEllipse(body.translated(0, 2));
+    g.setGradientFill(juce::ColourGradient(theme::kKnobBody.brighter(0.65f), centre.x, body.getY(),
                                            theme::kKnobBody.darker(0.4f), centre.x, body.getBottom(), false));
     g.fillEllipse(body);
-    g.setColour(theme::kPanelEdge);
+    g.setColour(theme::kTextDim.withAlpha(0.65f));
     g.drawEllipse(body, 1.0f);
+    g.setColour(theme::kBackground.withAlpha(0.6f));
+    g.drawEllipse(body.reduced(2.0f), 1.0f);
 
     const auto tip = centre.getPointOnCircumference(bodyRadius - 3.0f, valueAngle);
     const auto tail = centre.getPointOnCircumference(bodyRadius * 0.35f, valueAngle);

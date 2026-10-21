@@ -4,16 +4,16 @@
 
 namespace openedm::theme {
 
-inline const juce::Colour kBackground{ 0xff0b0d12 };
-inline const juce::Colour kPanel{ 0xff141821 };
-inline const juce::Colour kPanelEdge{ 0xff232a37 };
-inline const juce::Colour kKnobBody{ 0xff1d222d };
-inline const juce::Colour kTrack{ 0xff2a3140 };
-inline const juce::Colour kText{ 0xffe2e6ee };
-inline const juce::Colour kTextDim{ 0xff7b8496 };
-inline const juce::Colour kAccentA{ 0xff2fe0ff };
-inline const juce::Colour kAccentB{ 0xffff4fa8 };
-inline const juce::Colour kAccentFx{ 0xffb4ff48 };
-inline const juce::Colour kAccentOut{ 0xffffc14a };
+inline const juce::Colour kBackground{ 0xff0f1518 };
+inline const juce::Colour kPanel{ 0xf21b2327 };
+inline const juce::Colour kPanelEdge{ 0xff3b474a };
+inline const juce::Colour kKnobBody{ 0xff252f32 };
+inline const juce::Colour kTrack{ 0xff3c494c };
+inline const juce::Colour kText{ 0xffeee9df };
+inline const juce::Colour kTextDim{ 0xffa6b2b4 };
+inline const juce::Colour kAccentA{ 0xff83d4d0 };
+inline const juce::Colour kAccentB{ 0xffd7ac7b };
+inline const juce::Colour kAccentFx{ 0xffa6bb97 };
+inline const juce::Colour kAccentOut{ 0xffdfc390 };
 
 } // namespace openedm::theme

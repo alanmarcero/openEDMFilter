@@ -31,6 +31,9 @@ if(OEF_BUILD_PLUGIN)
         GIT_SHALLOW TRUE)
     FetchContent_MakeAvailable(juce)
 
+    juce_add_binary_data(FilterAssets SOURCES assets/analog-cyber-faceplate.png)
+    set_target_properties(FilterAssets PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
     juce_add_plugin(OpenEDMFilter
         COMPANY_NAME "Alan Marcero"
         BUNDLE_ID "com.alanmarcero.openedmfilter"
@@ -69,6 +72,7 @@ if(OEF_BUILD_PLUGIN)
     target_link_libraries(OpenEDMFilter
         PRIVATE
             openedm_core
+            FilterAssets
             juce::juce_audio_processors
             juce::juce_audio_utils
             juce::juce_gui_basics

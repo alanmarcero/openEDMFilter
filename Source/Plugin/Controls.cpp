@@ -81,7 +81,7 @@ void layoutRow(juce::Rectangle<int> area, std::initializer_list<juce::Component*
 
 void drawPanel(juce::Graphics& g, juce::Rectangle<int> area, const juce::String& title, juce::Colour accent) {
     const auto bounds = area.toFloat();
-    g.setColour(theme::kPanel);
+    g.setGradientFill(juce::ColourGradient(theme::kPanel.brighter(0.06f), bounds.getTopLeft(), theme::kPanel.darker(0.16f), bounds.getBottomLeft(), false));
     g.fillRoundedRectangle(bounds, 8.0f);
     g.setColour(theme::kPanelEdge);
     g.drawRoundedRectangle(bounds.reduced(0.5f), 8.0f, 1.0f);

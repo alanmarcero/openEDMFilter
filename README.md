@@ -2,7 +2,7 @@
 
 A dual multimode filter plugin for EDM production. It covers the feature set of Vengeance Producer Suite Philta XL with a new UI. Builds VST3, AU, LV2 and Standalone for macOS, Windows and Linux.
 
-![openEDMFilter](assets/screenshot.png)
+![openEDMFilter](assets/analog-cyber-preview.png)
 
 ## Features
 
