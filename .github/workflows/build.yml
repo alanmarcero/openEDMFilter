@@ -50,6 +50,7 @@ jobs:
           ditto "$ARTEFACTS/AU/openEDMFilter.component" "dist/openEDMFilter.component"
           ditto "$ARTEFACTS/LV2/openEDMFilter.lv2" "dist/openEDMFilter.lv2"
           ditto "$ARTEFACTS/Standalone/openEDMFilter.app" "dist/openEDMFilter.app"
+          python3 scripts/package_notices.py dist
           ditto -c -k dist openEDMFilter-macOS.zip
 
       - uses: actions/upload-artifact@v4
@@ -63,7 +64,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Configure
-        run: cmake -B build
+        run: cmake -B build -A x64
 
       - name: Build
         run: cmake --build build --config Release --parallel
@@ -84,6 +85,8 @@ jobs:
           Copy-Item -Recurse "$env:ARTEFACTS/VST3/openEDMFilter.vst3" dist/
           Copy-Item -Recurse "$env:ARTEFACTS/LV2/openEDMFilter.lv2" dist/
           Copy-Item "$env:ARTEFACTS/Standalone/openEDMFilter.exe" dist/
+          python scripts/package_notices.py dist
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Compress-Archive -Path dist/* -DestinationPath openEDMFilter-Windows.zip
 
       - uses: actions/upload-artifact@v4
@@ -117,6 +120,7 @@ jobs:
           mkdir -p dist
           cp -r "$ARTEFACTS/VST3/openEDMFilter.vst3" "$ARTEFACTS/LV2/openEDMFilter.lv2" dist/
           cp "$ARTEFACTS/Standalone/openEDMFilter" dist/
+          python3 scripts/package_notices.py dist
           (cd dist && zip -qr ../openEDMFilter-Linux.zip .)
 
       - uses: actions/upload-artifact@v4
