@@ -273,6 +273,9 @@ void EffectsPanel::paint(juce::Graphics& g) {
     std::ranges::for_each(sections_, [&](const Section& section) {
         drawPanel(g, section.area, section.title, section.accent);
     });
+    g.setFont(juce::FontOptions(10.0f));
+    g.setColour(theme::kTextDim);
+    g.drawText("v1.1.0", getLocalBounds().reduced(8, 2), juce::Justification::bottomRight);
 }
 
 void EffectsPanel::resized() {
