@@ -34,7 +34,7 @@ VST2 and AAX are not built by this project.
 3. Choose **openEDMFilter**, select **VST3** (or **AU** on macOS), and install.
 4. Rescan plugins in your DAW. If you chose a custom install folder, add it to the DAW's search paths.
 
-For manual installation, download your platform ZIP from [v1.1.0 Releases](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.1.0). The macOS package is universal (Apple Silicon/Intel), with a macOS 11 deployment target. Windows and Linux packages are x64.
+For manual installation, download your platform ZIP from [v1.1.1 Releases](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.1.1). The macOS package is universal (Apple Silicon/Intel), with a macOS 11 deployment target. Windows and Linux packages are x64.
 
 | Format | macOS | Windows | Linux |
 | --- | --- | --- | --- |

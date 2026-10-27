@@ -275,7 +275,7 @@ void EffectsPanel::paint(juce::Graphics& g) {
     });
     g.setFont(juce::FontOptions(10.0f));
     g.setColour(theme::kTextDim);
-    g.drawText("v1.1.0", getLocalBounds().reduced(8, 2), juce::Justification::bottomRight);
+    g.drawText("v" JucePlugin_VersionString, getLocalBounds().reduced(8, 2), juce::Justification::bottomRight);
 }
 
 void EffectsPanel::resized() {
