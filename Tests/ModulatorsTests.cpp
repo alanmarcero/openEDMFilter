@@ -6,6 +6,7 @@
 using namespace openedm::core;
 using namespace openedm::test;
 using Catch::Matchers::WithinAbs;
+using Catch::Matchers::WithinRel;
 
 TEST_CASE("LFO shapes at a quarter cycle", "[lfo]") {
     REQUIRE_THAT(Lfo::valueAt(LfoShape::Sine, 0.25), WithinAbs(1.0, 1e-6));
@@ -31,6 +32,59 @@ TEST_CASE("LFO advances by the phase increment after each value", "[lfo]") {
     const float second = lfo.next(LfoShape::SawUp, 0.25);
     REQUIRE_THAT(first, WithinAbs(-1.0, 1e-6));
     REQUIRE_THAT(second, WithinAbs(-0.5, 1e-6));
+}
+
+TEST_CASE("AutoSweep locks phase to 4, 8, 16, 32 and 64 bar windows across time signatures", "[autosweep]") {
+    for (int bars : { 4, 8, 16, 32, 64 }) {
+        for (double beatsPerBar : { 4.0, 3.0, 2.0, 5.0, 3.5, 6.0 }) {
+            AutoSweep sweep;
+            const double quarterWayPpq = 0.25 * beatsPerBar * static_cast<double>(bars);
+            sweep.syncToTransport(quarterWayPpq, beatsPerBar, bars);
+            REQUIRE_THAT(sweep.phase(), WithinAbs(0.25, 1e-6));
+
+            // Full window plus half wraps back to 0.5
+            sweep.syncToTransport(1.5 * beatsPerBar * static_cast<double>(bars), beatsPerBar, bars);
+            REQUIRE_THAT(sweep.phase(), WithinAbs(0.5, 1e-6));
+        }
+    }
+}
+
+TEST_CASE("AutoSweep EveryBar mode repeats the slope on every bar in the window", "[autosweep]") {
+    REQUIRE_THAT(AutoSweep::progressAt(SweepMode::EveryBar, 8, 0.25 / 8.0), WithinAbs(0.25, 1e-6));
+    REQUIRE_THAT(AutoSweep::progressAt(SweepMode::EveryBar, 8, 3.25 / 8.0), WithinAbs(0.25, 1e-6));
+    REQUIRE_THAT(AutoSweep::progressAt(SweepMode::EveryBar, 16, 7.75 / 16.0), WithinAbs(0.75, 1e-6));
+}
+
+TEST_CASE("AutoSweep slope curvature round-trips midpoint fractions", "[autosweep]") {
+    for (float fraction : { 0.1f, 0.25f, 0.5f, 0.75f, 0.9f }) {
+        const float slope = AutoSweep::slopeFromMidpoint(fraction);
+        REQUIRE_THAT(AutoSweep::applySlope(0.5f, slope), WithinAbs(fraction, 1e-4));
+    }
+}
+
+TEST_CASE("AutoSweep interpolates cutoff in octaves and resonance linearly with Mirror support", "[autosweep]") {
+    AutoSweepSettings settings;
+    settings.enabled = true;
+    settings.target = SweepTarget::Mirror;
+    settings.bars = 8;
+    settings.mode = SweepMode::BarWindow;
+    settings.cutoffStartHz = 100.0f;
+    settings.cutoffEndHz = 1600.0f;
+    settings.cutoffSlope = 0.0f;
+    settings.resonanceStart = 0.2f;
+    settings.resonanceEnd = 0.8f;
+    settings.resonanceSlope = 0.0f;
+
+    const SweepValue midA = AutoSweep::valueAt(settings, 0, 0.5);
+    REQUIRE_THAT(midA.cutoffHz, WithinRel(400.0f, 1e-4f));
+    REQUIRE_THAT(midA.resonance, WithinAbs(0.5f, 1e-5f));
+
+    const SweepValue quarterA = AutoSweep::valueAt(settings, 0, 0.25);
+    const SweepValue quarterB = AutoSweep::valueAt(settings, 1, 0.25);
+    REQUIRE_THAT(quarterA.cutoffHz, WithinRel(200.0f, 1e-4f));
+    REQUIRE_THAT(quarterB.cutoffHz, WithinRel(800.0f, 1e-4f));
+    REQUIRE_THAT(quarterA.resonance, WithinAbs(0.35f, 1e-5f));
+    REQUIRE_THAT(quarterB.resonance, WithinAbs(0.65f, 1e-5f));
 }
 
 TEST_CASE("Envelope follower rises on a loud signal at its source frequency", "[envelope]") {

@@ -32,10 +32,16 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
+    [[nodiscard]] openedm::core::AutoSweepSettings currentSweepSettings() const noexcept;
+
     juce::AudioProcessorValueTreeState parameters;
 
-    // Modulated cutoffs for the response display, written by the audio thread.
+    // Modulated cutoffs, resonances, sweep phase and active tempo for the UI, written by the audio thread.
     std::array<std::atomic<float>, openedm::core::FilterEngine::kNumBands> displayCutoffs{};
+    std::array<std::atomic<float>, openedm::core::FilterEngine::kNumBands> displayResonances{ -1.0f, -1.0f };
+    std::atomic<float> displaySweepPhase{ 0.0f };
+    std::atomic<float> displayBpm{ 128.0f };
+    std::atomic<float> displayBeatsPerBar{ 4.0f };
 
 private:
     struct BandParameters {
@@ -73,6 +79,19 @@ private:
         std::atomic<float>* limiter;
         std::atomic<float>* ceiling;
         std::atomic<float>* inertia;
+        std::atomic<float>* clockSync;
+        std::atomic<float>* tempoBpm;
+        std::atomic<float>* timeSignature;
+        std::atomic<float>* sweepEnabled;
+        std::atomic<float>* sweepTarget;
+        std::atomic<float>* sweepBars;
+        std::atomic<float>* sweepMode;
+        std::atomic<float>* sweepCutoffStart;
+        std::atomic<float>* sweepCutoffEnd;
+        std::atomic<float>* sweepCutoffSlope;
+        std::atomic<float>* sweepResStart;
+        std::atomic<float>* sweepResEnd;
+        std::atomic<float>* sweepResSlope;
     };
 
     ParameterValues values_;

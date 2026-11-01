@@ -18,7 +18,7 @@ struct BandSettings {
     FilterShape shape{};
     float cutoffHz = 1000.0f;
     LfoShape lfoShape = LfoShape::Sine;
-    double lfoBeats = 4.0; // beats per LFO cycle
+    double lfoBeats = 4.0; // beats per LFO cycle (in 4/4 quarter notes; >= 4 scales with time signature bars)
     float lfoDepth = 0.0f; // -1..1
     float envSourceHz = 1000.0f;
     float envAttackMs = 5.0f;
@@ -44,11 +44,13 @@ struct EngineSettings {
     bool limiterEnabled = true;
     float ceiling = 1.0f;
     bool inertia = true; // slows cutoff moves on 48 and 96 dB slopes so they stay click-free
+    AutoSweepSettings sweep{};
 };
 
 struct Transport {
     double bpm = 120.0;
-    std::optional<double> ppqPosition; // set only while the host is playing
+    std::optional<double> ppqPosition; // set only while synced to a playing host
+    double beatsPerBar = 4.0;          // quarter-note beats per bar for the active time signature
 };
 
 // Full signal chain: drive and crush (pre or post), band A into band B, ring mod, dry/wet, output, limiter.
@@ -65,8 +67,10 @@ public:
     void process(const EngineSettings& settings, const Transport& transport,
                  float* const* channels, int numChannels, int numSamples) noexcept;
 
-    // Modulated cutoff of each band at the end of the last block.
+    // Modulated cutoff and resonance of each band at the end of the last block.
     [[nodiscard]] std::array<float, kNumBands> currentCutoffs() const noexcept;
+    [[nodiscard]] std::array<float, kNumBands> currentResonances() const noexcept { return resonances_; }
+    [[nodiscard]] float currentSweepPhase() const noexcept { return static_cast<float>(sweep_.phase()); }
 
 private:
     double sampleRate_ = 88200.0; // the oversampled rate
@@ -77,8 +81,10 @@ private:
     std::array<int, kNumBands> fadeRemaining_{};
     int fadeSamples_ = 1;
     std::array<Lfo, kNumBands> lfos_{};
+    AutoSweep sweep_{};
     std::array<EnvelopeFollower, kNumBands> envelopes_{};
     std::array<float, kNumBands> logCutoffs_{}; // smoothed, in log2 Hz
+    std::array<float, kNumBands> resonances_{};
     BitCrusher crusher_{};
     Oversampler oversampler_{};
     PeakLimiter limiter_{};

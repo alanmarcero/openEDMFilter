@@ -19,6 +19,7 @@ private:
     juce::ComboBox presetBox_;
     openedm::ui::Toggle inertia_;
     openedm::ui::ResponseView response_;
+    openedm::ui::SweepPanel sweep_;
     openedm::ui::BandPanel bandA_;
     openedm::ui::BandPanel bandB_;
     openedm::ui::EffectsPanel effects_;

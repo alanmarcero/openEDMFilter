@@ -84,6 +84,37 @@ TEST_CASE("Engine LFO synced to the transport sets the cutoff from the bar posit
     REQUIRE_THAT(engine.currentCutoffs()[0], WithinRel(2000.0f, 0.02f));
 }
 
+TEST_CASE("Engine AutoSweep sweeps cutoff and resonance across filter types and time signatures", "[engine]") {
+    for (FilterType type : { FilterType::LowPass, FilterType::HighPass, FilterType::BandPass, FilterType::Notch }) {
+        for (double beatsPerBar : { 4.0, 3.0, 3.5 }) {
+            EngineSettings settings = transparentSettings();
+            settings.bands[0].shape = FilterShape{ true, type, FilterSlope::Slope24dB, 0.1f, 0.5f };
+            settings.sweep.enabled = true;
+            settings.sweep.target = SweepTarget::BandA;
+            settings.sweep.bars = 8;
+            settings.sweep.mode = SweepMode::BarWindow;
+            settings.sweep.cutoffStartHz = 200.0f;
+            settings.sweep.cutoffEndHz = 3200.0f;
+            settings.sweep.cutoffSlope = 0.0f;
+            settings.sweep.resonanceStart = 0.2f;
+            settings.sweep.resonanceEnd = 0.8f;
+            settings.sweep.resonanceSlope = 0.0f;
+
+            std::vector<float> samples(kNumSamples, 0.0f);
+            float* channels[] = { samples.data() };
+            FilterEngine engine;
+            engine.prepare(kSampleRate);
+
+            // Halfway through an 8-bar window in the active time signature
+            const double halfCyclePpq = 4.0 * beatsPerBar;
+            engine.process(settings, Transport{ 120.0, halfCyclePpq, beatsPerBar }, channels, 1, kNumSamples);
+
+            REQUIRE_THAT(engine.currentCutoffs()[0], WithinRel(800.0f, 0.03f));
+            REQUIRE_THAT(engine.currentResonances()[0], WithinAbs(0.5f, 0.02f));
+        }
+    }
+}
+
 TEST_CASE("Engine cutoff FM reaches audio rate", "[engine]") {
     EngineSettings settings = transparentSettings();
     settings.bands[0].shape = FilterShape{ true, FilterType::LowPass, FilterSlope::Slope12dB, 0.0f, 0.5f };

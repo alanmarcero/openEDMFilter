@@ -6,7 +6,7 @@
 
 namespace openedm::ui {
 
-// Live response curve of both filters, including LFO, envelope and FM movement.
+// Live response curve of both filters, including LFO, envelope, FM and multi-bar auto-sweep movement.
 // Dragging a band's marker sets its cutoff (horizontal) and resonance (vertical).
 class ResponseView : public juce::Component, private juce::Timer {
 public:
@@ -21,11 +21,79 @@ private:
     [[nodiscard]] juce::Rectangle<float> plotArea() const;
     [[nodiscard]] float xForHz(double hz) const;
     [[nodiscard]] double displayCutoff(int band) const;
+    [[nodiscard]] float displayResonance(int band) const;
 
     OpenEdmFilterProcessor& processor_;
     juce::RangedAudioParameter* dragCutoff_ = nullptr;
     juce::RangedAudioParameter* dragResonance_ = nullptr;
     float resonanceAtDragStart_ = 0.0f;
+};
+
+// Interactive multi-bar slope editor for cutoff and resonance trajectories.
+// Dragging the start, midpoint or end handles edits the cutoff and resonance slopes in real time.
+class SweepSlopeEditor : public juce::Component, private juce::Timer {
+public:
+    explicit SweepSlopeEditor(OpenEdmFilterProcessor& processor);
+    void paint(juce::Graphics& g) override;
+    void mouseDown(const juce::MouseEvent& event) override;
+    void mouseDrag(const juce::MouseEvent& event) override;
+    void mouseUp(const juce::MouseEvent& event) override;
+    void mouseDoubleClick(const juce::MouseEvent& event) override;
+
+private:
+    enum class Handle {
+        None,
+        CutoffStart,
+        CutoffSlope,
+        CutoffEnd,
+        ResStart,
+        ResSlope,
+        ResEnd
+    };
+
+    void timerCallback() override { repaint(); }
+    [[nodiscard]] static const char* parameterIdForHandle(Handle handle) noexcept;
+    [[nodiscard]] juce::Rectangle<float> plotArea() const;
+    [[nodiscard]] float yForHz(float hz) const;
+    [[nodiscard]] float hzForY(float y) const;
+    [[nodiscard]] float yForNormalized(float value) const;
+    [[nodiscard]] float normalizedForY(float y) const;
+    [[nodiscard]] std::pair<float, float> handlePhases(openedm::core::SweepMode mode, int bars) const;
+    [[nodiscard]] juce::Point<float> handlePosition(Handle handle, const openedm::core::AutoSweepSettings& settings) const;
+
+    OpenEdmFilterProcessor& processor_;
+    Handle activeHandle_ = Handle::None;
+    juce::RangedAudioParameter* activeParameter_ = nullptr;
+    float slopeAtDragStart_ = 0.0f;
+};
+
+class SweepPanel : public juce::Component {
+public:
+    explicit SweepPanel(OpenEdmFilterProcessor& processor);
+    void paint(juce::Graphics& g) override;
+    void resized() override;
+
+private:
+    OpenEdmFilterProcessor& processor_;
+    Toggle enabled_;
+    Toggle clockSync_;
+    Choice timeSig_;
+    Choice bars_;
+    Choice mode_;
+    Choice target_;
+    juce::ComboBox slopePresetBox_;
+    Knob tempo_;
+    SweepSlopeEditor slopeEditor_;
+    Knob cutoffStart_;
+    Knob cutoffEnd_;
+    Knob cutoffSlope_;
+    Knob resStart_;
+    Knob resEnd_;
+    Knob resSlope_;
+    juce::Rectangle<int> clockArea_;
+    juce::Rectangle<int> editorArea_;
+    juce::Rectangle<int> cutoffArea_;
+    juce::Rectangle<int> resArea_;
 };
 
 class BandPanel : public juce::Component {

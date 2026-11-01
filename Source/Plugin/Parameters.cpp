@@ -1,4 +1,5 @@
 #include "Parameters.h"
+#include <algorithm>
 
 namespace openedm::params {
 
@@ -20,6 +21,7 @@ const Formatter kFormatMs = [](float ms, int) {
     return (ms < 10.0f ? juce::String(ms, 1) : juce::String(juce::roundToInt(ms))) + " ms";
 };
 const Formatter kFormatDb = [](float db, int) { return juce::String(db, 1) + " dB"; };
+const Formatter kFormatBpm = [](float bpm, int) { return juce::String(bpm, 1) + " BPM"; };
 
 juce::NormalisableRange<float> skewedRange(float min, float max, float centre) {
     juce::NormalisableRange<float> range(min, max);
@@ -65,6 +67,12 @@ void addBand(Layout& layout, int band) {
 
 } // namespace
 
+double beatsPerBarForSignature(int index) noexcept {
+    const auto safeIndex = static_cast<size_t>(std::clamp(index, 0, static_cast<int>(kTimeSignatures.size()) - 1));
+    const auto [numerator, denominator] = kTimeSignatures[safeIndex];
+    return static_cast<double>(numerator) * (4.0 / static_cast<double>(denominator));
+}
+
 juce::String formatHz(float hz) {
     if (hz >= 1000.0f) {
         return juce::String(hz / 1000.0f, 2) + " kHz";
@@ -99,6 +107,21 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     addBool(layout, kLimiter, "Limiter", true);
     addFloat(layout, kCeiling, "Ceiling", { -24.0f, 0.0f }, -0.3f, kFormatDb);
     addBool(layout, kInertia, "Filter Inertia", true);
+
+    addBool(layout, kClockSync, "Clock Sync", true);
+    addFloat(layout, kTempoBpm, "Tempo", { 40.0f, 240.0f }, 128.0f, kFormatBpm);
+    addChoice(layout, kTimeSignature, "Time Signature",
+              { "4/4", "3/4", "2/4", "5/4", "6/4", "6/8", "7/8", "9/8", "12/8" }, 0);
+    addBool(layout, kSweepEnabled, "Auto Sweep", false);
+    addChoice(layout, kSweepTarget, "Sweep Target", { "Filter A", "Filter B", "Both A+B", "A/B Mirror" }, 0);
+    addChoice(layout, kSweepBars, "Sweep Bars", { "4 Bars", "8 Bars", "16 Bars", "32 Bars", "64 Bars" }, 1);
+    addChoice(layout, kSweepMode, "Sweep Mode", { "Bar Window", "Every Bar", "Up & Down", "Bar + Macro" }, 0);
+    addFloat(layout, kSweepCutoffStart, "Sweep Cutoff Start", skewedRange(20.0f, 20000.0f, 632.0f), 80.0f, kFormatHz);
+    addFloat(layout, kSweepCutoffEnd, "Sweep Cutoff End", skewedRange(20.0f, 20000.0f, 632.0f), 16000.0f, kFormatHz);
+    addFloat(layout, kSweepCutoffSlope, "Sweep Cutoff Slope", { -1.0f, 1.0f }, 0.0f, kFormatBipolar);
+    addFloat(layout, kSweepResStart, "Sweep Res Start", { 0.0f, 1.0f }, 0.15f, kFormatPercent);
+    addFloat(layout, kSweepResEnd, "Sweep Res End", { 0.0f, 1.0f }, 0.65f, kFormatPercent);
+    addFloat(layout, kSweepResSlope, "Sweep Res Slope", { -1.0f, 1.0f }, 0.0f, kFormatBipolar);
     return layout;
 }
 

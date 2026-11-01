@@ -2,16 +2,20 @@
 
 [Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest)
 
-A dual multimode filter plugin for EDM production. It provides two serial filters, tempo and envelope modulation, distortion and output limiting. Release packages contain VST3, LV2 and a standalone app on macOS, Windows and Linux; macOS also includes AU.
+A dual multimode filter plugin for EDM production. It provides two serial filters, multi-bar tempo/time-signature-synced cutoff and resonance auto-sweeps with an interactive slope editor, LFO and envelope modulation, distortion and output limiting. Release packages contain VST3, LV2 and a standalone app on macOS, Windows and Linux; macOS also includes AU.
 
 ![openEDMFilter native editor](assets/native-ui.png)
 
-*Captured from the released v1.1.0 VST3 editor. [Capture details and provenance](docs/SCREENSHOTS.md).*
+*Captured from the released VST3 editor. [Capture details and provenance](docs/SCREENSHOTS.md).*
 
 ## Features
 
 - Two filters in series (A into B). Each one has low-pass, high-pass, band-pass and notch modes, 12, 24, 48 or 96 dB/oct slopes, resonance, and resonance width. Width also sets the band for band-pass and notch.
 - Full bypass per filter. The BYPASS button crossfades over 10 ms so it does not click. A fully bypassed filter does no processing, and its curve leaves the display.
+- **Tempo / Clock Sync & Time Signature engine**. Lock to the host DAW transport (`HOST SYNC`) or run on the internal clock (`40–240 BPM`) across any time signature (`4/4`, `3/4`, `2/4`, `5/4`, `6/4`, `6/8`, `7/8`, `9/8`, `12/8`, or automatic host time signature).
+- **4, 8, 16, 32, and 64 Bar Auto-Cutoff & Auto-Resonance Sweep**. Continuously loops the cutoff and resonance slope trajectories across the selected bar timeframe (`Bar Window`, `Every Bar`, `Up & Down`, or `Bar + Macro`), targeting Filter A, Filter B, Both A+B, or A/B Mirror across every filter type and slope.
+- **Interactive Slope Editor**. Drag the start, curve midpoint, and end handles directly on the multi-bar graph (or use the dedicated Cutoff and Resonance `Start`, `End`, and `Slope` knobs) to shape exponential risers, logarithmic drops, and linear sweeps in real time. Double-click a midpoint handle to reset its curvature to linear.
+- **EDM Sweep Presets**. Includes factory presets and quick in-panel slope presets for EDM low-pass, high-pass, band-pass, and notch sweep ups, sweep downs, acid bar pumps, and 32/64-bar builds.
 - Tempo-synced LFO per filter. Five shapes (sine, triangle, saw up, saw down, square), rates from 1/32 to 8 bars with triplets, and bipolar depth. While the host plays, the phase locks to the host transport, so the LFO lands on the same point of the bar on every pass.
 - Envelope follower per filter. It has a source frequency (it listens to a band of the input), attack, release, and bipolar depth.
 - Cutoff FM. A sine oscillator modulates both cutoffs, up to audio rate.
@@ -20,8 +24,8 @@ A dual multimode filter plugin for EDM production. It provides two serial filter
 - Ring modulator with frequency and mix controls.
 - Output section. Dry/wet, gain, and a stereo-linked lookahead peak limiter with a ceiling.
 - Filter inertia. This smooths cutoff moves on 48 and 96 dB slopes to stop clicks. Turn it off for faster, harder gating.
-- 18 factory presets, available from the preset menu and as host programs.
-- Live response display. It shows both curves and the combined curve, and follows the LFO, envelope and FM in real time. Drag a band's marker to set its cutoff (left and right) and resonance (up and down).
+- 30 factory presets, available from the preset menu and as host programs, plus 9 quick slope presets in the Auto-Sweep panel.
+- Live response display. It shows both curves and the combined curve, and follows the Auto-Sweep, LFO, envelope and FM in real time. Drag a band's marker to set its cutoff (left and right) and resonance (up and down).
 - 2x oversampling. Everything before the limiter runs at twice the host rate, so drive, ring mod and fast FM alias less. The plugin reports 110 samples of latency (47 for the oversampler, 63 for the limiter lookahead), so hosts compensate for it.
 - All parameters can be automated in the host.
 
@@ -34,7 +38,7 @@ VST2 and AAX are not built by this project.
 3. Choose **openEDMFilter**, select **VST3** (or **AU** on macOS), and install.
 4. Rescan plugins in your DAW. If you chose a custom install folder, add it to the DAW's search paths.
 
-For manual installation, download your platform ZIP from [v1.1.1 Releases](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.1.1). The macOS package is universal (Apple Silicon/Intel), with a macOS 11 deployment target. Windows and Linux packages are x64.
+For manual installation, download your platform ZIP from [v1.2.0 Releases](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.2.0). The macOS package is universal (Apple Silicon/Intel), with a macOS 11 deployment target. Windows and Linux packages are x64.
 
 | Format | macOS | Windows | Linux |
 | --- | --- | --- | --- |

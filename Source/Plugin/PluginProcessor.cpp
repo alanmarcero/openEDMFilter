@@ -2,6 +2,7 @@
 #include "Parameters.h"
 #include "PluginEditor.h"
 #include "Presets.h"
+#include <algorithm>
 
 namespace core = openedm::core;
 namespace params = openedm::params;
@@ -27,7 +28,11 @@ OpenEdmFilterProcessor::OpenEdmFilterProcessor()
               raw(params::kFmRate), raw(params::kFmDepth), raw(params::kDrive), raw(params::kDrivePosition),
               raw(params::kCrushRate), raw(params::kCrushBits), raw(params::kCrushMix), raw(params::kCrushPosition),
               raw(params::kCrushLink), raw(params::kRingFrequency), raw(params::kRingMix), raw(params::kMix),
-              raw(params::kOutput), raw(params::kLimiter), raw(params::kCeiling), raw(params::kInertia)
+              raw(params::kOutput), raw(params::kLimiter), raw(params::kCeiling), raw(params::kInertia),
+              raw(params::kClockSync), raw(params::kTempoBpm), raw(params::kTimeSignature),
+              raw(params::kSweepEnabled), raw(params::kSweepTarget), raw(params::kSweepBars), raw(params::kSweepMode),
+              raw(params::kSweepCutoffStart), raw(params::kSweepCutoffEnd), raw(params::kSweepCutoffSlope),
+              raw(params::kSweepResStart), raw(params::kSweepResEnd), raw(params::kSweepResSlope)
           };
       }()) {
     setLatencySamples(core::FilterEngine::kLatencySamples);
@@ -41,6 +46,24 @@ bool OpenEdmFilterProcessor::isBusesLayoutSupported(const BusesLayout& layouts) 
     const auto output = layouts.getMainOutputChannelSet();
     const bool isMonoOrStereo = output == juce::AudioChannelSet::mono() || output == juce::AudioChannelSet::stereo();
     return isMonoOrStereo && layouts.getMainInputChannelSet() == output;
+}
+
+core::AutoSweepSettings OpenEdmFilterProcessor::currentSweepSettings() const noexcept {
+    const auto isOn = [](const std::atomic<float>* value) { return value->load() > 0.5f; };
+    const auto choice = [](const std::atomic<float>* value) { return static_cast<int>(value->load()); };
+    const auto barIndex = static_cast<size_t>(std::clamp(choice(values_.sweepBars), 0, static_cast<int>(params::kSweepBarCounts.size()) - 1));
+    return core::AutoSweepSettings{
+        isOn(values_.sweepEnabled),
+        static_cast<core::SweepTarget>(choice(values_.sweepTarget)),
+        params::kSweepBarCounts[barIndex],
+        static_cast<core::SweepMode>(choice(values_.sweepMode)),
+        values_.sweepCutoffStart->load(),
+        values_.sweepCutoffEnd->load(),
+        values_.sweepCutoffSlope->load(),
+        values_.sweepResStart->load(),
+        values_.sweepResEnd->load(),
+        values_.sweepResSlope->load()
+    };
 }
 
 void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) {
@@ -81,30 +104,52 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
         juce::Decibels::decibelsToGain(values_.output->load()),
         isOn(values_.limiter),
         juce::Decibels::decibelsToGain(values_.ceiling->load()),
-        isOn(values_.inertia)
+        isOn(values_.inertia),
+        currentSweepSettings()
     };
 
-    const core::Transport transport = [this] {
+    const bool syncToHost = isOn(values_.clockSync);
+    const double manualBpm = static_cast<double>(values_.tempoBpm->load());
+    const int sigChoice = choice(values_.timeSignature);
+    const double manualBeatsPerBar = params::beatsPerBarForSignature(sigChoice);
+
+    const core::Transport transport = [&] {
+        if (!syncToHost) {
+            return core::Transport{ manualBpm, std::nullopt, manualBeatsPerBar };
+        }
         auto* playHead = getPlayHead();
         if (playHead == nullptr) {
-            return core::Transport{};
+            return core::Transport{ manualBpm, std::nullopt, manualBeatsPerBar };
         }
         const auto position = playHead->getPosition();
         if (!position.hasValue()) {
-            return core::Transport{};
+            return core::Transport{ manualBpm, std::nullopt, manualBeatsPerBar };
         }
-        const double bpm = position->getBpm().orFallback(120.0);
+        const double bpm = position->getBpm().orFallback(manualBpm);
+        double beatsPerBar = manualBeatsPerBar;
+        if (sigChoice == 0 && position->getTimeSignature().hasValue()) {
+            const auto sig = *position->getTimeSignature();
+            if (sig.numerator > 0 && sig.denominator > 0) {
+                beatsPerBar = static_cast<double>(sig.numerator) * (4.0 / static_cast<double>(sig.denominator));
+            }
+        }
         if (!position->getIsPlaying() || !position->getPpqPosition().hasValue()) {
-            return core::Transport{ bpm, std::nullopt };
+            return core::Transport{ bpm, std::nullopt, beatsPerBar };
         }
-        return core::Transport{ bpm, *position->getPpqPosition() };
+        return core::Transport{ bpm, *position->getPpqPosition(), beatsPerBar };
     }();
 
     engine_.process(settings, transport, buffer.getArrayOfWritePointers(), buffer.getNumChannels(), buffer.getNumSamples());
 
     const auto cutoffs = engine_.currentCutoffs();
+    const auto resonances = engine_.currentResonances();
     displayCutoffs[0].store(cutoffs[0]);
     displayCutoffs[1].store(cutoffs[1]);
+    displayResonances[0].store(resonances[0]);
+    displayResonances[1].store(resonances[1]);
+    displaySweepPhase.store(engine_.currentSweepPhase());
+    displayBpm.store(static_cast<float>(transport.bpm));
+    displayBeatsPerBar.store(static_cast<float>(transport.beatsPerBar));
 }
 
 juce::AudioProcessorEditor* OpenEdmFilterProcessor::createEditor() {

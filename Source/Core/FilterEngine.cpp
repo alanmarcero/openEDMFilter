@@ -38,6 +38,7 @@ void FilterEngine::prepare(double sampleRate) noexcept {
 void FilterEngine::reset() noexcept {
     std::ranges::for_each(filters_, [](auto& slots) { slots = {}; });
     fadeRemaining_ = {};
+    sweep_.reset();
     std::ranges::for_each(envelopes_, [](EnvelopeFollower& envelope) { envelope.reset(); });
     crusher_.reset();
     oversampler_.reset();
@@ -58,12 +59,26 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
     const auto bandIndices = std::views::iota(0, kNumBands);
     const auto channelIndices = std::views::iota(0, channelCount);
 
+    const double beatsPerBar = std::max(0.5, transport.beatsPerBar);
+    const double totalSweepBeats = std::max(0.25, beatsPerBar * static_cast<double>(std::max(1, settings.sweep.bars)));
+    const double sweepIncrement = transport.bpm / 60.0 / sampleRate_ / totalSweepBeats;
+    if (transport.ppqPosition) {
+        sweep_.syncToTransport(*transport.ppqPosition, beatsPerBar, settings.sweep.bars);
+    }
+
     if (needsSnap_) {
-        std::ranges::transform(settings.bands, logCutoffs_.begin(),
-            [](const BandSettings& band) { return std::log2(band.cutoffHz); });
+        std::ranges::for_each(bandIndices, [&](int band) {
+            const BandSettings& bandSettings = settings.bands[band];
+            const bool swept = AutoSweep::appliesToBand(settings.sweep, band);
+            const SweepValue initialSweep = swept
+                ? AutoSweep::valueAt(settings.sweep, band, sweep_.phase())
+                : SweepValue{ bandSettings.cutoffHz, bandSettings.shape.resonance };
+            logCutoffs_[band] = std::log2(initialSweep.cutoffHz);
+            resonances_[band] = initialSweep.resonance;
+            slotShapes_[band][activeSlot_[band]] = bandSettings.shape;
+        });
         mix_ = settings.mix;
         outputGain_ = settings.outputGain;
-        std::ranges::for_each(bandIndices, [&](int band) { slotShapes_[band][activeSlot_[band]] = settings.bands[band].shape; });
         needsSnap_ = false;
     }
 
@@ -74,10 +89,13 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
         const bool isSteep = bandSettings.shape.slope >= FilterSlope::Slope48dB;
         const double smoothingSeconds = settings.inertia && isSteep ? kInertiaSeconds : kFastSmoothingSeconds;
         cutoffSmoothing[band] = onePoleCoefficient(smoothingSeconds, sampleRate_);
-        lfoIncrements[band] = transport.bpm / 60.0 / sampleRate_ / bandSettings.lfoBeats;
+        const double effectiveLfoBeats = bandSettings.lfoBeats >= 4.0
+            ? bandSettings.lfoBeats * (beatsPerBar / 4.0)
+            : bandSettings.lfoBeats;
+        lfoIncrements[band] = transport.bpm / 60.0 / sampleRate_ / effectiveLfoBeats;
         envelopes_[band].configure(bandSettings.envSourceHz, bandSettings.envAttackMs, bandSettings.envReleaseMs, sampleRate_);
         if (transport.ppqPosition) {
-            lfos_[band].syncToTransport(*transport.ppqPosition, bandSettings.lfoBeats);
+            lfos_[band].syncToTransport(*transport.ppqPosition, effectiveLfoBeats);
         }
     });
 
@@ -97,18 +115,28 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
             const double nextRingPhase = ringPhase_ + settings.ringFrequencyHz / sampleRate_;
             fmPhase_ = nextFmPhase - std::floor(nextFmPhase);
             ringPhase_ = nextRingPhase - std::floor(nextRingPhase);
+            const double sweepPhase = sweep_.nextPhase(sweepIncrement);
 
             std::array<float, kNumBands> modulationOctaves{};
             std::ranges::transform(bandIndices, modulationOctaves.begin(), [&](int band) {
                 const BandSettings& bandSettings = settings.bands[band];
+                const bool swept = AutoSweep::appliesToBand(settings.sweep, band);
+                const SweepValue sweepValue = swept
+                    ? AutoSweep::valueAt(settings.sweep, band, sweepPhase)
+                    : SweepValue{ bandSettings.cutoffHz, bandSettings.shape.resonance };
+                resonances_[band] = sweepValue.resonance;
+
                 const float lfoValue = lfos_[band].next(bandSettings.lfoShape, lfoIncrements[band]);
                 const float envelopeValue = envelopes_[band].process(monoInput);
                 const float octaves = kModulationOctaves * (bandSettings.lfoDepth * lfoValue + bandSettings.envDepth * envelopeValue);
-                const float targetLogCutoff = std::log2(bandSettings.cutoffHz) + octaves;
+                const float targetLogCutoff = std::log2(sweepValue.cutoffHz) + octaves;
                 logCutoffs_[band] = targetLogCutoff + cutoffSmoothing[band] * (logCutoffs_[band] - targetLogCutoff);
                 auto& slots = filters_[band];
                 auto& shapes = slotShapes_[band];
-                const FilterShape& live = bandSettings.shape;
+                const FilterShape live{
+                    bandSettings.shape.enabled, bandSettings.shape.type, bandSettings.shape.slope,
+                    sweepValue.resonance, bandSettings.shape.width
+                };
                 if (fadeRemaining_[band] == 0 && topologyDiffers(shapes[activeSlot_[band]], live)) {
                     activeSlot_[band] = 1 - activeSlot_[band];
                     slots[activeSlot_[band]] = MultiModeFilter{};
@@ -125,7 +153,8 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
                 if (fadeRemaining_[band] > 0) {
                     slots[1 - active].update(shapes[1 - active], cutoffHz, sampleRate_);
                 }
-                return octaves + fmOctaves;
+                const float sweepOctaves = swept ? std::log2(sweepValue.cutoffHz / std::max(20.0f, bandSettings.cutoffHz)) : 0.0f;
+                return octaves + sweepOctaves + fmOctaves;
             });
 
             const bool followsBandA = settings.crushLinked && settings.bands[0].shape.enabled;

@@ -9,11 +9,12 @@ namespace {
 namespace theme = openedm::theme;
 
 constexpr int kEditorWidth = 980;
-constexpr int kEditorHeight = 684;
+constexpr int kEditorHeight = 840;
 constexpr int kMargin = 12;
 constexpr int kHeaderHeight = 44;
-constexpr int kResponseHeight = 176;
-constexpr int kBandHeight = 268;
+constexpr int kResponseHeight = 164;
+constexpr int kSweepHeight = 166;
+constexpr int kBandHeight = 256;
 
 } // namespace
 
@@ -22,6 +23,7 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
       processor_(processorToEdit),
       inertia_(processorToEdit.parameters, openedm::params::kInertia, "INERTIA", theme::kText),
       response_(processorToEdit),
+      sweep_(processorToEdit),
       bandA_(processorToEdit.parameters, 0),
       bandB_(processorToEdit.parameters, 1),
       effects_(processorToEdit.parameters) {
@@ -37,6 +39,7 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     addAndMakeVisible(presetBox_);
     addAndMakeVisible(inertia_);
     addAndMakeVisible(response_);
+    addAndMakeVisible(sweep_);
     addAndMakeVisible(bandA_);
     addAndMakeVisible(bandB_);
     addAndMakeVisible(effects_);
@@ -68,24 +71,27 @@ void OpenEdmFilterEditor::paint(juce::Graphics& g) {
 
     g.setFont(juce::FontOptions(11.0f));
     g.setColour(theme::kTextDim);
-    g.drawText("Dual multimode filter  /  12-96 dB  /  LFO / Envelope / FM", header.translated(2, 28).withHeight(14).withWidth(590),
+    g.drawText("Dual multimode filter  /  12-96 dB  /  4-64 Bar Auto-Sweep  /  Tempo & Time Sig Sync",
+               header.translated(2, 28).withHeight(14).withWidth(620),
                juce::Justification::centredLeft);
 }
 
 void OpenEdmFilterEditor::resized() {
     auto bounds = getLocalBounds().reduced(kMargin);
     auto header = bounds.removeFromTop(kHeaderHeight);
-    presetBox_.setBounds(header.removeFromRight(220).withSizeKeepingCentre(220, 28));
+    presetBox_.setBounds(header.removeFromRight(240).withSizeKeepingCentre(240, 28));
     header.removeFromRight(8);
     inertia_.setBounds(header.removeFromRight(84));
 
     bounds.removeFromTop(4);
     response_.setBounds(bounds.removeFromTop(kResponseHeight));
-    bounds.removeFromTop(kMargin);
+    bounds.removeFromTop(10);
+    sweep_.setBounds(bounds.removeFromTop(kSweepHeight));
+    bounds.removeFromTop(10);
     auto bands = bounds.removeFromTop(kBandHeight);
     bandA_.setBounds(bands.removeFromLeft((bands.getWidth() - kMargin) / 2));
     bands.removeFromLeft(kMargin);
     bandB_.setBounds(bands);
-    bounds.removeFromTop(kMargin);
+    bounds.removeFromTop(10);
     effects_.setBounds(bounds);
 }
