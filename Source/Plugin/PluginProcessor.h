@@ -22,6 +22,7 @@ public:
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
+    juce::AudioProcessorParameter* getBypassParameter() const override;
 
     int getNumPrograms() override;
     int getCurrentProgram() override { return currentProgram_; }
@@ -79,10 +80,12 @@ private:
         std::atomic<float>* limiter;
         std::atomic<float>* ceiling;
         std::atomic<float>* inertia;
+        std::atomic<float>* masterBypass;
         std::atomic<float>* clockSync;
         std::atomic<float>* tempoBpm;
         std::atomic<float>* timeSignature;
         std::atomic<float>* sweepEnabled;
+        std::atomic<float>* sweepBypass;
         std::atomic<float>* sweepTarget;
         std::atomic<float>* sweepBars;
         std::atomic<float>* sweepMode;

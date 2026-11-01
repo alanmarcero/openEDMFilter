@@ -77,8 +77,8 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
             resonances_[band] = initialSweep.resonance;
             slotShapes_[band][activeSlot_[band]] = bandSettings.shape;
         });
-        mix_ = settings.mix;
-        outputGain_ = settings.outputGain;
+        mix_ = settings.bypassed ? 0.0f : settings.mix;
+        outputGain_ = settings.bypassed ? 1.0f : settings.outputGain;
         needsSnap_ = false;
     }
 
@@ -98,6 +98,9 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
             lfos_[band].syncToTransport(*transport.ppqPosition, effectiveLfoBeats);
         }
     });
+
+    const float targetMix = settings.bypassed ? 0.0f : settings.mix;
+    const float targetOutputGain = settings.bypassed ? 1.0f : settings.outputGain;
 
     std::ranges::for_each(std::views::iota(0, numSamples), [&](int sample) {
         std::array<Oversampler::Frame, MultiModeFilter::kMaxChannels> upsampled{};
@@ -124,7 +127,7 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
                 const SweepValue sweepValue = swept
                     ? AutoSweep::valueAt(settings.sweep, band, sweepPhase)
                     : SweepValue{ bandSettings.cutoffHz, bandSettings.shape.resonance };
-                resonances_[band] = sweepValue.resonance;
+                resonances_[band] = sweepValue.resonance + parameterSmoothing_ * (resonances_[band] - sweepValue.resonance);
 
                 const float lfoValue = lfos_[band].next(bandSettings.lfoShape, lfoIncrements[band]);
                 const float envelopeValue = envelopes_[band].process(monoInput);
@@ -135,7 +138,7 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
                 auto& shapes = slotShapes_[band];
                 const FilterShape live{
                     bandSettings.shape.enabled, bandSettings.shape.type, bandSettings.shape.slope,
-                    sweepValue.resonance, bandSettings.shape.width
+                    resonances_[band], bandSettings.shape.width
                 };
                 if (fadeRemaining_[band] == 0 && topologyDiffers(shapes[activeSlot_[band]], live)) {
                     activeSlot_[band] = 1 - activeSlot_[band];
@@ -161,8 +164,8 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
             const float crushOctaves = followsBandA ? modulationOctaves[0] : 0.0f;
             const float crushRateHz = std::clamp(settings.crushRateHz * std::exp2(crushOctaves),
                                                  kMinCrushRateHz, static_cast<float>(sampleRate_));
-            mix_ = settings.mix + parameterSmoothing_ * (mix_ - settings.mix);
-            outputGain_ = settings.outputGain + parameterSmoothing_ * (outputGain_ - settings.outputGain);
+            mix_ = targetMix + parameterSmoothing_ * (mix_ - targetMix);
+            outputGain_ = targetOutputGain + parameterSmoothing_ * (outputGain_ - targetOutputGain);
 
             std::ranges::for_each(channelIndices, [&](int channel) {
                 const auto colour = [&](float signal, Placement placement) {
@@ -201,8 +204,10 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
         });
     });
 
-    // With the limiter off, it still runs with no ceiling, so the latency does not change.
-    const float ceiling = settings.limiterEnabled ? settings.ceiling : std::numeric_limits<float>::infinity();
+    // With the limiter off or engine bypassed, it still runs with no ceiling, so the latency does not change.
+    const float ceiling = (settings.limiterEnabled && !settings.bypassed)
+        ? settings.ceiling
+        : std::numeric_limits<float>::infinity();
     limiter_.process(channels, channelCount, numSamples, ceiling);
 }
 

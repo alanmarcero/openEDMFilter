@@ -75,6 +75,7 @@ public:
 
 private:
     OpenEdmFilterProcessor& processor_;
+    Toggle bypass_;
     Toggle enabled_;
     Toggle clockSync_;
     Choice timeSig_;
@@ -94,6 +95,7 @@ private:
     juce::Rectangle<int> editorArea_;
     juce::Rectangle<int> cutoffArea_;
     juce::Rectangle<int> resArea_;
+    juce::ParameterAttachment bypassWatcher_; // dims the sweep controls while it is bypassed
 };
 
 class BandPanel : public juce::Component {

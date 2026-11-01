@@ -53,6 +53,19 @@ TEST_CASE("Engine at zero mix returns the delayed dry signal", "[engine]") {
     requireDelayedCopy(runEngine(settings, input), input);
 }
 
+TEST_CASE("Engine master bypass returns the delayed dry signal at unity gain", "[engine]") {
+    EngineSettings settings = transparentSettings();
+    settings.bands[0].shape = FilterShape{ true, FilterType::LowPass, FilterSlope::Slope96dB, 1.0f, 0.0f };
+    settings.bands[0].cutoffHz = 100.0f;
+    settings.drive = 1.0f;
+    settings.outputGain = 0.25f;
+    settings.limiterEnabled = true;
+    settings.ceiling = 0.2f;
+    settings.bypassed = true;
+    const auto input = sine(3000.0, kNumSamples);
+    requireDelayedCopy(runEngine(settings, input), input);
+}
+
 TEST_CASE("Engine output gain scales the signal", "[engine]") {
     EngineSettings settings = transparentSettings();
     settings.outputGain = 0.5f;
@@ -111,6 +124,14 @@ TEST_CASE("Engine AutoSweep sweeps cutoff and resonance across filter types and 
 
             REQUIRE_THAT(engine.currentCutoffs()[0], WithinRel(800.0f, 0.03f));
             REQUIRE_THAT(engine.currentResonances()[0], WithinAbs(0.5f, 0.02f));
+
+            // Bypassing the auto-sweep returns the band to its manual cutoff and resonance
+            settings.sweep.enabled = false;
+            settings.bands[0].cutoffHz = 1500.0f;
+            settings.bands[0].shape.resonance = 0.1f;
+            engine.process(settings, Transport{ 120.0, halfCyclePpq, beatsPerBar }, channels, 1, kNumSamples);
+            REQUIRE_THAT(engine.currentCutoffs()[0], WithinRel(1500.0f, 0.02f));
+            REQUIRE_THAT(engine.currentResonances()[0], WithinAbs(0.1f, 0.02f));
         }
     }
 }

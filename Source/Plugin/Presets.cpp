@@ -129,39 +129,39 @@ const std::vector<FactoryPreset>& factoryPresets() {
 const std::vector<FactoryPreset>& sweepSlopePresets() {
     static const std::vector<FactoryPreset> presets{
         { "EDM Sweep Up (Exp)", {
-            { "sweep_on", 1.0f }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 80.0f },
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 80.0f },
             { "sweep_cut_end", 18000.0f }, { "sweep_cut_slope", 0.35f }, { "sweep_res_start", 0.20f },
             { "sweep_res_end", 0.68f }, { "sweep_res_slope", 0.20f } } },
         { "EDM Sweep Down (Drop)", {
-            { "sweep_on", 1.0f }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 18000.0f },
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 18000.0f },
             { "sweep_cut_end", 80.0f }, { "sweep_cut_slope", -0.30f }, { "sweep_res_start", 0.20f },
             { "sweep_res_end", 0.60f }, { "sweep_res_slope", 0.15f } } },
         { "HP Tension Riser Up", {
-            { "sweep_on", 1.0f }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 25.0f },
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 25.0f },
             { "sweep_cut_end", 4500.0f }, { "sweep_cut_slope", 0.45f }, { "sweep_res_start", 0.20f },
             { "sweep_res_end", 0.78f }, { "sweep_res_slope", 0.30f } } },
         { "HP Bass Drop Down", {
-            { "sweep_on", 1.0f }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 3800.0f },
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 3800.0f },
             { "sweep_cut_end", 25.0f }, { "sweep_cut_slope", -0.40f }, { "sweep_res_start", 0.65f },
             { "sweep_res_end", 0.10f }, { "sweep_res_slope", -0.25f } } },
         { "Acid Res Climb Up", {
-            { "sweep_on", 1.0f }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 110.0f },
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 110.0f },
             { "sweep_cut_end", 14000.0f }, { "sweep_cut_slope", 0.40f }, { "sweep_res_start", 0.45f },
             { "sweep_res_end", 0.92f }, { "sweep_res_slope", 0.35f } } },
         { "Every-Bar Pump Up", {
-            { "sweep_on", 1.0f }, { "sweep_mode", 1.0f }, { "sweep_cut_start", 100.0f },
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 1.0f }, { "sweep_cut_start", 100.0f },
             { "sweep_cut_end", 15000.0f }, { "sweep_cut_slope", 0.35f }, { "sweep_res_start", 0.25f },
             { "sweep_res_end", 0.75f }, { "sweep_res_slope", 0.20f } } },
         { "Every-Bar Plunge Down", {
-            { "sweep_on", 1.0f }, { "sweep_mode", 1.0f }, { "sweep_cut_start", 15000.0f },
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 1.0f }, { "sweep_cut_start", 15000.0f },
             { "sweep_cut_end", 90.0f }, { "sweep_cut_slope", -0.35f }, { "sweep_res_start", 0.70f },
             { "sweep_res_end", 0.20f }, { "sweep_res_slope", -0.20f } } },
         { "Up & Down Pyramid", {
-            { "sweep_on", 1.0f }, { "sweep_mode", 2.0f }, { "sweep_cut_start", 90.0f },
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 2.0f }, { "sweep_cut_start", 90.0f },
             { "sweep_cut_end", 17000.0f }, { "sweep_cut_slope", 0.20f }, { "sweep_res_start", 0.15f },
             { "sweep_res_end", 0.70f }, { "sweep_res_slope", 0.15f } } },
         { "Bar + Macro Builder", {
-            { "sweep_on", 1.0f }, { "sweep_mode", 3.0f }, { "sweep_cut_start", 80.0f },
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 3.0f }, { "sweep_cut_start", 80.0f },
             { "sweep_cut_end", 18500.0f }, { "sweep_cut_slope", 0.30f }, { "sweep_res_start", 0.20f },
             { "sweep_res_end", 0.80f }, { "sweep_res_slope", 0.25f } } },
     };

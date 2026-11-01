@@ -45,6 +45,7 @@ struct EngineSettings {
     float ceiling = 1.0f;
     bool inertia = true; // slows cutoff moves on 48 and 96 dB slopes so they stay click-free
     AutoSweepSettings sweep{};
+    bool bypassed = false; // full engine bypass, crossfaded over 10 ms at constant latency
 };
 
 struct Transport {
@@ -84,7 +85,7 @@ private:
     AutoSweep sweep_{};
     std::array<EnvelopeFollower, kNumBands> envelopes_{};
     std::array<float, kNumBands> logCutoffs_{}; // smoothed, in log2 Hz
-    std::array<float, kNumBands> resonances_{};
+    std::array<float, kNumBands> resonances_{}; // smoothed, 0..1
     BitCrusher crusher_{};
     Oversampler oversampler_{};
     PeakLimiter limiter_{};

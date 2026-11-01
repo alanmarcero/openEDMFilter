@@ -37,12 +37,14 @@ inline constexpr const char* kOutput = "output";
 inline constexpr const char* kLimiter = "limiter";
 inline constexpr const char* kCeiling = "ceiling";
 inline constexpr const char* kInertia = "inertia";
+inline constexpr const char* kMasterBypass = "master_bypass";
 
 // Tempo / clock sync and multi-bar auto-sweep parameters.
 inline constexpr const char* kClockSync = "clock_sync";
 inline constexpr const char* kTempoBpm = "tempo_bpm";
 inline constexpr const char* kTimeSignature = "time_sig";
 inline constexpr const char* kSweepEnabled = "sweep_on";
+inline constexpr const char* kSweepBypass = "sweep_bypass";
 inline constexpr const char* kSweepTarget = "sweep_target";
 inline constexpr const char* kSweepBars = "sweep_bars";
 inline constexpr const char* kSweepMode = "sweep_mode";

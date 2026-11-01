@@ -493,6 +493,7 @@ void SweepSlopeEditor::paint(juce::Graphics& g) {
 
 SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
     : processor_(processor),
+      bypass_(processor.parameters, params::kSweepBypass, "BYPASS", theme::kAccentA),
       enabled_(processor.parameters, params::kSweepEnabled, "AUTO SWEEP", theme::kAccentA),
       clockSync_(processor.parameters, params::kClockSync, "HOST SYNC", theme::kAccentOut),
       timeSig_(processor.parameters, params::kTimeSignature, {}, theme::kAccentOut),
@@ -506,7 +507,15 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
       cutoffSlope_(processor.parameters, params::kSweepCutoffSlope, "Slope", theme::kAccentA),
       resStart_(processor.parameters, params::kSweepResStart, "Start", theme::kAccentB),
       resEnd_(processor.parameters, params::kSweepResEnd, "End", theme::kAccentB),
-      resSlope_(processor.parameters, params::kSweepResSlope, "Slope", theme::kAccentB) {
+      resSlope_(processor.parameters, params::kSweepResSlope, "Slope", theme::kAccentB),
+      bypassWatcher_(*processor.parameters.getParameter(params::kSweepBypass), [this](float isBypassed) {
+          const float alpha = isBypassed > 0.5f ? 0.35f : 1.0f;
+          std::ranges::for_each(getChildren(), [&](juce::Component* control) {
+              if (control != &bypass_) {
+                  control->setAlpha(alpha);
+              }
+          });
+      }) {
     slopePresetBox_.setTextWhenNothingSelected("Sweep Preset...");
     const auto& slopePresets = openedm::presets::sweepSlopePresets();
     std::ranges::for_each(slopePresets, [&, id = 1](const auto& preset) mutable {
@@ -522,10 +531,11 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
     };
 
     std::ranges::for_each(std::initializer_list<juce::Component*>{
-                              &enabled_, &clockSync_, &timeSig_, &bars_, &mode_, &target_, &slopePresetBox_,
+                              &bypass_, &enabled_, &clockSync_, &timeSig_, &bars_, &mode_, &target_, &slopePresetBox_,
                               &tempo_, &slopeEditor_, &cutoffStart_, &cutoffEnd_, &cutoffSlope_,
                               &resStart_, &resEnd_, &resSlope_ },
                           [this](juce::Component* control) { addAndMakeVisible(control); });
+    bypassWatcher_.sendInitialUpdate();
 }
 
 void SweepPanel::paint(juce::Graphics& g) {
@@ -539,19 +549,21 @@ void SweepPanel::paint(juce::Graphics& g) {
 void SweepPanel::resized() {
     auto bounds = getLocalBounds().reduced(12, 6);
     auto header = bounds.removeFromTop(28);
-    slopePresetBox_.setBounds(header.removeFromRight(146).withSizeKeepingCentre(146, 24));
-    header.removeFromRight(6);
-    target_.setBounds(header.removeFromRight(92));
-    header.removeFromRight(6);
-    mode_.setBounds(header.removeFromRight(104));
-    header.removeFromRight(6);
-    bars_.setBounds(header.removeFromRight(80));
-    header.removeFromRight(6);
-    timeSig_.setBounds(header.removeFromRight(64));
-    header.removeFromRight(6);
-    clockSync_.setBounds(header.removeFromRight(82));
-    header.removeFromRight(6);
-    enabled_.setBounds(header.removeFromRight(92));
+    slopePresetBox_.setBounds(header.removeFromRight(138).withSizeKeepingCentre(138, 24));
+    header.removeFromRight(5);
+    target_.setBounds(header.removeFromRight(88));
+    header.removeFromRight(5);
+    mode_.setBounds(header.removeFromRight(98));
+    header.removeFromRight(5);
+    bars_.setBounds(header.removeFromRight(76));
+    header.removeFromRight(5);
+    timeSig_.setBounds(header.removeFromRight(60));
+    header.removeFromRight(5);
+    clockSync_.setBounds(header.removeFromRight(78));
+    header.removeFromRight(5);
+    enabled_.setBounds(header.removeFromRight(88));
+    header.removeFromRight(5);
+    bypass_.setBounds(header.removeFromRight(68));
 
     bounds.removeFromTop(4);
     clockArea_ = bounds.removeFromLeft(78);

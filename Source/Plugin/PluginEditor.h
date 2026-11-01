@@ -17,6 +17,7 @@ private:
     openedm::ui::EdmLookAndFeel lookAndFeel_;
     juce::Image faceplate_;
     juce::ComboBox presetBox_;
+    openedm::ui::Toggle masterBypass_;
     openedm::ui::Toggle inertia_;
     openedm::ui::ResponseView response_;
     openedm::ui::SweepPanel sweep_;

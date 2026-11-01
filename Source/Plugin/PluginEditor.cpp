@@ -21,6 +21,7 @@ constexpr int kBandHeight = 256;
 OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit)
     : AudioProcessorEditor(processorToEdit),
       processor_(processorToEdit),
+      masterBypass_(processorToEdit.parameters, openedm::params::kMasterBypass, "BYPASS", theme::kAccentOut),
       inertia_(processorToEdit.parameters, openedm::params::kInertia, "INERTIA", theme::kText),
       response_(processorToEdit),
       sweep_(processorToEdit),
@@ -37,6 +38,7 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     presetBox_.onChange = [this] { processor_.setCurrentProgram(presetBox_.getSelectedId() - 1); };
 
     addAndMakeVisible(presetBox_);
+    addAndMakeVisible(masterBypass_);
     addAndMakeVisible(inertia_);
     addAndMakeVisible(response_);
     addAndMakeVisible(sweep_);
@@ -82,6 +84,8 @@ void OpenEdmFilterEditor::resized() {
     presetBox_.setBounds(header.removeFromRight(240).withSizeKeepingCentre(240, 28));
     header.removeFromRight(8);
     inertia_.setBounds(header.removeFromRight(84));
+    header.removeFromRight(8);
+    masterBypass_.setBounds(header.removeFromRight(76));
 
     bounds.removeFromTop(4);
     response_.setBounds(bounds.removeFromTop(kResponseHeight));
