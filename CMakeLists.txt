@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(OpenEDMFilter VERSION 1.2.0 LANGUAGES C CXX)
+project(OpenEDMFilter VERSION 1.3.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -102,4 +102,12 @@ if(OEF_BUILD_TESTS)
     enable_testing()
     include(Catch)
     catch_discover_tests(openedm_tests)
+
+    if(OEF_BUILD_PLUGIN)
+        add_executable(openedm_plugin_tests Tests/PluginTests.cpp)
+        target_include_directories(openedm_plugin_tests PRIVATE Source/Plugin Source/Core)
+        target_compile_definitions(openedm_plugin_tests PRIVATE $<TARGET_PROPERTY:OpenEDMFilter,COMPILE_DEFINITIONS>)
+        target_link_libraries(openedm_plugin_tests PRIVATE OpenEDMFilter juce::juce_audio_utils Catch2::Catch2WithMain)
+        catch_discover_tests(openedm_plugin_tests)
+    endif()
 endif()

@@ -55,6 +55,25 @@ inline constexpr const char* kSweepResStart = "sweep_res_start";
 inline constexpr const char* kSweepResEnd = "sweep_res_end";
 inline constexpr const char* kSweepResSlope = "sweep_res_slope";
 
+inline constexpr const char* kSweepSlot = "sweep_slot";
+inline constexpr const char* kSweepCrushStart = "sweep_crush_start";
+inline constexpr const char* kSweepCrushEnd = "sweep_crush_end";
+inline constexpr const char* kSweepCrushSlope = "sweep_crush_slope";
+inline constexpr const char* kSweepCrushOnset = "sweep_crush_onset";
+inline constexpr const char* kSweepGlitchStart = "sweep_glitch_start";
+inline constexpr const char* kSweepGlitchEnd = "sweep_glitch_end";
+inline constexpr const char* kSweepGlitchSlope = "sweep_glitch_slope";
+inline constexpr const char* kSweepGlitchOnset = "sweep_glitch_onset";
+inline constexpr std::array<const char*, 9> kSweepFilterIds{
+    kSweepTarget, kSweepBars, kSweepMode, kSweepCutoffStart, kSweepCutoffEnd,
+    kSweepCutoffSlope, kSweepResStart, kSweepResEnd, kSweepResSlope
+};
+inline constexpr std::array<const char*, 8> kSweepEffectIds{
+    kSweepCrushStart, kSweepCrushEnd, kSweepCrushSlope, kSweepCrushOnset,
+    kSweepGlitchStart, kSweepGlitchEnd, kSweepGlitchSlope, kSweepGlitchOnset
+};
+juce::String sweepId(int slot, const juce::String& originalId);
+
 // Beats per LFO cycle, matching the order of the "lfo_rate" choices.
 inline constexpr std::array<double, 12> kLfoBeats = {
     0.125, 1.0 / 6.0, 0.25, 1.0 / 3.0, 0.5, 2.0 / 3.0, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0

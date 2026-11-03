@@ -34,6 +34,7 @@ public:
     void setStateInformation(const void* data, int sizeInBytes) override;
 
     [[nodiscard]] openedm::core::AutoSweepSettings currentSweepSettings() const noexcept;
+    [[nodiscard]] int currentSweepSlot() const noexcept;
 
     juce::AudioProcessorValueTreeState parameters;
 
@@ -61,6 +62,19 @@ private:
         std::atomic<float>* envDepth;
     };
 
+    struct SweepParameters {
+        std::atomic<float>* sweepTarget;
+        std::atomic<float>* sweepBars;
+        std::atomic<float>* sweepMode;
+        std::atomic<float>* sweepCutoffStart;
+        std::atomic<float>* sweepCutoffEnd;
+        std::atomic<float>* sweepCutoffSlope;
+        std::atomic<float>* sweepResStart;
+        std::atomic<float>* sweepResEnd;
+        std::atomic<float>* sweepResSlope;
+        std::array<std::atomic<float>*, 8> effects;
+    };
+
     // Raw parameter values, looked up once so the audio thread never builds ID strings.
     struct ParameterValues {
         std::array<BandParameters, openedm::core::FilterEngine::kNumBands> bands;
@@ -86,15 +100,8 @@ private:
         std::atomic<float>* timeSignature;
         std::atomic<float>* sweepEnabled;
         std::atomic<float>* sweepBypass;
-        std::atomic<float>* sweepTarget;
-        std::atomic<float>* sweepBars;
-        std::atomic<float>* sweepMode;
-        std::atomic<float>* sweepCutoffStart;
-        std::atomic<float>* sweepCutoffEnd;
-        std::atomic<float>* sweepCutoffSlope;
-        std::atomic<float>* sweepResStart;
-        std::atomic<float>* sweepResEnd;
-        std::atomic<float>* sweepResSlope;
+        std::atomic<float>* sweepSlot;
+        std::array<SweepParameters, 4> sweeps;
     };
 
     ParameterValues values_;

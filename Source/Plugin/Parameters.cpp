@@ -30,14 +30,14 @@ juce::NormalisableRange<float> skewedRange(float min, float max, float centre) {
 }
 
 void addFloat(Layout& layout, const juce::String& id, const juce::String& name,
-              juce::NormalisableRange<float> range, float defaultValue, const Formatter& formatter) {
+              juce::NormalisableRange<float> range, float defaultValue, const Formatter& formatter, int version = kVersion) {
     layout.add(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ id, kVersion }, name, range, defaultValue, Attributes().withStringFromValueFunction(formatter)));
+        juce::ParameterID{ id, version }, name, range, defaultValue, Attributes().withStringFromValueFunction(formatter)));
 }
 
 void addChoice(Layout& layout, const juce::String& id, const juce::String& name,
-               const juce::StringArray& choices, int defaultIndex) {
-    layout.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{ id, kVersion }, name, choices, defaultIndex));
+               const juce::StringArray& choices, int defaultIndex, int version = kVersion) {
+    layout.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{ id, version }, name, choices, defaultIndex));
 }
 
 void addBool(Layout& layout, const juce::String& id, const juce::String& name, bool defaultValue) {
@@ -85,6 +85,11 @@ juce::String bandId(int band, const char* suffix) {
     return juce::String(band == 0 ? "a_" : "b_") + suffix;
 }
 
+juce::String sweepId(int slot, const juce::String& originalId) {
+    if (slot == 0) return originalId;
+    return "sweep_" + juce::String::charToString(static_cast<juce::juce_wchar>('a' + slot)) + "_" + originalId.substring(6);
+}
+
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     const juce::StringArray placements{ "Pre", "Post" };
     Layout layout;
@@ -124,6 +129,31 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     addFloat(layout, kSweepResStart, "Sweep Res Start", { 0.0f, 1.0f }, 0.15f, kFormatPercent);
     addFloat(layout, kSweepResEnd, "Sweep Res End", { 0.0f, 1.0f }, 0.65f, kFormatPercent);
     addFloat(layout, kSweepResSlope, "Sweep Res Slope", { -1.0f, 1.0f }, 0.0f, kFormatBipolar);
+    addChoice(layout, kSweepSlot, "Auto Mode", { "A", "B", "C", "D" }, 0, 2);
+    for (int slot = 1; slot < 4; ++slot) {
+        const auto id = [slot](const char* key) { return sweepId(slot, key); };
+        const auto name = "Auto " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + slot)) + " ";
+        addChoice(layout, id(kSweepTarget), name + "Target", { "Filter A", "Filter B", "Both A+B", "A/B Mirror" }, 0, 2);
+        addChoice(layout, id(kSweepBars), name + "Bars", { "4 Bars", "8 Bars", "16 Bars", "32 Bars", "64 Bars" }, 1, 2);
+        addChoice(layout, id(kSweepMode), name + "Mode", { "Bar Window", "Every Bar", "Up & Down", "Bar + Macro" }, 0, 2);
+        addFloat(layout, id(kSweepCutoffStart), name + "Cutoff Start", skewedRange(20.0f, 20000.0f, 632.0f), 80.0f, kFormatHz, 2);
+        addFloat(layout, id(kSweepCutoffEnd), name + "Cutoff End", skewedRange(20.0f, 20000.0f, 632.0f), 16000.0f, kFormatHz, 2);
+        addFloat(layout, id(kSweepCutoffSlope), name + "Cutoff Slope", { -1.0f, 1.0f }, 0.0f, kFormatBipolar, 2);
+        addFloat(layout, id(kSweepResStart), name + "Res Start", { 0.0f, 1.0f }, 0.15f, kFormatPercent, 2);
+        addFloat(layout, id(kSweepResEnd), name + "Res End", { 0.0f, 1.0f }, 0.65f, kFormatPercent, 2);
+        addFloat(layout, id(kSweepResSlope), name + "Res Slope", { -1.0f, 1.0f }, 0.0f, kFormatBipolar, 2);
+    }
+    for (int slot = 0; slot < 4; ++slot) {
+        const auto name = "Auto " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + slot)) + " ";
+        addFloat(layout, sweepId(slot, kSweepCrushStart), name + "Crush Start", { 0.0f, 1.0f }, 0.0f, kFormatPercent, 2);
+        addFloat(layout, sweepId(slot, kSweepCrushEnd), name + "Crush End", { 0.0f, 1.0f }, 0.0f, kFormatPercent, 2);
+        addFloat(layout, sweepId(slot, kSweepCrushSlope), name + "Crush Slope", { -1.0f, 1.0f }, 0.35f, kFormatBipolar, 2);
+        addFloat(layout, sweepId(slot, kSweepCrushOnset), name + "Crush Onset", { 0.0f, 0.99f }, 0.75f, kFormatPercent, 2);
+        addFloat(layout, sweepId(slot, kSweepGlitchStart), name + "Glitch Start", { 0.0f, 1.0f }, 0.0f, kFormatPercent, 2);
+        addFloat(layout, sweepId(slot, kSweepGlitchEnd), name + "Glitch End", { 0.0f, 1.0f }, 0.0f, kFormatPercent, 2);
+        addFloat(layout, sweepId(slot, kSweepGlitchSlope), name + "Glitch Slope", { -1.0f, 1.0f }, 0.35f, kFormatBipolar, 2);
+        addFloat(layout, sweepId(slot, kSweepGlitchOnset), name + "Glitch Onset", { 0.0f, 0.99f }, 0.75f, kFormatPercent, 2);
+    }
     return layout;
 }
 

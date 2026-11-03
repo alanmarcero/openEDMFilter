@@ -23,6 +23,16 @@ OpenEdmFilterProcessor::OpenEdmFilterProcessor()
                   bandRaw(params::kEnvAttack), bandRaw(params::kEnvRelease), bandRaw(params::kEnvDepth)
               };
           };
+          const auto sweepValues = [&](int slot) {
+              const auto sweepRaw = [&](const char* key) { return raw(params::sweepId(slot, key)); };
+              SweepParameters sweep{
+                  sweepRaw(params::kSweepTarget), sweepRaw(params::kSweepBars), sweepRaw(params::kSweepMode),
+                  sweepRaw(params::kSweepCutoffStart), sweepRaw(params::kSweepCutoffEnd), sweepRaw(params::kSweepCutoffSlope),
+                  sweepRaw(params::kSweepResStart), sweepRaw(params::kSweepResEnd), sweepRaw(params::kSweepResSlope), {}
+              };
+              for (size_t i = 0; i < sweep.effects.size(); ++i) sweep.effects[i] = sweepRaw(params::kSweepEffectIds[i]);
+              return sweep;
+          };
           return ParameterValues{
               { bandValues(0), bandValues(1) },
               raw(params::kFmRate), raw(params::kFmDepth), raw(params::kDrive), raw(params::kDrivePosition),
@@ -30,9 +40,8 @@ OpenEdmFilterProcessor::OpenEdmFilterProcessor()
               raw(params::kCrushLink), raw(params::kRingFrequency), raw(params::kRingMix), raw(params::kMix),
               raw(params::kOutput), raw(params::kLimiter), raw(params::kCeiling), raw(params::kInertia),
               raw(params::kMasterBypass), raw(params::kClockSync), raw(params::kTempoBpm), raw(params::kTimeSignature),
-              raw(params::kSweepEnabled), raw(params::kSweepBypass), raw(params::kSweepTarget), raw(params::kSweepBars), raw(params::kSweepMode),
-              raw(params::kSweepCutoffStart), raw(params::kSweepCutoffEnd), raw(params::kSweepCutoffSlope),
-              raw(params::kSweepResStart), raw(params::kSweepResEnd), raw(params::kSweepResSlope)
+              raw(params::kSweepEnabled), raw(params::kSweepBypass), raw(params::kSweepSlot),
+              { sweepValues(0), sweepValues(1), sweepValues(2), sweepValues(3) }
           };
       }()) {
     setLatencySamples(core::FilterEngine::kLatencySamples);
@@ -48,21 +57,28 @@ bool OpenEdmFilterProcessor::isBusesLayoutSupported(const BusesLayout& layouts) 
     return isMonoOrStereo && layouts.getMainInputChannelSet() == output;
 }
 
+int OpenEdmFilterProcessor::currentSweepSlot() const noexcept {
+    return std::clamp(static_cast<int>(values_.sweepSlot->load()), 0, 3);
+}
+
 core::AutoSweepSettings OpenEdmFilterProcessor::currentSweepSettings() const noexcept {
+    const auto& sweep = values_.sweeps[static_cast<size_t>(currentSweepSlot())];
     const auto isOn = [](const std::atomic<float>* value) { return value->load() > 0.5f; };
     const auto choice = [](const std::atomic<float>* value) { return static_cast<int>(value->load()); };
-    const auto barIndex = static_cast<size_t>(std::clamp(choice(values_.sweepBars), 0, static_cast<int>(params::kSweepBarCounts.size()) - 1));
+    const auto barIndex = static_cast<size_t>(std::clamp(choice(sweep.sweepBars), 0, static_cast<int>(params::kSweepBarCounts.size()) - 1));
     return core::AutoSweepSettings{
         isOn(values_.sweepEnabled) && !isOn(values_.sweepBypass),
-        static_cast<core::SweepTarget>(choice(values_.sweepTarget)),
+        static_cast<core::SweepTarget>(choice(sweep.sweepTarget)),
         params::kSweepBarCounts[barIndex],
-        static_cast<core::SweepMode>(choice(values_.sweepMode)),
-        values_.sweepCutoffStart->load(),
-        values_.sweepCutoffEnd->load(),
-        values_.sweepCutoffSlope->load(),
-        values_.sweepResStart->load(),
-        values_.sweepResEnd->load(),
-        values_.sweepResSlope->load()
+        static_cast<core::SweepMode>(choice(sweep.sweepMode)),
+        sweep.sweepCutoffStart->load(),
+        sweep.sweepCutoffEnd->load(),
+        sweep.sweepCutoffSlope->load(),
+        sweep.sweepResStart->load(),
+        sweep.sweepResEnd->load(),
+        sweep.sweepResSlope->load(),
+        { sweep.effects[0]->load(), sweep.effects[1]->load(), sweep.effects[2]->load(), sweep.effects[3]->load() },
+        { sweep.effects[4]->load(), sweep.effects[5]->load(), sweep.effects[6]->load(), sweep.effects[7]->load() }
     };
 }
 
@@ -194,7 +210,16 @@ void OpenEdmFilterProcessor::setStateInformation(const void* data, int sizeInByt
     if (xml == nullptr || !xml->hasTagName(parameters.state.getType())) {
         return;
     }
-    const auto state = juce::ValueTree::fromXml(*xml);
+    auto state = juce::ValueTree::fromXml(*xml);
+    for (auto* parameter : getParameters()) {
+        auto* ranged = dynamic_cast<juce::RangedAudioParameter*>(parameter);
+        if (ranged != nullptr && !state.getChildWithProperty("id", ranged->paramID).isValid()) {
+            juce::ValueTree value("PARAM");
+            value.setProperty("id", ranged->paramID, nullptr);
+            value.setProperty("value", ranged->convertFrom0to1(ranged->getDefaultValue()), nullptr);
+            state.appendChild(value, nullptr);
+        }
+    }
     currentProgram_ = state.getProperty("program", 0);
     parameters.replaceState(state);
 }

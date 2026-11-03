@@ -16,7 +16,15 @@ constexpr float kTitleFontSize = 11.0f;
 Knob::Knob(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent)
     : slider_(juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow),
       title_({}, title.toUpperCase()),
-      attachment_(state, parameterId, slider_) {
+      attachment_(std::make_unique<Apvts::SliderAttachment>(state, parameterId, slider_)) {
+    slider_.onDragStart = [this] { dragging_ = true; };
+    slider_.onDragEnd = [this] {
+        dragging_ = false;
+        if (pendingState_ != nullptr) {
+            auto* pendingState = std::exchange(pendingState_, nullptr);
+            bind(*pendingState, std::exchange(pendingId_, {}));
+        }
+    };
     slider_.setColour(juce::Slider::rotarySliderFillColourId, accent);
     slider_.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 80, kValueHeight);
     slider_.setPopupDisplayEnabled(false, false, nullptr);
@@ -25,6 +33,16 @@ Knob::Knob(Apvts& state, const juce::String& parameterId, const juce::String& ti
     title_.setJustificationType(juce::Justification::centred);
     addAndMakeVisible(slider_);
     addAndMakeVisible(title_);
+}
+
+void Knob::bind(Apvts& state, const juce::String& parameterId) {
+    if (dragging_) {
+        pendingState_ = &state;
+        pendingId_ = parameterId;
+        return;
+    }
+    attachment_.reset();
+    attachment_ = std::make_unique<Apvts::SliderAttachment>(state, parameterId, slider_);
 }
 
 void Knob::resized() {
@@ -47,6 +65,11 @@ Choice::Choice(Apvts& state, const juce::String& parameterId, const juce::String
     addAndMakeVisible(box_);
     addChildComponent(title_);
     title_.setVisible(title.isNotEmpty());
+}
+
+void Choice::bind(Apvts& state, const juce::String& parameterId) {
+    attachment_.reset();
+    attachment_ = std::make_unique<Apvts::ComboBoxAttachment>(state, parameterId, box_);
 }
 
 void Choice::resized() {

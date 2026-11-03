@@ -11,11 +11,15 @@ class Knob : public juce::Component {
 public:
     Knob(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent);
     void resized() override;
+    void bind(Apvts& state, const juce::String& parameterId);
 
 private:
     juce::Slider slider_;
     juce::Label title_;
-    Apvts::SliderAttachment attachment_;
+    std::unique_ptr<Apvts::SliderAttachment> attachment_;
+    bool dragging_ = false;
+    Apvts* pendingState_ = nullptr;
+    juce::String pendingId_;
 };
 
 class Choice : public juce::Component {
@@ -23,6 +27,7 @@ public:
     // An empty title draws the box alone, for compact header rows.
     Choice(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent);
     void resized() override;
+    void bind(Apvts& state, const juce::String& parameterId);
 
 private:
     juce::ComboBox box_;

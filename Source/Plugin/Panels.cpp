@@ -219,7 +219,7 @@ const char* SweepSlopeEditor::parameterIdForHandle(Handle handle) noexcept {
 }
 
 juce::Rectangle<float> SweepSlopeEditor::plotArea() const {
-    return getLocalBounds().toFloat().reduced(10.0f, 18.0f).withTrimmedTop(4.0f);
+    return getLocalBounds().toFloat().reduced(10.0f, 18.0f).withTrimmedTop(4.0f).withTrimmedBottom(14.0f);
 }
 
 float SweepSlopeEditor::yForHz(float hz) const {
@@ -289,7 +289,8 @@ void SweepSlopeEditor::mouseDown(const juce::MouseEvent& event) {
              < event.position.getDistanceFrom(handlePosition(b, settings));
     });
     if (const char* id = parameterIdForHandle(activeHandle_)) {
-        activeParameter_ = processor_.parameters.getParameter(id);
+        dragSlot_ = processor_.currentSweepSlot();
+        activeParameter_ = processor_.parameters.getParameter(params::sweepId(dragSlot_, id));
         if (activeParameter_ != nullptr) {
             slopeAtDragStart_ = activeParameter_->convertFrom0to1(activeParameter_->getValue());
             activeParameter_->beginChangeGesture();
@@ -300,6 +301,10 @@ void SweepSlopeEditor::mouseDown(const juce::MouseEvent& event) {
 
 void SweepSlopeEditor::mouseDrag(const juce::MouseEvent& event) {
     if (activeParameter_ == nullptr) {
+        return;
+    }
+    if (dragSlot_ != processor_.currentSweepSlot()) {
+        endDrag();
         return;
     }
     const auto settings = processor_.currentSweepSettings();
@@ -344,6 +349,10 @@ void SweepSlopeEditor::mouseDrag(const juce::MouseEvent& event) {
 }
 
 void SweepSlopeEditor::mouseUp(const juce::MouseEvent&) {
+    endDrag();
+}
+
+void SweepSlopeEditor::endDrag() {
     if (activeParameter_ != nullptr) {
         activeParameter_->endChangeGesture();
         activeParameter_ = nullptr;
@@ -356,7 +365,7 @@ void SweepSlopeEditor::mouseDoubleClick(const juce::MouseEvent& event) {
     const float distCut = event.position.getDistanceFrom(handlePosition(Handle::CutoffSlope, settings));
     const float distRes = event.position.getDistanceFrom(handlePosition(Handle::ResSlope, settings));
     const char* id = distCut <= distRes ? params::kSweepCutoffSlope : params::kSweepResSlope;
-    if (auto* param = processor_.parameters.getParameter(id)) {
+    if (auto* param = processor_.parameters.getParameter(params::sweepId(processor_.currentSweepSlot(), id))) {
         param->beginChangeGesture();
         param->setValueNotifyingHost(param->convertTo0to1(0.0f));
         param->endChangeGesture();
@@ -434,6 +443,17 @@ void SweepSlopeEditor::paint(juce::Graphics& g) {
     g.setColour(theme::kAccentB.withAlpha(0.9f * activeAlpha));
     g.strokePath(resPath, juce::PathStrokeType(1.75f));
 
+    const std::array envelopes{ settings.crush, settings.glitch };
+    const std::array colours{ theme::kAccentFx, juce::Colour(0xffcf9bdc) };
+    for (size_t i = 0; i < envelopes.size(); ++i) {
+        const auto path = buildCurve([&](double phase) {
+            const float progress = core::AutoSweep::progressAt(settings.mode, settings.bars, phase);
+            return yForNormalized(core::AutoSweep::envelopeAt(envelopes[i], progress));
+        });
+        g.setColour(colours[i].withAlpha(activeAlpha));
+        g.strokePath(path, juce::PathStrokeType(1.5f));
+    }
+
     // Live playhead across the multi-bar loop
     const float phase = std::clamp(processor_.displaySweepPhase.load(), 0.0f, 0.9999f);
     const float playheadX = plot.getX() + phase * plot.getWidth();
@@ -487,8 +507,8 @@ void SweepSlopeEditor::paint(juce::Graphics& g) {
     g.setColour(theme::kTextDim);
     const juce::String clockSummary = "BAR " + juce::String(currentBar, 1) + "/" + juce::String(bars)
         + "  " + juce::String(num) + "/" + juce::String(denom)
-        + "  " + juce::String(bpm, 0) + " BPM";
-    g.drawText(clockSummary, headerBar, juce::Justification::centredRight);
+        + "  " + juce::String(juce::roundToInt(bpm)) + " BPM";
+    g.drawText(clockSummary, getLocalBounds().toFloat().reduced(8.0f, 1.0f).removeFromBottom(13.0f), juce::Justification::centredRight);
 }
 
 SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
@@ -515,7 +535,24 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
                   control->setAlpha(alpha);
               }
           });
+      }),
+      slotWatcher_(*processor.parameters.getParameter(params::kSweepSlot), [this](float slot) {
+          selectSlot(static_cast<int>(slot));
       }) {
+    const std::array<const char*, 4> effectTitles{ "Start", "End", "Slope", "Onset" };
+    for (size_t i = 0; i < effectKnobs_.size(); ++i) {
+        const auto colour = i < 4 ? theme::kAccentFx : juce::Colour(0xffcf9bdc);
+        effectKnobs_[i] = std::make_unique<Knob>(processor.parameters, params::kSweepEffectIds[i], effectTitles[i % 4], colour);
+        addAndMakeVisible(*effectKnobs_[i]);
+    }
+    for (size_t i = 0; i < slotButtons_.size(); ++i) {
+        auto& button = slotButtons_[i];
+        button.setButtonText(juce::String::charToString(static_cast<juce::juce_wchar>('A' + i)));
+        button.setColour(juce::TextButton::buttonOnColourId, theme::kAccentA);
+        button.setTooltip("Auto Mode: select and edit this sweep slot. Automate Auto Mode in your DAW.");
+        button.onClick = [this, i] { slotWatcher_.setValueAsCompleteGesture(static_cast<float>(i)); };
+        addAndMakeVisible(button);
+    }
     slopePresetBox_.setTextWhenNothingSelected("Sweep Preset...");
     const auto& slopePresets = openedm::presets::sweepSlopePresets();
     std::ranges::for_each(slopePresets, [&, id = 1](const auto& preset) mutable {
@@ -536,6 +573,22 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
                               &resStart_, &resEnd_, &resSlope_ },
                           [this](juce::Component* control) { addAndMakeVisible(control); });
     bypassWatcher_.sendInitialUpdate();
+    slotWatcher_.sendInitialUpdate();
+}
+
+void SweepPanel::selectSlot(int slot) {
+    slot = std::clamp(slot, 0, 3);
+    slopeEditor_.endDrag();
+    auto& state = processor_.parameters;
+    bars_.bind(state, params::sweepId(slot, params::kSweepBars));
+    mode_.bind(state, params::sweepId(slot, params::kSweepMode));
+    target_.bind(state, params::sweepId(slot, params::kSweepTarget));
+    const std::array<Knob*, 6> knobs{ &cutoffStart_, &cutoffEnd_, &cutoffSlope_, &resStart_, &resEnd_, &resSlope_ };
+    for (size_t i = 0; i < knobs.size(); ++i) knobs[i]->bind(state, params::sweepId(slot, params::kSweepFilterIds[i + 3]));
+    for (size_t i = 0; i < effectKnobs_.size(); ++i) effectKnobs_[i]->bind(state, params::sweepId(slot, params::kSweepEffectIds[i]));
+    for (size_t i = 0; i < slotButtons_.size(); ++i) slotButtons_[i].setToggleState(static_cast<int>(i) == slot, juce::dontSendNotification);
+    slopePresetBox_.setSelectedId(0, juce::dontSendNotification);
+    repaint();
 }
 
 void SweepPanel::paint(juce::Graphics& g) {
@@ -544,6 +597,18 @@ void SweepPanel::paint(juce::Graphics& g) {
     drawCaption(g, editorArea_, "Slope editor (drag start / curve / end)");
     drawCaption(g, cutoffArea_, "Cutoff sweep");
     drawCaption(g, resArea_, "Resonance sweep");
+    drawCaption(g, crushArea_, "Bitcrush mix / onset = sweep position");
+    drawCaption(g, glitchArea_, "Glitch mix / tempo-synced beat repeat");
+    g.setColour(theme::kTextDim);
+    g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+    g.drawText("AUTO MODE", slotArea_.withWidth(76), juce::Justification::centredLeft);
+    const std::array<const char*, 4> labels{ "CUTOFF", "RESONANCE", "BITCRUSH", "GLITCH" };
+    const std::array colours{ theme::kAccentA, theme::kAccentB, theme::kAccentFx, juce::Colour(0xffcf9bdc) };
+    auto legend = slotArea_.withTrimmedLeft(280);
+    for (size_t i = 0; i < labels.size(); ++i) {
+        g.setColour(colours[i]);
+        g.drawText(labels[i], legend.removeFromLeft(90), juce::Justification::centredLeft);
+    }
 }
 
 void SweepPanel::resized() {
@@ -566,18 +631,31 @@ void SweepPanel::resized() {
     bypass_.setBounds(header.removeFromRight(68));
 
     bounds.removeFromTop(4);
-    clockArea_ = bounds.removeFromLeft(78);
+    slotArea_ = bounds.removeFromTop(26);
+    auto buttons = slotArea_.withTrimmedLeft(78);
+    for (auto& button : slotButtons_) {
+        button.setBounds(buttons.removeFromLeft(40).reduced(2, 1));
+    }
+    bounds.removeFromTop(6);
+    clockArea_ = bounds.removeFromLeft(70);
     bounds.removeFromLeft(kSectionGap);
-    editorArea_ = bounds.removeFromLeft(380);
+    editorArea_ = bounds.removeFromLeft(400);
     bounds.removeFromLeft(kSectionGap);
-    cutoffArea_ = bounds.removeFromLeft((bounds.getWidth() - kSectionGap) / 2);
+    auto filters = bounds.removeFromTop((bounds.getHeight() - 8) / 2);
+    bounds.removeFromTop(8);
+    cutoffArea_ = filters.removeFromLeft((filters.getWidth() - kSectionGap) / 2);
+    filters.removeFromLeft(kSectionGap);
+    resArea_ = filters;
+    crushArea_ = bounds.removeFromLeft((bounds.getWidth() - kSectionGap) / 2);
     bounds.removeFromLeft(kSectionGap);
-    resArea_ = bounds;
+    glitchArea_ = bounds;
 
-    tempo_.setBounds(clockArea_.withTrimmedTop(kCaptionHeight));
+    tempo_.setBounds(clockArea_.withTrimmedTop(kCaptionHeight).withHeight(90));
     slopeEditor_.setBounds(editorArea_.withTrimmedTop(kCaptionHeight));
     layoutRow(cutoffArea_.withTrimmedTop(kCaptionHeight), { &cutoffStart_, &cutoffEnd_, &cutoffSlope_ });
     layoutRow(resArea_.withTrimmedTop(kCaptionHeight), { &resStart_, &resEnd_, &resSlope_ });
+    layoutRow(crushArea_.withTrimmedTop(kCaptionHeight), { effectKnobs_[0].get(), effectKnobs_[1].get(), effectKnobs_[2].get(), effectKnobs_[3].get() });
+    layoutRow(glitchArea_.withTrimmedTop(kCaptionHeight), { effectKnobs_[4].get(), effectKnobs_[5].get(), effectKnobs_[6].get(), effectKnobs_[7].get() });
 }
 
 BandPanel::BandPanel(Apvts& state, int band)
@@ -677,7 +755,7 @@ void EffectsPanel::paint(juce::Graphics& g) {
     });
     g.setFont(juce::FontOptions(10.0f));
     g.setColour(theme::kTextDim);
-    g.drawText("v1.2.0", getLocalBounds().reduced(8, 2), juce::Justification::bottomRight);
+    g.drawText("v" JucePlugin_VersionString, getLocalBounds().reduced(8, 2), juce::Justification::bottomRight);
 }
 
 void EffectsPanel::resized() {

@@ -8,13 +8,13 @@ namespace {
 
 namespace theme = openedm::theme;
 
-constexpr int kEditorWidth = 980;
-constexpr int kEditorHeight = 840;
+constexpr int kEditorWidth = 1100;
+constexpr int kEditorHeight = 940;
 constexpr int kMargin = 12;
 constexpr int kHeaderHeight = 44;
-constexpr int kResponseHeight = 164;
-constexpr int kSweepHeight = 166;
-constexpr int kBandHeight = 256;
+constexpr int kResponseHeight = 140;
+constexpr int kSweepHeight = 300;
+constexpr int kBandHeight = 220;
 
 } // namespace
 
@@ -73,7 +73,7 @@ void OpenEdmFilterEditor::paint(juce::Graphics& g) {
 
     g.setFont(juce::FontOptions(11.0f));
     g.setColour(theme::kTextDim);
-    g.drawText("Dual multimode filter  /  12-96 dB  /  4-64 Bar Auto-Sweep  /  Tempo & Time Sig Sync",
+    g.drawText("Dual multimode filter  /  12-96 dB  /  A/B/C/D Auto-Sweep  /  Bitcrush & Glitch",
                header.translated(2, 28).withHeight(14).withWidth(620),
                juce::Justification::centredLeft);
 }

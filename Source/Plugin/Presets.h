@@ -10,7 +10,7 @@ namespace openedm::presets {
 // A factory preset sets the parameters it lists and resets every other parameter to its default.
 struct FactoryPreset {
     const char* name;
-    std::vector<std::pair<const char*, float>> values;
+    std::vector<std::pair<juce::String, float>> values;
 };
 
 const std::vector<FactoryPreset>& factoryPresets();

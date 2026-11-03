@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <vector>
 
 namespace openedm::core {
 
@@ -18,6 +19,18 @@ public:
 private:
     std::array<float, kMaxChannels> phases_{};
     std::array<float, kMaxChannels> held_{};
+};
+
+class BeatStutter {
+public:
+    void prepare(double sampleRate);
+    void reset() noexcept;
+    [[nodiscard]] float process(int channel, float input, double beatPhase, double bpm, double sampleRate) noexcept;
+
+private:
+    std::array<std::vector<float>, 2> history_;
+    std::array<int, 2> position_{};
+    std::array<int, 2> available_{};
 };
 
 // Stereo-linked lookahead peak limiter. Peaks never exceed the ceiling, and each gain drop ramps in over

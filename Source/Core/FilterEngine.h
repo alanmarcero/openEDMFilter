@@ -87,6 +87,10 @@ private:
     std::array<float, kNumBands> logCutoffs_{}; // smoothed, in log2 Hz
     std::array<float, kNumBands> resonances_{}; // smoothed, 0..1
     BitCrusher crusher_{};
+    BeatStutter stutter_{};
+    double glitchBeatPhase_ = 0.0;
+    float crushMix_ = 0.0f;
+    float glitchMix_ = 0.0f;
     Oversampler oversampler_{};
     PeakLimiter limiter_{};
     double fmPhase_ = 0.0;

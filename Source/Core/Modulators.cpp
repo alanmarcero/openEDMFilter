@@ -103,6 +103,12 @@ float AutoSweep::slopeFromMidpoint(float midpointFraction) noexcept {
     return std::clamp(std::log2(exponent) / kSlopeOctaveScale, -1.0f, 1.0f);
 }
 
+float AutoSweep::envelopeAt(const SweepEnvelope& envelope, float progress) noexcept {
+    const float onset = std::clamp(envelope.onset, 0.0f, 0.99f);
+    const float t = applySlope((progress - onset) / (1.0f - onset), envelope.slope);
+    return std::clamp(envelope.start + t * (envelope.end - envelope.start), 0.0f, 1.0f);
+}
+
 SweepValue AutoSweep::valueAt(const AutoSweepSettings& settings, int band, double phase) noexcept {
     float progress = progressAt(settings.mode, settings.bars, phase);
     if (band == 1 && settings.target == SweepTarget::Mirror) {

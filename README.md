@@ -2,11 +2,11 @@
 
 [Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest)
 
-A dual multimode filter plugin for EDM production. It provides two serial filters, multi-bar tempo/time-signature-synced cutoff and resonance auto-sweeps with an interactive slope editor, LFO and envelope modulation, distortion and output limiting. Release packages contain VST3, LV2 and a standalone app on macOS, Windows and Linux; macOS also includes AU.
+A dual multimode filter plugin for EDM production. It provides two serial filters, four automatable auto-sweep slots with independent cutoff, resonance, bitcrush and glitch curves, LFO and envelope modulation, distortion and output limiting. Release packages contain VST3, LV2 and a standalone app on macOS, Windows and Linux; macOS also includes AU.
 
 ![openEDMFilter native editor](assets/native-ui.png)
 
-*Captured from the released VST3 editor. [Capture details and provenance](docs/SCREENSHOTS.md).*
+*Captured from the native v1.3.0 editor. [Capture details and provenance](docs/SCREENSHOTS.md).*
 
 ## Features
 
@@ -14,6 +14,8 @@ A dual multimode filter plugin for EDM production. It provides two serial filter
 - Full bypass per filter. The BYPASS button crossfades over 10 ms so it does not click. A fully bypassed filter does no processing, and its curve leaves the display.
 - **Tempo / Clock Sync & Time Signature engine**. Lock to the host DAW transport (`HOST SYNC`) or run on the internal clock (`40–240 BPM`) across any time signature (`4/4`, `3/4`, `2/4`, `5/4`, `6/4`, `6/8`, `7/8`, `9/8`, `12/8`, or automatic host time signature).
 - **4, 8, 16, 32, and 64 Bar Auto-Cutoff & Auto-Resonance Sweep**. Continuously loops the cutoff and resonance slope trajectories across the selected bar timeframe (`Bar Window`, `Every Bar`, `Up & Down`, or `Bar + Macro`), targeting Filter A, Filter B, Both A+B, or A/B Mirror across every filter type and slope.
+- **A/B/C/D Auto Mode**. Switch between four independent sweep slots using the panel buttons or the host’s `Auto Mode` automation lane. Each slot stores its own length, target, playback mode and curves. Slot A retains the original parameter IDs for older sessions.
+- **Bitcrush and Glitch Sweeps**. Each slot has separate `Start`, `End`, `Slope` and `Onset` controls for both effect mixes. The graph shows all four curves. Glitch repeats the first sixteenth-note slice of each beat, with short fades at slice boundaries; very slow tempos use shorter synced subdivisions to fit the history buffer. Sweep bypass removes both automatic effects while preserving the manual crusher.
 - **Interactive Slope Editor**. Drag the start, curve midpoint, and end handles directly on the multi-bar graph (or use the dedicated Cutoff and Resonance `Start`, `End`, and `Slope` knobs) to shape exponential risers, logarithmic drops, and linear sweeps in real time. Double-click a midpoint handle to reset its curvature to linear.
 - **EDM Sweep Presets**. Includes factory presets and quick in-panel slope presets for EDM low-pass, high-pass, band-pass, and notch sweep ups, sweep downs, acid bar pumps, and 32/64-bar builds.
 - Tempo-synced LFO per filter. Five shapes (sine, triangle, saw up, saw down, square), rates from 1/32 to 8 bars with triplets, and bipolar depth. While the host plays, the phase locks to the host transport, so the LFO lands on the same point of the bar on every pass.
@@ -24,12 +26,25 @@ A dual multimode filter plugin for EDM production. It provides two serial filter
 - Ring modulator with frequency and mix controls.
 - Output section. Dry/wet, gain, and a stereo-linked lookahead peak limiter with a ceiling.
 - Filter inertia. This smooths cutoff moves on 48 and 96 dB slopes to stop clicks. Turn it off for faster, harder gating.
-- 30 factory presets, available from the preset menu and as host programs, plus 9 quick slope presets in the Auto-Sweep panel.
+- 34 factory presets, available from the preset menu and as host programs, plus 12 quick sweep presets in the Auto-Sweep panel.
 - Live response display. It shows both curves and the combined curve, and follows the Auto-Sweep, LFO, envelope and FM in real time. Drag a band's marker to set its cutoff (left and right) and resonance (up and down).
 - 2x oversampling. Everything before the limiter runs at twice the host rate, so drive, ring mod and fast FM alias less. The plugin reports 110 samples of latency (47 for the oversampler, 63 for the limiter lookahead), so hosts compensate for it.
 - All parameters can be automated in the host.
 
 VST2 and AAX are not built by this project.
+
+## Auto mode and late-sweep effects
+
+Turn on **AUTO SWEEP**, select **A**, **B**, **C** or **D**, and edit that slot’s curves. Automate **Auto Mode** in your DAW to switch slots during playback. With host sync enabled, each slot follows its position in the host timeline. Cutoff, resonance and effect mix changes are smoothed. All four slots are saved with the session; loading an older session restores its original sweep in A with automatic effects off.
+
+For a clean opening and a textured finish, keep the effect **Start** at 0%, set **Onset** to 75% or later, then raise **End** and adjust **Slope**. Onset is a position within the sweep trajectory: `Every Bar` repeats it each bar, and `Up & Down` retraces it on the return. Bitcrush uses the main **Crush Rate**, **Bits** and **Position** controls; its sweep mix blends on top of the manual mix. Glitch follows the host or internal clock. The quick preset menu changes the selected slot.
+
+Four new factory presets include increasingly intense A–D variations:
+
+- **Silk to Static (8 Bar)**: an opening low-pass with subtle late texture and a small glitch finish.
+- **Neon Staircase (16 Bar)**: a longer rising sweep with six-bit crunch and stutter near the end.
+- **Last Bar Breakdown (8 Bar)**: a descending sweep that adds both effects in the final bar.
+- **Mainstage Fracture (32 Bar)**: a high-pass build ending in four-bit crunch and beat repeats.
 
 ## Install
 
@@ -38,7 +53,7 @@ VST2 and AAX are not built by this project.
 3. Choose **openEDMFilter**, select **VST3** (or **AU** on macOS), and install.
 4. Rescan plugins in your DAW. If you chose a custom install folder, add it to the DAW's search paths.
 
-For manual installation, download your platform ZIP from [v1.2.0 Releases](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.2.0). The macOS package is universal (Apple Silicon/Intel), with a macOS 11 deployment target. Windows and Linux packages are x64.
+For manual installation, download your platform ZIP from [v1.3.0 Releases](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.3.0). The macOS package is universal (Apple Silicon/Intel), with a macOS 11 deployment target. Windows and Linux packages are x64.
 
 | Format | macOS | Windows | Linux |
 | --- | --- | --- | --- |

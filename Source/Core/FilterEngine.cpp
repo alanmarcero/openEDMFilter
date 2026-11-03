@@ -32,6 +32,7 @@ void FilterEngine::prepare(double sampleRate) noexcept {
     parameterSmoothing_ = onePoleCoefficient(kParameterSmoothingSeconds, sampleRate_);
     fadeSamples_ = std::max(1, static_cast<int>(kTopologyFadeSeconds * sampleRate_));
     limiter_.prepare(sampleRate);
+    stutter_.prepare(sampleRate_);
     reset();
 }
 
@@ -41,6 +42,10 @@ void FilterEngine::reset() noexcept {
     sweep_.reset();
     std::ranges::for_each(envelopes_, [](EnvelopeFollower& envelope) { envelope.reset(); });
     crusher_.reset();
+    stutter_.reset();
+    glitchBeatPhase_ = 0.0;
+    crushMix_ = 0.0f;
+    glitchMix_ = 0.0f;
     oversampler_.reset();
     limiter_.reset();
     needsSnap_ = true;
@@ -64,6 +69,7 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
     const double sweepIncrement = transport.bpm / 60.0 / sampleRate_ / totalSweepBeats;
     if (transport.ppqPosition) {
         sweep_.syncToTransport(*transport.ppqPosition, beatsPerBar, settings.sweep.bars);
+        glitchBeatPhase_ = *transport.ppqPosition - std::floor(*transport.ppqPosition);
     }
 
     if (needsSnap_) {
@@ -79,6 +85,10 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
         });
         mix_ = settings.bypassed ? 0.0f : settings.mix;
         outputGain_ = settings.bypassed ? 1.0f : settings.outputGain;
+        const float progress = AutoSweep::progressAt(settings.sweep.mode, settings.sweep.bars, sweep_.phase());
+        const float autoCrush = settings.sweep.enabled ? AutoSweep::envelopeAt(settings.sweep.crush, progress) : 0.0f;
+        crushMix_ = settings.crushMix + (1.0f - settings.crushMix) * autoCrush;
+        glitchMix_ = settings.sweep.enabled ? AutoSweep::envelopeAt(settings.sweep.glitch, progress) : 0.0f;
         needsSnap_ = false;
     }
 
@@ -119,6 +129,12 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
             fmPhase_ = nextFmPhase - std::floor(nextFmPhase);
             ringPhase_ = nextRingPhase - std::floor(nextRingPhase);
             const double sweepPhase = sweep_.nextPhase(sweepIncrement);
+            const float progress = AutoSweep::progressAt(settings.sweep.mode, settings.sweep.bars, sweepPhase);
+            const float autoCrush = settings.sweep.enabled ? AutoSweep::envelopeAt(settings.sweep.crush, progress) : 0.0f;
+            const float targetCrush = settings.crushMix + (1.0f - settings.crushMix) * autoCrush;
+            const float targetGlitch = settings.sweep.enabled ? AutoSweep::envelopeAt(settings.sweep.glitch, progress) : 0.0f;
+            crushMix_ = targetCrush + parameterSmoothing_ * (crushMix_ - targetCrush);
+            glitchMix_ = targetGlitch + parameterSmoothing_ * (glitchMix_ - targetGlitch);
 
             std::array<float, kNumBands> modulationOctaves{};
             std::ranges::transform(bandIndices, modulationOctaves.begin(), [&](int band) {
@@ -171,11 +187,11 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
                 const auto colour = [&](float signal, Placement placement) {
                     const float drive = settings.drivePlacement == placement ? settings.drive : 0.0f;
                     const float driven = saturate(signal, drive);
-                    if (settings.crushPlacement != placement || settings.crushMix <= 0.0f) {
+                    if (settings.crushPlacement != placement || crushMix_ <= 0.0f) {
                         return driven;
                     }
                     const float crushed = crusher_.process(channel, driven, crushRateHz, settings.crushBits, sampleRate_);
-                    return driven + settings.crushMix * (crushed - driven);
+                    return driven + crushMix_ * (crushed - driven);
                 };
 
                 const float dry = upsampled[channel][phase];
@@ -194,8 +210,12 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
                 const float filtered = filterBand(1, filterBand(0, preColoured));
                 const float postColoured = colour(filtered, Placement::PostFilter);
                 const float ringModulated = postColoured + settings.ringMix * (postColoured * ringCarrier - postColoured);
-                upsampled[channel][phase] = (dry + mix_ * (ringModulated - dry)) * outputGain_;
+                const float repeated = stutter_.process(channel, ringModulated, glitchBeatPhase_, transport.bpm, sampleRate_);
+                const float glitched = ringModulated + glitchMix_ * (repeated - ringModulated);
+                upsampled[channel][phase] = (dry + mix_ * (glitched - dry)) * outputGain_;
             });
+            glitchBeatPhase_ += transport.bpm / 60.0 / sampleRate_;
+            glitchBeatPhase_ -= std::floor(glitchBeatPhase_);
             std::ranges::for_each(fadeRemaining_, [](int& remaining) { remaining = std::max(0, remaining - 1); });
         });
 

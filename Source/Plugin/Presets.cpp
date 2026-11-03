@@ -1,7 +1,37 @@
 #include "Presets.h"
+#include "Parameters.h"
 #include <algorithm>
 
 namespace openedm::presets {
+
+namespace {
+
+FactoryPreset texturedSweep(const char* name, float bars, float startHz, float endHz,
+                            float slope, float crush, float glitch, float rate, float bits,
+                            float crushOnset, float glitchOnset, bool highPass = false) {
+    FactoryPreset preset{ name, {
+        { "a_type", highPass ? 1.0f : 0.0f }, { "a_slope", 1.0f }, { "sweep_on", 1.0f },
+        { "crush_rate", rate }, { "crush_bits", bits }, { "crush_pos", 1.0f }
+    } };
+    for (int slot = 0; slot < 4; ++slot) {
+        const float variation = static_cast<float>(slot);
+        const float intensity = 0.4f + 0.2f * variation;
+        const std::array<std::pair<const char*, float>, 15> values{{
+            { params::kSweepBars, bars }, { params::kSweepCutoffStart, startHz },
+            { params::kSweepCutoffEnd, endHz }, { params::kSweepCutoffSlope, slope + 0.08f * variation },
+            { params::kSweepResStart, 0.12f }, { params::kSweepResEnd, 0.4f + 0.08f * variation },
+            { params::kSweepResSlope, 0.15f + 0.1f * variation },
+            { params::kSweepCrushStart, 0.0f }, { params::kSweepCrushEnd, crush * intensity },
+            { params::kSweepCrushSlope, 0.15f + 0.1f * variation }, { params::kSweepCrushOnset, crushOnset },
+            { params::kSweepGlitchStart, 0.0f }, { params::kSweepGlitchEnd, glitch * intensity },
+            { params::kSweepGlitchSlope, 0.2f + 0.1f * variation }, { params::kSweepGlitchOnset, glitchOnset }
+        }};
+        for (const auto& [id, value] : values) preset.values.emplace_back(params::sweepId(slot, id), value);
+    }
+    return preset;
+}
+
+} // namespace
 
 // Choice indices: type 0 LP, 1 HP, 2 BP, 3 Notch. Slope 0 12 dB, 1 24 dB, 2 48 dB, 3 96 dB.
 // LFO shape 0 Sine, 1 Triangle, 2 Saw Up, 3 Saw Down, 4 Square. LFO rate 2 = 1/16, 4 = 1/8, 6 = 1/4, 8 = 1 Bar.
@@ -122,6 +152,10 @@ const std::vector<FactoryPreset>& factoryPresets() {
             { "sweep_mode", 2.0f }, { "sweep_cut_start", 140.0f }, { "sweep_cut_end", 14000.0f },
             { "sweep_cut_slope", 0.20f }, { "sweep_res_start", 0.25f }, { "sweep_res_end", 0.70f },
             { "sweep_res_slope", 0.20f }, { "drive", 0.25f } } },
+        texturedSweep("Silk to Static (8 Bar)", 1.0f, 80.0f, 18000.0f, 0.2f, 0.45f, 0.3f, 8000.0f, 10.0f, 0.72f, 0.85f),
+        texturedSweep("Neon Staircase (16 Bar)", 2.0f, 100.0f, 19000.0f, 0.38f, 0.75f, 0.65f, 4800.0f, 6.0f, 0.68f, 0.80f),
+        texturedSweep("Last Bar Breakdown (8 Bar)", 1.0f, 18000.0f, 350.0f, -0.25f, 0.8f, 0.9f, 3200.0f, 5.0f, 0.875f, 0.875f),
+        texturedSweep("Mainstage Fracture (32 Bar)", 3.0f, 30.0f, 4800.0f, 0.35f, 0.9f, 1.0f, 2400.0f, 4.0f, 0.75f, 0.875f, true),
     };
     return presets;
 }
@@ -164,6 +198,19 @@ const std::vector<FactoryPreset>& sweepSlopePresets() {
             { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 3.0f }, { "sweep_cut_start", 80.0f },
             { "sweep_cut_end", 18500.0f }, { "sweep_cut_slope", 0.30f }, { "sweep_res_start", 0.20f },
             { "sweep_res_end", 0.80f }, { "sweep_res_slope", 0.25f } } },
+        { "Late Texture + Glitch", {
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_crush_start", 0.0f },
+            { "sweep_crush_end", 0.45f }, { "sweep_crush_onset", 0.75f }, { "sweep_crush_slope", 0.25f },
+            { "sweep_glitch_start", 0.0f }, { "sweep_glitch_end", 0.45f }, { "sweep_glitch_onset", 0.875f },
+            { "sweep_glitch_slope", 0.35f } } },
+        { "Final Quarter Fracture", {
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_crush_start", 0.0f },
+            { "sweep_crush_end", 0.9f }, { "sweep_crush_onset", 0.75f }, { "sweep_crush_slope", 0.1f },
+            { "sweep_glitch_start", 0.0f }, { "sweep_glitch_end", 1.0f }, { "sweep_glitch_onset", 0.80f },
+            { "sweep_glitch_slope", 0.2f } } },
+        { "Clean Sweep FX", {
+            { "sweep_crush_start", 0.0f }, { "sweep_crush_end", 0.0f },
+            { "sweep_glitch_start", 0.0f }, { "sweep_glitch_end", 0.0f } } },
     };
     return presets;
 }
@@ -185,8 +232,12 @@ void apply(const FactoryPreset& preset, juce::AudioProcessorValueTreeState& stat
 }
 
 void applyPartial(const FactoryPreset& preset, juce::AudioProcessorValueTreeState& state) {
+    const int slot = static_cast<int>(state.getRawParameterValue(params::kSweepSlot)->load());
     std::ranges::for_each(preset.values, [&](const auto& entry) {
-        if (auto* ranged = state.getParameter(entry.first)) {
+        const bool perSlot = std::ranges::any_of(params::kSweepFilterIds, [&](const char* id) { return juce::String(id) == entry.first; })
+            || std::ranges::any_of(params::kSweepEffectIds, [&](const char* id) { return juce::String(id) == entry.first; });
+        const auto id = perSlot ? params::sweepId(slot, entry.first) : juce::String(entry.first);
+        if (auto* ranged = state.getParameter(id)) {
             ranged->setValueNotifyingHost(ranged->convertTo0to1(entry.second));
         }
     });

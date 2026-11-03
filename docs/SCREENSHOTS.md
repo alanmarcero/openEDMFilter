@@ -1,11 +1,14 @@
 # Native UI screenshot
 
-![Released plugin editor](../assets/native-ui.png)
+![Native plugin editor](../assets/native-ui.png)
 
-`assets/native-ui.png` was captured on macOS on 2026-10-27 from the actual **v1.1.0 VST3 editor**, loaded in a JUCE 8.0.9 host. It shows the plugin's default state while processing a stereo test signal at 48 kHz with a 120 BPM host transport. The host renders the native AppKit view into a PNG at the display's backing resolution (1960 × 1368). Controls, labels, meters and version text come from the running plugin.
+`assets/native-ui.png` shows the v1.3.0 native JUCE editor at 1100 × 940, captured from the release build on 2026-11-03. It displays **Neon Staircase (16 Bar)** in **Auto Mode D**, with the playhead positioned at 90% to show the late bitcrush and glitch curves. This is a component render of the actual editor, not a mockup or a DAW screenshot.
 
-- [Release v1.1.0](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.1.0)
-- Source commit: [`fee7b7b`](https://github.com/alanmarcero/openEDMFilter/commit/fee7b7b354cfc8fac3d67a435e4b2ce8ed908ef6)
-- Release asset: `openEDMFilter-macOS.zip`
-- Archive SHA-256, verified before capture: `d56f4041986c1c1c7aa46995bea3b4c78de609f36e7b34f89d642b11e7f62c2a`
-- Screenshot SHA-256: `04c59dc61590d254a1a87ea1604674a0b5e287b5ec4c491272541079b88313ff`
+Reproduce on macOS from the repository root:
+
+```sh
+cmake --build build --target openedm_plugin_tests --parallel
+OEF_CAPTURE="$PWD/assets/native-ui.png" build/openedm_plugin_tests '[ui]'
+```
+
+The capture test also exercises A/B/C/D button selection, host-driven selection, editing the selected slot, and changing slots during a knob drag without corrupting automation gestures.

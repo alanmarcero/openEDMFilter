@@ -26,6 +26,13 @@ enum class SweepTarget {
     Mirror // Band A follows the sweep; Band B follows the inverted (End -> Start) sweep
 };
 
+struct SweepEnvelope {
+    float start = 0.0f;
+    float end = 0.0f;
+    float slope = 0.35f;
+    float onset = 0.75f;
+};
+
 struct AutoSweepSettings {
     bool enabled = false;
     SweepTarget target = SweepTarget::BandA;
@@ -37,6 +44,8 @@ struct AutoSweepSettings {
     float resonanceStart = 0.15f; // 0..1
     float resonanceEnd = 0.65f;   // 0..1
     float resonanceSlope = 0.0f;  // -1..1 curvature of the resonance trajectory
+    SweepEnvelope crush{};
+    SweepEnvelope glitch{};
 };
 
 struct SweepValue {
@@ -76,6 +85,7 @@ public:
     [[nodiscard]] static float progressAt(SweepMode mode, int bars, double phase) noexcept;
     [[nodiscard]] static float applySlope(float progress, float slope) noexcept;
     [[nodiscard]] static float slopeFromMidpoint(float midpointFraction) noexcept;
+    [[nodiscard]] static float envelopeAt(const SweepEnvelope& envelope, float progress) noexcept;
     [[nodiscard]] static SweepValue valueAt(const AutoSweepSettings& settings, int band, double phase) noexcept;
 
 private:

@@ -11,6 +11,27 @@ TEST_CASE("Saturation with zero drive returns the input unchanged", "[saturate]"
     REQUIRE(saturate(0.37f, 0.0f) == 0.37f);
 }
 
+TEST_CASE("Beat repeat uses the host tempo even outside the manual tempo range", "[stutter]") {
+    for (const auto [bpm, subdivisions] : { std::pair{ 15.0, 8 }, { 30.0, 4 }, { 120.0, 4 }, { 480.0, 4 } }) {
+        BeatStutter stutter;
+        stutter.prepare(8000.0);
+        const int sliceSamples = static_cast<int>(8000.0 * 60.0 / bpm / subdivisions);
+        for (int i = 0; i < sliceSamples * 4; ++i) {
+            const double phase = static_cast<double>(i) * bpm / 60.0 / 8000.0;
+            const float input = static_cast<float>(i) / 10000.0f;
+            const float left = stutter.process(0, input, phase, bpm, 8000.0);
+            const float right = stutter.process(1, -input, phase, bpm, 8000.0);
+            REQUIRE_THAT(right, WithinAbs(-left, 0.00001f));
+            if (i % sliceSamples == sliceSamples / 2) {
+                INFO(bpm);
+                REQUIRE_THAT(left, WithinAbs(static_cast<float>(sliceSamples / 2) / 10000.0f, 0.0001f));
+            }
+        }
+        stutter.reset();
+        REQUIRE(stutter.process(0, 0.25f, 0.8, bpm, 8000.0) == 0.25f);
+    }
+}
+
 TEST_CASE("Saturation at full drive keeps a hot signal bounded", "[saturate]") {
     REQUIRE(std::abs(saturate(10.0f, 1.0f)) < 0.3f);
 }

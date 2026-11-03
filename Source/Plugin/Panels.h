@@ -39,6 +39,7 @@ public:
     void mouseDrag(const juce::MouseEvent& event) override;
     void mouseUp(const juce::MouseEvent& event) override;
     void mouseDoubleClick(const juce::MouseEvent& event) override;
+    void endDrag();
 
 private:
     enum class Handle {
@@ -65,6 +66,7 @@ private:
     Handle activeHandle_ = Handle::None;
     juce::RangedAudioParameter* activeParameter_ = nullptr;
     float slopeAtDragStart_ = 0.0f;
+    int dragSlot_ = 0;
 };
 
 class SweepPanel : public juce::Component {
@@ -91,11 +93,18 @@ private:
     Knob resStart_;
     Knob resEnd_;
     Knob resSlope_;
+    std::array<std::unique_ptr<Knob>, 8> effectKnobs_;
+    std::array<juce::TextButton, 4> slotButtons_;
+    juce::Rectangle<int> crushArea_;
+    juce::Rectangle<int> glitchArea_;
+    juce::Rectangle<int> slotArea_;
+    void selectSlot(int slot);
     juce::Rectangle<int> clockArea_;
     juce::Rectangle<int> editorArea_;
     juce::Rectangle<int> cutoffArea_;
     juce::Rectangle<int> resArea_;
     juce::ParameterAttachment bypassWatcher_; // dims the sweep controls while it is bypassed
+    juce::ParameterAttachment slotWatcher_;
 };
 
 class BandPanel : public juce::Component {
