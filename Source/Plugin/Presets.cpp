@@ -6,7 +6,7 @@ namespace openedm::presets {
 
 namespace {
 
-FactoryPreset texturedSweep(const char* name, float bars, float startHz, float endHz,
+FactoryPreset texturedSweep(const char* name, int bars, float startHz, float endHz,
                             float slope, float crush, float glitch, float rate, float bits,
                             float crushOnset, float glitchOnset, bool highPass = false) {
     FactoryPreset preset{ name, {
@@ -17,7 +17,7 @@ FactoryPreset texturedSweep(const char* name, float bars, float startHz, float e
         const float variation = static_cast<float>(slot);
         const float intensity = 0.4f + 0.2f * variation;
         const std::array<std::pair<const char*, float>, 15> values{{
-            { params::kSweepBars, bars }, { params::kSweepCutoffStart, startHz },
+            { params::kSweepBars, static_cast<float>(params::sweepBarIndex(bars)) }, { params::kSweepCutoffStart, startHz },
             { params::kSweepCutoffEnd, endHz }, { params::kSweepCutoffSlope, slope + 0.08f * variation },
             { params::kSweepResStart, 0.12f }, { params::kSweepResEnd, 0.4f + 0.08f * variation },
             { params::kSweepResSlope, 0.15f + 0.1f * variation },
@@ -35,7 +35,7 @@ FactoryPreset texturedSweep(const char* name, float bars, float startHz, float e
 
 // Choice indices: type 0 LP, 1 HP, 2 BP, 3 Notch. Slope 0 12 dB, 1 24 dB, 2 48 dB, 3 96 dB.
 // LFO shape 0 Sine, 1 Triangle, 2 Saw Up, 3 Saw Down, 4 Square. LFO rate 2 = 1/16, 4 = 1/8, 6 = 1/4, 8 = 1 Bar.
-// Sweep bars: 0 = 4 Bars, 1 = 8 Bars, 2 = 16 Bars, 3 = 32 Bars, 4 = 64 Bars.
+// Sweep bars are choice indices from params::kSweepBarCounts: 1, 2, 4, 8, 16, 32, 64.
 // Sweep mode: 0 = Bar Window, 1 = Every Bar, 2 = Up & Down, 3 = Bar + Macro.
 // Sweep target: 0 = Filter A, 1 = Filter B, 2 = Both A+B, 3 = A/B Mirror.
 const std::vector<FactoryPreset>& factoryPresets() {
@@ -92,70 +92,70 @@ const std::vector<FactoryPreset>& factoryPresets() {
             { "b_cutoff", 150.0f }, { "b_lfo_shape", 1.0f }, { "b_lfo_rate", 10.0f }, { "b_lfo_depth", 0.35f } } },
         { "EDM LP Sweep Up (8 Bar)", {
             { "a_type", 0.0f }, { "a_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
-            { "sweep_bars", 1.0f }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 80.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(8)) }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 80.0f },
             { "sweep_cut_end", 18000.0f }, { "sweep_cut_slope", 0.35f }, { "sweep_res_start", 0.20f },
             { "sweep_res_end", 0.68f }, { "sweep_res_slope", 0.20f }, { "drive", 0.25f } } },
         { "EDM LP Sweep Down (8 Bar)", {
             { "a_type", 0.0f }, { "a_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
-            { "sweep_bars", 1.0f }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 18000.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(8)) }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 18000.0f },
             { "sweep_cut_end", 80.0f }, { "sweep_cut_slope", -0.30f }, { "sweep_res_start", 0.20f },
             { "sweep_res_end", 0.60f }, { "sweep_res_slope", 0.15f } } },
         { "EDM HP Riser Up (16 Bar)", {
             { "a_type", 1.0f }, { "a_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
-            { "sweep_bars", 2.0f }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 25.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(16)) }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 25.0f },
             { "sweep_cut_end", 4500.0f }, { "sweep_cut_slope", 0.45f }, { "sweep_res_start", 0.20f },
             { "sweep_res_end", 0.75f }, { "sweep_res_slope", 0.30f } } },
         { "EDM HP Drop Down (4 Bar)", {
             { "a_type", 1.0f }, { "a_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
-            { "sweep_bars", 0.0f }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 3500.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(4)) }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 3500.0f },
             { "sweep_cut_end", 25.0f }, { "sweep_cut_slope", -0.35f }, { "sweep_res_start", 0.65f },
             { "sweep_res_end", 0.10f }, { "sweep_res_slope", -0.25f } } },
         { "EDM BP Build Up (16 Bar)", {
             { "a_type", 2.0f }, { "a_slope", 1.0f }, { "a_width", 0.45f }, { "sweep_on", 1.0f },
-            { "sweep_target", 0.0f }, { "sweep_bars", 2.0f }, { "sweep_mode", 0.0f },
+            { "sweep_target", 0.0f }, { "sweep_bars", static_cast<float>(params::sweepBarIndex(16)) }, { "sweep_mode", 0.0f },
             { "sweep_cut_start", 180.0f }, { "sweep_cut_end", 9000.0f }, { "sweep_cut_slope", 0.30f },
             { "sweep_res_start", 0.30f }, { "sweep_res_end", 0.75f }, { "sweep_res_slope", 0.20f },
             { "drive", 0.30f } } },
         { "EDM BP Sweep Down (8 Bar)", {
             { "a_type", 2.0f }, { "a_slope", 1.0f }, { "a_width", 0.45f }, { "sweep_on", 1.0f },
-            { "sweep_target", 0.0f }, { "sweep_bars", 1.0f }, { "sweep_mode", 0.0f },
+            { "sweep_target", 0.0f }, { "sweep_bars", static_cast<float>(params::sweepBarIndex(8)) }, { "sweep_mode", 0.0f },
             { "sweep_cut_start", 9000.0f }, { "sweep_cut_end", 180.0f }, { "sweep_cut_slope", -0.25f },
             { "sweep_res_start", 0.70f }, { "sweep_res_end", 0.30f }, { "sweep_res_slope", -0.15f } } },
         { "EDM Notch Sweep Up (8 Bar)", {
             { "a_type", 3.0f }, { "a_slope", 2.0f }, { "a_width", 0.40f }, { "sweep_on", 1.0f },
-            { "sweep_target", 0.0f }, { "sweep_bars", 1.0f }, { "sweep_mode", 0.0f },
+            { "sweep_target", 0.0f }, { "sweep_bars", static_cast<float>(params::sweepBarIndex(8)) }, { "sweep_mode", 0.0f },
             { "sweep_cut_start", 120.0f }, { "sweep_cut_end", 8000.0f }, { "sweep_cut_slope", 0.20f },
             { "sweep_res_start", 0.40f }, { "sweep_res_end", 0.85f }, { "sweep_res_slope", 0.20f } } },
         { "EDM Notch Sweep Down (4 Bar)", {
             { "a_type", 3.0f }, { "a_slope", 2.0f }, { "a_width", 0.40f }, { "sweep_on", 1.0f },
-            { "sweep_target", 0.0f }, { "sweep_bars", 0.0f }, { "sweep_mode", 0.0f },
+            { "sweep_target", 0.0f }, { "sweep_bars", static_cast<float>(params::sweepBarIndex(4)) }, { "sweep_mode", 0.0f },
             { "sweep_cut_start", 8000.0f }, { "sweep_cut_end", 120.0f }, { "sweep_cut_slope", -0.20f },
             { "sweep_res_start", 0.80f }, { "sweep_res_end", 0.35f }, { "sweep_res_slope", -0.15f } } },
         { "EDM Acid Bar Pump (4 Bar)", {
             { "a_type", 0.0f }, { "a_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
-            { "sweep_bars", 0.0f }, { "sweep_mode", 1.0f }, { "sweep_cut_start", 110.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(4)) }, { "sweep_mode", 1.0f }, { "sweep_cut_start", 110.0f },
             { "sweep_cut_end", 12000.0f }, { "sweep_cut_slope", 0.40f }, { "sweep_res_start", 0.45f },
             { "sweep_res_end", 0.90f }, { "sweep_res_slope", 0.35f }, { "drive", 0.45f }, { "drive_pos", 1.0f } } },
         { "EDM Big Room Build (32 Bar)", {
             { "a_type", 0.0f }, { "a_slope", 2.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
-            { "sweep_bars", 3.0f }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 90.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(32)) }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 90.0f },
             { "sweep_cut_end", 19000.0f }, { "sweep_cut_slope", 0.50f }, { "sweep_res_start", 0.15f },
             { "sweep_res_end", 0.80f }, { "sweep_res_slope", 0.35f }, { "drive", 0.35f } } },
         { "EDM Trance Odyssey (64 Bar)", {
             { "a_type", 0.0f }, { "a_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
-            { "sweep_bars", 4.0f }, { "sweep_mode", 2.0f }, { "sweep_cut_start", 120.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(64)) }, { "sweep_mode", 2.0f }, { "sweep_cut_start", 120.0f },
             { "sweep_cut_end", 18500.0f }, { "sweep_cut_slope", 0.25f }, { "sweep_res_start", 0.20f },
             { "sweep_res_end", 0.70f }, { "sweep_res_slope", 0.15f } } },
         { "EDM Dual Mirror Sweep (16 Bar)", {
             { "a_type", 0.0f }, { "a_slope", 1.0f }, { "b_type", 2.0f }, { "b_slope", 1.0f },
-            { "b_width", 0.55f }, { "sweep_on", 1.0f }, { "sweep_target", 3.0f }, { "sweep_bars", 2.0f },
+            { "b_width", 0.55f }, { "sweep_on", 1.0f }, { "sweep_target", 3.0f }, { "sweep_bars", static_cast<float>(params::sweepBarIndex(16)) },
             { "sweep_mode", 2.0f }, { "sweep_cut_start", 140.0f }, { "sweep_cut_end", 14000.0f },
             { "sweep_cut_slope", 0.20f }, { "sweep_res_start", 0.25f }, { "sweep_res_end", 0.70f },
             { "sweep_res_slope", 0.20f }, { "drive", 0.25f } } },
-        texturedSweep("Silk to Static (8 Bar)", 1.0f, 80.0f, 18000.0f, 0.2f, 0.45f, 0.3f, 8000.0f, 10.0f, 0.72f, 0.85f),
-        texturedSweep("Neon Staircase (16 Bar)", 2.0f, 100.0f, 19000.0f, 0.38f, 0.75f, 0.65f, 4800.0f, 6.0f, 0.68f, 0.80f),
-        texturedSweep("Last Bar Breakdown (8 Bar)", 1.0f, 18000.0f, 350.0f, -0.25f, 0.8f, 0.9f, 3200.0f, 5.0f, 0.875f, 0.875f),
-        texturedSweep("Mainstage Fracture (32 Bar)", 3.0f, 30.0f, 4800.0f, 0.35f, 0.9f, 1.0f, 2400.0f, 4.0f, 0.75f, 0.875f, true),
+        texturedSweep("Silk to Static (8 Bar)", 8, 80.0f, 18000.0f, 0.2f, 0.45f, 0.3f, 8000.0f, 10.0f, 0.72f, 0.85f),
+        texturedSweep("Neon Staircase (16 Bar)", 16, 100.0f, 19000.0f, 0.38f, 0.75f, 0.65f, 4800.0f, 6.0f, 0.68f, 0.80f),
+        texturedSweep("Last Bar Breakdown (8 Bar)", 8, 18000.0f, 350.0f, -0.25f, 0.8f, 0.9f, 3200.0f, 5.0f, 0.875f, 0.875f),
+        texturedSweep("Mainstage Fracture (32 Bar)", 32, 30.0f, 4800.0f, 0.35f, 0.9f, 1.0f, 2400.0f, 4.0f, 0.75f, 0.875f, true),
     };
     return presets;
 }

@@ -82,6 +82,7 @@ private:
     Toggle clockSync_;
     Choice timeSig_;
     Choice bars_;
+    juce::Label barsLabel_;
     Choice mode_;
     Choice target_;
     juce::ComboBox slopePresetBox_;

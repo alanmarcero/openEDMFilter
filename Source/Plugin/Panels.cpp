@@ -390,7 +390,7 @@ void SweepSlopeEditor::paint(juce::Graphics& g) {
         g.drawHorizontalLine(juce::roundToInt(y), plot.getX(), plot.getRight());
     });
 
-    // Vertical bar grid across the 4, 8, 16, 32 or 64 bar window
+    // Vertical bar grid across the 1, 2, 4, 8, 16, 32 or 64 bar window
     const int bars = std::max(1, settings.bars);
     const int divisions = std::min(bars, 8);
     const int barsPerDivision = std::max(1, bars / divisions);
@@ -518,6 +518,7 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
       clockSync_(processor.parameters, params::kClockSync, "HOST SYNC", theme::kAccentOut),
       timeSig_(processor.parameters, params::kTimeSignature, {}, theme::kAccentOut),
       bars_(processor.parameters, params::kSweepBars, {}, theme::kAccentA),
+      barsLabel_({}, "BARS"),
       mode_(processor.parameters, params::kSweepMode, {}, theme::kAccentA),
       target_(processor.parameters, params::kSweepTarget, {}, theme::kAccentA),
       tempo_(processor.parameters, params::kTempoBpm, "Tempo", theme::kAccentOut),
@@ -553,6 +554,9 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
         button.onClick = [this, i] { slotWatcher_.setValueAsCompleteGesture(static_cast<float>(i)); };
         addAndMakeVisible(button);
     }
+    barsLabel_.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    barsLabel_.setColour(juce::Label::textColourId, theme::kTextDim);
+    barsLabel_.setJustificationType(juce::Justification::centredRight);
     slopePresetBox_.setTextWhenNothingSelected("Sweep Preset...");
     const auto& slopePresets = openedm::presets::sweepSlopePresets();
     std::ranges::for_each(slopePresets, [&, id = 1](const auto& preset) mutable {
@@ -568,7 +572,7 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
     };
 
     std::ranges::for_each(std::initializer_list<juce::Component*>{
-                              &bypass_, &enabled_, &clockSync_, &timeSig_, &bars_, &mode_, &target_, &slopePresetBox_,
+                              &bypass_, &enabled_, &clockSync_, &timeSig_, &barsLabel_, &bars_, &mode_, &target_, &slopePresetBox_,
                               &tempo_, &slopeEditor_, &cutoffStart_, &cutoffEnd_, &cutoffSlope_,
                               &resStart_, &resEnd_, &resSlope_ },
                           [this](juce::Component* control) { addAndMakeVisible(control); });
@@ -620,7 +624,8 @@ void SweepPanel::resized() {
     header.removeFromRight(5);
     mode_.setBounds(header.removeFromRight(98));
     header.removeFromRight(5);
-    bars_.setBounds(header.removeFromRight(76));
+    bars_.setBounds(header.removeFromRight(92));
+    barsLabel_.setBounds(header.removeFromRight(40));
     header.removeFromRight(5);
     timeSig_.setBounds(header.removeFromRight(60));
     header.removeFromRight(5);

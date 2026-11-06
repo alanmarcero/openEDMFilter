@@ -45,6 +45,7 @@ OpenEdmFilterProcessor::OpenEdmFilterProcessor()
           };
       }()) {
     setLatencySamples(core::FilterEngine::kLatencySamples);
+    parameters.state.setProperty("barsLayout", params::kSweepBarsLayout, nullptr);
 }
 
 void OpenEdmFilterProcessor::prepareToPlay(double sampleRate, int) {
@@ -154,10 +155,11 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
                 beatsPerBar = static_cast<double>(sig.numerator) * (4.0 / static_cast<double>(sig.denominator));
             }
         }
-        if (!position->getIsPlaying() || !position->getPpqPosition().hasValue()) {
-            return core::Transport{ bpm, std::nullopt, beatsPerBar };
+        if (!position->getPpqPosition().hasValue()) {
+            return core::Transport{ bpm, std::nullopt, beatsPerBar, true };
         }
-        return core::Transport{ bpm, *position->getPpqPosition(), beatsPerBar };
+        // Keep the playhead while stopped so the sweep holds instead of free-running.
+        return core::Transport{ bpm, *position->getPpqPosition(), beatsPerBar, position->getIsPlaying() };
     }();
 
     engine_.process(settings, transport, buffer.getArrayOfWritePointers(), buffer.getNumChannels(), buffer.getNumSamples());
@@ -201,6 +203,7 @@ const juce::String OpenEdmFilterProcessor::getProgramName(int index) {
 void OpenEdmFilterProcessor::getStateInformation(juce::MemoryBlock& destData) {
     auto state = parameters.copyState();
     state.setProperty("program", currentProgram_, nullptr);
+    state.setProperty("barsLayout", params::kSweepBarsLayout, nullptr);
     const auto xml = state.createXml();
     copyXmlToBinary(*xml, destData);
 }
@@ -211,6 +214,7 @@ void OpenEdmFilterProcessor::setStateInformation(const void* data, int sizeInByt
         return;
     }
     auto state = juce::ValueTree::fromXml(*xml);
+    params::migrateSweepBarState(state);
     for (auto* parameter : getParameters()) {
         auto* ranged = dynamic_cast<juce::RangedAudioParameter*>(parameter);
         if (ranged != nullptr && !state.getChildWithProperty("id", ranged->paramID).isValid()) {

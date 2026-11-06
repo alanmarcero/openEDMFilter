@@ -34,8 +34,8 @@ TEST_CASE("LFO advances by the phase increment after each value", "[lfo]") {
     REQUIRE_THAT(second, WithinAbs(-0.5, 1e-6));
 }
 
-TEST_CASE("AutoSweep locks phase to 4, 8, 16, 32 and 64 bar windows across time signatures", "[autosweep]") {
-    for (int bars : { 4, 8, 16, 32, 64 }) {
+TEST_CASE("AutoSweep locks phase to 1, 2, 4, 8, 16, 32 and 64 bar windows across time signatures", "[autosweep]") {
+    for (int bars : { 1, 2, 4, 8, 16, 32, 64 }) {
         for (double beatsPerBar : { 4.0, 3.0, 2.0, 5.0, 3.5, 6.0 }) {
             AutoSweep sweep;
             const double quarterWayPpq = 0.25 * beatsPerBar * static_cast<double>(bars);
@@ -53,6 +53,40 @@ TEST_CASE("AutoSweep EveryBar mode repeats the slope on every bar in the window"
     REQUIRE_THAT(AutoSweep::progressAt(SweepMode::EveryBar, 8, 0.25 / 8.0), WithinAbs(0.25, 1e-6));
     REQUIRE_THAT(AutoSweep::progressAt(SweepMode::EveryBar, 8, 3.25 / 8.0), WithinAbs(0.25, 1e-6));
     REQUIRE_THAT(AutoSweep::progressAt(SweepMode::EveryBar, 16, 7.75 / 16.0), WithinAbs(0.75, 1e-6));
+}
+
+TEST_CASE("AutoSweep 1, 2 and 4 bar frames keep each playback mode on the bar grid", "[autosweep]") {
+    for (int bars : { 1, 2, 4 }) {
+        const double window = static_cast<double>(bars);
+        REQUIRE_THAT(AutoSweep::progressAt(SweepMode::BarWindow, bars, 0.0), WithinAbs(0.0, 1e-6));
+        REQUIRE_THAT(AutoSweep::progressAt(SweepMode::BarWindow, bars, 0.5), WithinAbs(0.5, 1e-6));
+        if (bars > 1) {
+            REQUIRE_THAT(AutoSweep::progressAt(SweepMode::BarWindow, bars, 1.0 / window), WithinAbs(1.0f / static_cast<float>(bars), 1e-5));
+        }
+
+        // Halfway through bar 1, and the same point in the last bar.
+        REQUIRE_THAT(AutoSweep::progressAt(SweepMode::EveryBar, bars, 0.5 / window), WithinAbs(0.5, 1e-6));
+        REQUIRE_THAT(AutoSweep::progressAt(SweepMode::EveryBar, bars, (window - 0.5) / window), WithinAbs(0.5, 1e-6));
+
+        // Up & Down reaches the end at the midpoint of the whole window, including a 1-bar loop.
+        REQUIRE_THAT(AutoSweep::progressAt(SweepMode::UpDown, bars, 0.25), WithinAbs(0.5, 1e-6));
+        REQUIRE_THAT(AutoSweep::progressAt(SweepMode::UpDown, bars, 0.5), WithinAbs(1.0, 1e-6));
+        REQUIRE_THAT(AutoSweep::progressAt(SweepMode::UpDown, bars, 0.75), WithinAbs(0.5, 1e-6));
+
+        const double halfFirstBar = 0.5 / window;
+        const float macro = 0.5f * (0.5f + static_cast<float>(halfFirstBar));
+        REQUIRE_THAT(AutoSweep::progressAt(SweepMode::BarMacro, bars, halfFirstBar), WithinAbs(macro, 1e-5));
+    }
+
+    AutoSweep sweep;
+    sweep.syncToTransport(16.0, 4.0, 1);
+    REQUIRE_THAT(sweep.phase(), WithinAbs(0.0, 1e-6));
+    sweep.syncToTransport(15.0, 4.0, 1);
+    REQUIRE_THAT(sweep.phase(), WithinAbs(0.75, 1e-6));
+    sweep.syncToTransport(-1.0, 4.0, 1);
+    REQUIRE_THAT(sweep.phase(), WithinAbs(0.75, 1e-6));
+    sweep.syncToTransport(-0.5, 4.0, 2);
+    REQUIRE_THAT(sweep.phase(), WithinAbs(0.9375, 1e-6));
 }
 
 TEST_CASE("AutoSweep slope curvature round-trips midpoint fractions", "[autosweep]") {
