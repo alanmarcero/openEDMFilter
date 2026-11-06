@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <utility>
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -79,8 +80,31 @@ inline constexpr std::array<double, 12> kLfoBeats = {
     0.125, 1.0 / 6.0, 0.25, 1.0 / 3.0, 0.5, 2.0 / 3.0, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0
 };
 
-// Selectable multi-bar loop lengths for the auto-sweep, matching "sweep_bars" choices.
-inline constexpr std::array<int, 5> kSweepBarCounts = { 4, 8, 16, 32, 64 };
+// Selectable auto-sweep lengths, matching every "sweep_bars" choice.
+// 1 Bar and 2 Bars were inserted in front of the original 4..64 list.
+// Saved sessions from that older list are shifted by kLegacySweepBarShift.
+inline constexpr std::array<int, 7> kSweepBarCounts = { 1, 2, 4, 8, 16, 32, 64 };
+inline constexpr int kDefaultSweepBarIndex = 3; // 8 bars, the historical default
+inline constexpr int kSweepBarsLayout = 2;
+inline constexpr int kLegacySweepBarShift = 2;
+inline constexpr int kSweepBarsParameterVersion = 3;
+
+static_assert(kSweepBarCounts[kDefaultSweepBarIndex] == 8);
+static_assert(kSweepBarCounts[0 + kLegacySweepBarShift] == 4);
+static_assert(kSweepBarCounts[1 + kLegacySweepBarShift] == 8);
+static_assert(kSweepBarCounts[4 + kLegacySweepBarShift] == 64);
+
+inline int sweepBarIndex(int bars) noexcept {
+    for (size_t index = 0; index < kSweepBarCounts.size(); ++index) {
+        if (kSweepBarCounts[index] == bars) {
+            return static_cast<int>(index);
+        }
+    }
+    return kDefaultSweepBarIndex;
+}
+
+// Rewrites pre-layout sweep bar indices in a saved state. New states are left unchanged.
+void migrateSweepBarState(juce::ValueTree& state);
 
 // Time signatures (numerator, denominator), matching "time_sig" choices.
 inline constexpr std::array<std::pair<int, int>, 9> kTimeSignatures = { {

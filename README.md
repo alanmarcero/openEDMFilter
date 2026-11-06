@@ -6,14 +6,14 @@ A dual multimode filter plugin for EDM production. It provides two serial filter
 
 ![openEDMFilter native editor](assets/native-ui.png)
 
-*Captured from the native v1.3.0 editor. [Capture details and provenance](docs/SCREENSHOTS.md).*
+*Captured from the native editor. [Capture details and provenance](docs/SCREENSHOTS.md).*
 
 ## Features
 
 - Two filters in series (A into B). Each one has low-pass, high-pass, band-pass and notch modes, 12, 24, 48 or 96 dB/oct slopes, resonance, and resonance width. Width also sets the band for band-pass and notch.
 - Full bypass per filter. The BYPASS button crossfades over 10 ms so it does not click. A fully bypassed filter does no processing, and its curve leaves the display.
 - **Tempo / Clock Sync & Time Signature engine**. Lock to the host DAW transport (`HOST SYNC`) or run on the internal clock (`40–240 BPM`) across any time signature (`4/4`, `3/4`, `2/4`, `5/4`, `6/4`, `6/8`, `7/8`, `9/8`, `12/8`, or automatic host time signature).
-- **4, 8, 16, 32, and 64 Bar Auto-Cutoff & Auto-Resonance Sweep**. Continuously loops the cutoff and resonance slope trajectories across the selected bar timeframe (`Bar Window`, `Every Bar`, `Up & Down`, or `Bar + Macro`), targeting Filter A, Filter B, Both A+B, or A/B Mirror across every filter type and slope.
+- **1, 2, 4, 8, 16, 32, and 64 Bar Auto-Cutoff & Auto-Resonance Sweep**. The **BARS** selector sets the loop length. Cutoff and resonance follow that timeframe (`Bar Window`, `Every Bar`, `Up & Down`, or `Bar + Macro`) on Filter A, Filter B, Both A+B, or A/B Mirror, for every filter type and slope. The default is still 8 bars.
 - **A/B/C/D Auto Mode**. Switch between four independent sweep slots using the panel buttons or the host’s `Auto Mode` automation lane. Each slot stores its own length, target, playback mode and curves. Slot A retains the original parameter IDs for older sessions.
 - **Bitcrush and Glitch Sweeps**. Each slot has separate `Start`, `End`, `Slope` and `Onset` controls for both effect mixes. The graph shows all four curves. Glitch repeats the first sixteenth-note slice of each beat, with short fades at slice boundaries; very slow tempos use shorter synced subdivisions to fit the history buffer. Sweep bypass removes both automatic effects while preserving the manual crusher.
 - **Interactive Slope Editor**. Drag the start, curve midpoint, and end handles directly on the multi-bar graph (or use the dedicated Cutoff and Resonance `Start`, `End`, and `Slope` knobs) to shape exponential risers, logarithmic drops, and linear sweeps in real time. Double-click a midpoint handle to reset its curvature to linear.
@@ -35,7 +35,11 @@ VST2 and AAX are not built by this project.
 
 ## Auto mode and late-sweep effects
 
-Turn on **AUTO SWEEP**, select **A**, **B**, **C** or **D**, and edit that slot’s curves. Automate **Auto Mode** in your DAW to switch slots during playback. With host sync enabled, each slot follows its position in the host timeline. Cutoff, resonance and effect mix changes are smoothed. All four slots are saved with the session; loading an older session restores its original sweep in A with automatic effects off.
+Turn on **AUTO SWEEP**, select **A**, **B**, **C** or **D**, and edit that slot’s curves. The **BARS** menu sets that slot to **1 Bar**, **2 Bars**, **4 Bars**, **8 Bars**, **16 Bars**, **32 Bars** or **64 Bars**. Automate **Auto Mode** or **Sweep Bars** in the host.
+
+With host sync on, playback locks the sweep to the current tempo and time signature. Phase advances sample by sample from the block-start playhead. A stopped host holds the sweep on that playhead. Sync off, or a host with no playhead, uses the internal clock. One bar is the quarter-note length of the active signature (four quarters in 4/4). The 4/4 menu entry follows the host signature when the host provides one. Sessions saved before the 1-bar and 2-bar choices keep their original 4, 8, 16, 32 or 64 bar length, and the default is still 8 bars.
+
+Cutoff, resonance and effect mix changes are smoothed. All four slots are saved with the session; loading an older session restores its original sweep in A with automatic effects off.
 
 For a clean opening and a textured finish, keep the effect **Start** at 0%, set **Onset** to 75% or later, then raise **End** and adjust **Slope**. Onset is a position within the sweep trajectory: `Every Bar` repeats it each bar, and `Up & Down` retraces it on the return. Bitcrush uses the main **Crush Rate**, **Bits** and **Position** controls; its sweep mix blends on top of the manual mix. Glitch follows the host or internal clock. The quick preset menu changes the selected slot.
 
@@ -53,7 +57,7 @@ Four new factory presets include increasingly intense A–D variations:
 3. Choose **openEDMFilter**, select **VST3** (or **AU** on macOS), and install.
 4. Rescan plugins in your DAW. If you chose a custom install folder, add it to the DAW's search paths.
 
-For manual installation, download your platform ZIP from [v1.3.0 Releases](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.3.0). The macOS package is universal (Apple Silicon/Intel), with a macOS 11 deployment target. Windows and Linux packages are x64.
+The source version is 1.4.0. Published release packages are still [v1.3.0](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.3.0) until the next tag. For manual installation, download your platform ZIP from that release. The macOS package is universal (Apple Silicon/Intel), with a macOS 11 deployment target. Windows and Linux packages are x64.
 
 | Format | macOS | Windows | Linux |
 | --- | --- | --- | --- |

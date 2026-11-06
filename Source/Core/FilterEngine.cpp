@@ -66,8 +66,13 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
 
     const double beatsPerBar = std::max(0.5, transport.beatsPerBar);
     const double totalSweepBeats = std::max(0.25, beatsPerBar * static_cast<double>(std::max(1, settings.sweep.bars)));
-    const double sweepIncrement = transport.bpm / 60.0 / sampleRate_ / totalSweepBeats;
-    if (transport.ppqPosition) {
+    // A host playhead is the clock. While it is stopped the sweep holds on that position;
+    // with no playhead the internal tempo keeps running.
+    const bool hostTimeline = transport.ppqPosition.has_value();
+    const bool advanceClock = !hostTimeline || transport.playing;
+    const double sweepIncrement = advanceClock ? transport.bpm / 60.0 / sampleRate_ / totalSweepBeats : 0.0;
+    const double glitchBeatIncrement = advanceClock ? transport.bpm / 60.0 / sampleRate_ : 0.0;
+    if (hostTimeline) {
         sweep_.syncToTransport(*transport.ppqPosition, beatsPerBar, settings.sweep.bars);
         glitchBeatPhase_ = *transport.ppqPosition - std::floor(*transport.ppqPosition);
     }
@@ -102,9 +107,9 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
         const double effectiveLfoBeats = bandSettings.lfoBeats >= 4.0
             ? bandSettings.lfoBeats * (beatsPerBar / 4.0)
             : bandSettings.lfoBeats;
-        lfoIncrements[band] = transport.bpm / 60.0 / sampleRate_ / effectiveLfoBeats;
+        lfoIncrements[band] = advanceClock ? transport.bpm / 60.0 / sampleRate_ / effectiveLfoBeats : 0.0;
         envelopes_[band].configure(bandSettings.envSourceHz, bandSettings.envAttackMs, bandSettings.envReleaseMs, sampleRate_);
-        if (transport.ppqPosition) {
+        if (hostTimeline) {
             lfos_[band].syncToTransport(*transport.ppqPosition, effectiveLfoBeats);
         }
     });
@@ -214,7 +219,7 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
                 const float glitched = ringModulated + glitchMix_ * (repeated - ringModulated);
                 upsampled[channel][phase] = (dry + mix_ * (glitched - dry)) * outputGain_;
             });
-            glitchBeatPhase_ += transport.bpm / 60.0 / sampleRate_;
+            glitchBeatPhase_ += glitchBeatIncrement;
             glitchBeatPhase_ -= std::floor(glitchBeatPhase_);
             std::ranges::for_each(fadeRemaining_, [](int& remaining) { remaining = std::max(0, remaining - 1); });
         });

@@ -50,8 +50,9 @@ struct EngineSettings {
 
 struct Transport {
     double bpm = 120.0;
-    std::optional<double> ppqPosition; // set only while synced to a playing host
+    std::optional<double> ppqPosition; // host timeline position, including while stopped
     double beatsPerBar = 4.0;          // quarter-note beats per bar for the active time signature
+    bool playing = true;               // with a playhead, false holds synced clocks on that position
 };
 
 // Full signal chain: drive and crush (pre or post), band A into band B, ring mod, dry/wet, output, limiter.
