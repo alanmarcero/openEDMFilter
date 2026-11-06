@@ -36,7 +36,7 @@ struct SweepEnvelope {
 struct AutoSweepSettings {
     bool enabled = false;
     SweepTarget target = SweepTarget::BandA;
-    int bars = 8; // 4, 8, 16, 32, 64
+    int bars = 8; // 1, 2, 4, 8, 16, 32, 64
     SweepMode mode = SweepMode::BarWindow;
     float cutoffStartHz = 80.0f;
     float cutoffEndHz = 16000.0f;
