@@ -11,7 +11,7 @@ namespace theme = openedm::theme;
 constexpr int kEditorWidth = 1100;
 constexpr int kEditorHeight = 940;
 constexpr int kMargin = 12;
-constexpr int kHeaderHeight = 44;
+constexpr int kHeaderHeight = 32;
 constexpr int kResponseHeight = 140;
 constexpr int kSweepHeight = 300;
 constexpr int kBandHeight = 220;
@@ -60,7 +60,7 @@ void OpenEdmFilterEditor::paint(juce::Graphics& g) {
     g.setColour(theme::kPanelEdge);
     g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(4), 5, 1);
 
-    const auto header = getLocalBounds().reduced(kMargin, 0).removeFromTop(kHeaderHeight + kMargin).withTrimmedTop(kMargin).withHeight(28);
+    const auto header = getLocalBounds().reduced(kMargin, 0).removeFromTop(kHeaderHeight + kMargin).withTrimmedTop(kMargin);
     g.setFont(juce::FontOptions(24.0f, juce::Font::bold));
     g.setColour(theme::kText);
     g.drawText("open", header, juce::Justification::centredLeft);
@@ -70,12 +70,6 @@ void OpenEdmFilterEditor::paint(juce::Graphics& g) {
     const int edmWidth = juce::GlyphArrangement::getStringWidthInt(g.getCurrentFont(), "EDM");
     g.setColour(theme::kAccentB);
     g.drawText("Filter", header.withTrimmedLeft(openWidth + edmWidth), juce::Justification::centredLeft);
-
-    g.setFont(juce::FontOptions(11.0f));
-    g.setColour(theme::kTextDim);
-    g.drawText("Dual multimode filter  /  12-96 dB  /  1-64 Bar Auto-Sweep  /  Bitcrush & Glitch",
-               header.translated(2, 28).withHeight(14).withWidth(620),
-               juce::Justification::centredLeft);
 }
 
 void OpenEdmFilterEditor::resized() {
