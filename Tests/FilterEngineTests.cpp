@@ -196,3 +196,121 @@ TEST_CASE("Engine smooths output gain over 10 ms at the host rate", "[engine]") 
     const auto afterOneTimeConstant = samples[1000 + FilterEngine::kLatencySamples + 480];
     REQUIRE_THAT(afterOneTimeConstant, WithinAbs(std::exp(-1.0), 0.03));
 }
+
+namespace {
+
+void requireWrappedPhase(float actual, double expected) {
+    const double wrapped = expected - std::floor(expected);
+    const double delta = std::abs(static_cast<double>(actual) - wrapped);
+    REQUIRE(std::min(delta, 1.0 - delta) < 1e-5);
+}
+
+int samplesForBeats(double beats, double bpm) {
+    return static_cast<int>(std::llround(beats * 60.0 / bpm * kSampleRate));
+}
+
+void processSilence(FilterEngine& engine, const EngineSettings& settings, const Transport& transport, int numSamples) {
+    std::vector<float> samples(static_cast<size_t>(numSamples), 0.0f);
+    float* channels[] = { samples.data() };
+    engine.process(settings, transport, channels, 1, numSamples);
+}
+
+} // namespace
+
+TEST_CASE("Engine bar frames advance with tempo and hold or snap with the host timeline", "[engine][autosweep]") {
+    for (int bars : { 1, 2, 4 }) {
+        EngineSettings settings = transparentSettings();
+        settings.sweep.enabled = true;
+        settings.sweep.target = SweepTarget::BandA;
+        settings.sweep.bars = bars;
+        settings.sweep.mode = SweepMode::BarWindow;
+        settings.sweep.cutoffStartHz = 200.0f;
+        settings.sweep.cutoffEndHz = 3200.0f;
+        settings.bands[0].shape = FilterShape{ true, FilterType::LowPass, FilterSlope::Slope24dB, 0.2f, 0.5f };
+
+        const double beatsPerBar = 4.0;
+        const double totalBeats = beatsPerBar * static_cast<double>(bars);
+        FilterEngine engine;
+        engine.prepare(kSampleRate);
+
+        const int oneSecond = samplesForBeats(2.0, 120.0);
+        processSilence(engine, settings, Transport{ 120.0, std::nullopt, beatsPerBar, true }, oneSecond);
+        requireWrappedPhase(engine.currentSweepPhase(), 2.0 / totalBeats);
+
+        processSilence(engine, settings, Transport{ 240.0, std::nullopt, beatsPerBar, true }, oneSecond);
+        requireWrappedPhase(engine.currentSweepPhase(), 2.0 / totalBeats + 4.0 / totalBeats);
+
+        processSilence(engine, settings, Transport{ 60.0, std::nullopt, beatsPerBar, true }, oneSecond);
+        requireWrappedPhase(engine.currentSweepPhase(), 2.0 / totalBeats + 4.0 / totalBeats + 1.0 / totalBeats);
+
+        // A stopped playhead holds the phase for the whole block. The internal clock must not keep drifting.
+        const double heldPpq = 0.5 * beatsPerBar;
+        processSilence(engine, settings, Transport{ 120.0, heldPpq, beatsPerBar, false }, oneSecond);
+        requireWrappedPhase(engine.currentSweepPhase(), heldPpq / totalBeats);
+        const float held = engine.currentSweepPhase();
+        processSilence(engine, settings, Transport{ 240.0, heldPpq, beatsPerBar, false }, oneSecond);
+        REQUIRE_THAT(engine.currentSweepPhase(), WithinAbs(held, 1e-6));
+
+        // Starting or relocating snaps to the playhead, then advances through the block.
+        const int halfBar = samplesForBeats(beatsPerBar * 0.5, 120.0);
+        processSilence(engine, settings, Transport{ 120.0, 0.0, beatsPerBar, true }, halfBar);
+        requireWrappedPhase(engine.currentSweepPhase(), 0.5 / static_cast<double>(bars));
+
+        // Changing the frame while the host is stopped re-grids to the new length.
+        settings.sweep.bars = 1;
+        processSilence(engine, settings, Transport{ 120.0, beatsPerBar, beatsPerBar, false }, 64);
+        requireWrappedPhase(engine.currentSweepPhase(), 0.0);
+        settings.sweep.bars = bars;
+    }
+}
+
+TEST_CASE("Engine 1, 2 and 4 bar modes land on the musical cutoff while the host is stopped", "[engine][autosweep]") {
+    const auto run = [](int bars, SweepMode mode, double ppq, double beatsPerBar) {
+        EngineSettings settings = transparentSettings();
+        settings.bands[0].shape = FilterShape{ true, FilterType::LowPass, FilterSlope::Slope24dB, 0.1f, 0.5f };
+        settings.sweep.enabled = true;
+        settings.sweep.target = SweepTarget::BandA;
+        settings.sweep.bars = bars;
+        settings.sweep.mode = mode;
+        settings.sweep.cutoffStartHz = 100.0f;
+        settings.sweep.cutoffEndHz = 1600.0f;
+        settings.sweep.resonanceStart = 0.2f;
+        settings.sweep.resonanceEnd = 0.8f;
+        FilterEngine engine;
+        engine.prepare(kSampleRate);
+        processSilence(engine, settings, Transport{ 100.0, ppq, beatsPerBar, false }, 2000);
+        return engine;
+    };
+
+    // 4/4, halfway through a 1-bar window.
+    {
+        const auto engine = run(1, SweepMode::BarWindow, 2.0, 4.0);
+        REQUIRE_THAT(engine.currentCutoffs()[0], WithinRel(400.0f, 1e-3f));
+        REQUIRE_THAT(engine.currentResonances()[0], WithinAbs(0.5f, 1e-3f));
+    }
+    // 3/4, end of the outward half of a 1-bar up/down.
+    {
+        const auto engine = run(1, SweepMode::UpDown, 1.5, 3.0);
+        REQUIRE_THAT(engine.currentCutoffs()[0], WithinRel(1600.0f, 1e-3f));
+    }
+    // 6/8 is 3 quarter notes. Halfway through bar 1 of a 2-bar Every Bar loop.
+    {
+        const auto engine = run(2, SweepMode::EveryBar, 1.5, 3.0);
+        REQUIRE_THAT(engine.currentCutoffs()[0], WithinRel(400.0f, 1e-3f));
+        REQUIRE_THAT(engine.currentSweepPhase(), WithinAbs(0.25f, 1e-5f));
+    }
+    // 4 bars, 5/4: two beats is 2/20 of the window.
+    {
+        const auto engine = run(4, SweepMode::BarWindow, 2.0, 5.0);
+        REQUIRE_THAT(engine.currentSweepPhase(), WithinAbs(0.1f, 1e-5f));
+    }
+    // No playhead still runs, even if the playing flag is false.
+    {
+        EngineSettings settings = transparentSettings();
+        settings.sweep.bars = 1;
+        FilterEngine engine;
+        engine.prepare(kSampleRate);
+        processSilence(engine, settings, Transport{ 120.0, std::nullopt, 4.0, false }, samplesForBeats(2.0, 120.0));
+        requireWrappedPhase(engine.currentSweepPhase(), 0.5);
+    }
+}

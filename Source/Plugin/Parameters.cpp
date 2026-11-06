@@ -40,6 +40,14 @@ void addChoice(Layout& layout, const juce::String& id, const juce::String& name,
     layout.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{ id, version }, name, choices, defaultIndex));
 }
 
+juce::StringArray sweepBarChoices() {
+    juce::StringArray choices;
+    for (const int bars : kSweepBarCounts) {
+        choices.add(bars == 1 ? "1 Bar" : juce::String(bars) + " Bars");
+    }
+    return choices;
+}
+
 void addBool(Layout& layout, const juce::String& id, const juce::String& name, bool defaultValue) {
     layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{ id, kVersion }, name, defaultValue));
 }
@@ -121,7 +129,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     addBool(layout, kSweepEnabled, "Auto Sweep", false);
     addBool(layout, kSweepBypass, "Sweep Bypass", false);
     addChoice(layout, kSweepTarget, "Sweep Target", { "Filter A", "Filter B", "Both A+B", "A/B Mirror" }, 0);
-    addChoice(layout, kSweepBars, "Sweep Bars", { "4 Bars", "8 Bars", "16 Bars", "32 Bars", "64 Bars" }, 1);
+    const auto barChoices = sweepBarChoices();
+    addChoice(layout, kSweepBars, "Sweep Bars", barChoices, kDefaultSweepBarIndex, kSweepBarsParameterVersion);
     addChoice(layout, kSweepMode, "Sweep Mode", { "Bar Window", "Every Bar", "Up & Down", "Bar + Macro" }, 0);
     addFloat(layout, kSweepCutoffStart, "Sweep Cutoff Start", skewedRange(20.0f, 20000.0f, 632.0f), 80.0f, kFormatHz);
     addFloat(layout, kSweepCutoffEnd, "Sweep Cutoff End", skewedRange(20.0f, 20000.0f, 632.0f), 16000.0f, kFormatHz);
@@ -134,7 +143,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         const auto id = [slot](const char* key) { return sweepId(slot, key); };
         const auto name = "Auto " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + slot)) + " ";
         addChoice(layout, id(kSweepTarget), name + "Target", { "Filter A", "Filter B", "Both A+B", "A/B Mirror" }, 0, 2);
-        addChoice(layout, id(kSweepBars), name + "Bars", { "4 Bars", "8 Bars", "16 Bars", "32 Bars", "64 Bars" }, 1, 2);
+        addChoice(layout, id(kSweepBars), name + "Bars", barChoices, kDefaultSweepBarIndex, kSweepBarsParameterVersion);
         addChoice(layout, id(kSweepMode), name + "Mode", { "Bar Window", "Every Bar", "Up & Down", "Bar + Macro" }, 0, 2);
         addFloat(layout, id(kSweepCutoffStart), name + "Cutoff Start", skewedRange(20.0f, 20000.0f, 632.0f), 80.0f, kFormatHz, 2);
         addFloat(layout, id(kSweepCutoffEnd), name + "Cutoff End", skewedRange(20.0f, 20000.0f, 632.0f), 16000.0f, kFormatHz, 2);
@@ -155,6 +164,23 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         addFloat(layout, sweepId(slot, kSweepGlitchOnset), name + "Glitch Onset", { 0.0f, 0.99f }, 0.75f, kFormatPercent, 2);
     }
     return layout;
+}
+
+void migrateSweepBarState(juce::ValueTree& state) {
+    const int layout = static_cast<int>(state.getProperty("barsLayout", 1));
+    if (layout < kSweepBarsLayout) {
+        const int lastIndex = static_cast<int>(kSweepBarCounts.size()) - 1;
+        for (int slot = 0; slot < 4; ++slot) {
+            auto child = state.getChildWithProperty("id", sweepId(slot, kSweepBars));
+            if (!child.isValid()) {
+                continue;
+            }
+            const int oldIndex = juce::roundToInt(static_cast<double>(child.getProperty("value", 1.0)));
+            const int shifted = std::clamp(oldIndex + kLegacySweepBarShift, 0, lastIndex);
+            child.setProperty("value", static_cast<float>(shifted), nullptr);
+        }
+    }
+    state.setProperty("barsLayout", kSweepBarsLayout, nullptr);
 }
 
 } // namespace openedm::params

@@ -73,7 +73,7 @@ void OpenEdmFilterEditor::paint(juce::Graphics& g) {
 
     g.setFont(juce::FontOptions(11.0f));
     g.setColour(theme::kTextDim);
-    g.drawText("Dual multimode filter  /  12-96 dB  /  A/B/C/D Auto-Sweep  /  Bitcrush & Glitch",
+    g.drawText("Dual multimode filter  /  12-96 dB  /  1-64 Bar Auto-Sweep  /  Bitcrush & Glitch",
                header.translated(2, 28).withHeight(14).withWidth(620),
                juce::Justification::centredLeft);
 }
