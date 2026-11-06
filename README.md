@@ -26,7 +26,7 @@ Dual multimode filter. Two filters in series, four auto-sweep slots (cutoff, res
 - The ring modulator has frequency and mix.
 - Output has dry/wet, gain, and a stereo-linked lookahead peak limiter with a ceiling.
 - Filter inertia uses a 30 ms smoother on cutoff moves for 48 and 96 dB slopes. Off, those slopes use a 2 ms smoother.
-- There are 34 factory presets in the preset menu and as host programs, and 12 slope presets in the Auto Sweep panel.
+- There are 58 factory presets in the preset menu and as host programs, and 12 slope presets in the Auto Sweep panel.
 - The response display shows each filter curve and the combined curve, including the auto-sweep, LFO, envelope and FM. Drag a band marker horizontally for cutoff and vertically for resonance.
 - The signal before the limiter runs at twice the host sample rate. Reported latency is 110 samples: 47 from the oversampler and 63 from the limiter lookahead.
 - Every parameter can be automated.
@@ -49,6 +49,7 @@ These presets write all four slots. Slots B, C and D raise the cutoff slope, res
 - Neon Staircase (16 Bar): low-pass, 100 Hz to 19 kHz, 6-bit crush. Crush and glitch rise after 68% and 80%.
 - Last Bar Breakdown (8 Bar): low-pass, 18 kHz down to 350 Hz, 5-bit crush. Both mixes rise after 87.5%.
 - Mainstage Fracture (32 Bar): high-pass, 30 Hz to 4.8 kHz, 4-bit crush. Crush rises after 75%; glitch rises after 87.5% and ends at full mix on slot D.
+- Trance Climax Static Burst (16 Bar): low-pass, 85 Hz to 19.5 kHz, 8-bit crush. Crush rises after 75%; glitch rises after 85%.
 
 ## Install
 
@@ -57,7 +58,7 @@ These presets write all four slots. Slots B, C and D raise the cutoff slope, res
 3. Choose openEDMFilter, select VST3 (or AU on macOS), and install.
 4. Rescan plugins in your DAW. If you chose a custom install folder, add it to the DAW's search paths.
 
-Install the current packages from the [v1.4.0 release](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.4.0): `openEDMFilter-macOS.zip`, `openEDMFilter-Windows.zip`, and `openEDMFilter-Linux.zip`. The macOS package is universal (Apple Silicon/Intel), with a macOS 11 deployment target. Windows and Linux packages are x64. v1.3.0 remains available at its original tag.
+Install the current packages from the [v1.5.0 release](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.5.0): `openEDMFilter-macOS.zip`, `openEDMFilter-Windows.zip`, and `openEDMFilter-Linux.zip`. The macOS package is universal (Apple Silicon/Intel), with a macOS 11 deployment target. Windows and Linux packages are x64. v1.3.0 remains available at its original tag.
 
 | Format | macOS | Windows | Linux |
 | --- | --- | --- | --- |

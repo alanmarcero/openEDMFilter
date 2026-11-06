@@ -156,6 +156,110 @@ const std::vector<FactoryPreset>& factoryPresets() {
         texturedSweep("Neon Staircase (16 Bar)", 16, 100.0f, 19000.0f, 0.38f, 0.75f, 0.65f, 4800.0f, 6.0f, 0.68f, 0.80f),
         texturedSweep("Last Bar Breakdown (8 Bar)", 8, 18000.0f, 350.0f, -0.25f, 0.8f, 0.9f, 3200.0f, 5.0f, 0.875f, 0.875f),
         texturedSweep("Mainstage Fracture (32 Bar)", 32, 30.0f, 4800.0f, 0.35f, 0.9f, 1.0f, 2400.0f, 4.0f, 0.75f, 0.875f, true),
+        { "Trance 138 Euphoria Build (16 Bar)", {
+            { "a_type", 0.0f }, { "a_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(16)) }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 90.0f },
+            { "sweep_cut_end", 19500.0f }, { "sweep_cut_slope", 0.38f }, { "sweep_res_start", 0.20f },
+            { "sweep_res_end", 0.72f }, { "sweep_res_slope", 0.25f }, { "drive", 0.22f } } },
+        { "Trance 138 Epic Ascent (32 Bar)", {
+            { "a_type", 0.0f }, { "a_slope", 2.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(32)) }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 75.0f },
+            { "sweep_cut_end", 20000.0f }, { "sweep_cut_slope", 0.45f }, { "sweep_res_start", 0.15f },
+            { "sweep_res_end", 0.75f }, { "sweep_res_slope", 0.30f }, { "drive", 0.28f } } },
+        { "Trance Uplifting 138 Gate (1/16)", {
+            { "a_slope", 2.0f }, { "a_cutoff", 350.0f }, { "a_reso", 0.40f }, { "a_lfo_shape", 4.0f },
+            { "a_lfo_rate", 2.0f }, { "a_lfo_depth", 0.85f }, { "inertia", 0.0f }, { "drive", 0.20f } } },
+        { "Trance Triplet Acid Squelch (1/8T)", {
+            { "a_type", 0.0f }, { "a_slope", 1.0f }, { "a_cutoff", 420.0f }, { "a_reso", 0.82f },
+            { "a_lfo_shape", 3.0f }, { "a_lfo_rate", 3.0f }, { "a_lfo_depth", 0.55f }, { "a_env_source", 300.0f },
+            { "a_env_attack", 2.0f }, { "a_env_release", 80.0f }, { "a_env_depth", 0.40f }, { "drive", 0.35f } } },
+        { "Psytrance 140 Rolling Bass Squelch", {
+            { "a_type", 0.0f }, { "a_slope", 2.0f }, { "a_cutoff", 280.0f }, { "a_reso", 0.78f },
+            { "a_env_source", 180.0f }, { "a_env_attack", 1.5f }, { "a_env_release", 55.0f },
+            { "a_env_depth", 0.65f }, { "fm_rate", 120.0f }, { "fm_depth", 0.18f }, { "drive", 0.25f } } },
+        { "Psytrance Comb Reso Riser (16 Bar)", {
+            { "a_type", 3.0f }, { "a_slope", 2.0f }, { "a_width", 0.35f }, { "sweep_on", 1.0f },
+            { "sweep_target", 0.0f }, { "sweep_bars", static_cast<float>(params::sweepBarIndex(16)) }, { "sweep_mode", 0.0f },
+            { "sweep_cut_start", 150.0f }, { "sweep_cut_end", 9500.0f }, { "sweep_cut_slope", 0.35f },
+            { "sweep_res_start", 0.40f }, { "sweep_res_end", 0.88f }, { "sweep_res_slope", 0.25f } } },
+        { "Anjunabeats Pluck Filter", {
+            { "a_type", 0.0f }, { "a_slope", 1.0f }, { "a_cutoff", 650.0f }, { "a_reso", 0.32f },
+            { "a_env_source", 500.0f }, { "a_env_attack", 1.0f }, { "a_env_release", 140.0f },
+            { "a_env_depth", 0.60f }, { "drive", 0.15f } } },
+        { "Anjunabeats Warm Progressive Sweep (16 Bar)", {
+            { "a_type", 0.0f }, { "a_slope", 0.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(16)) }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 120.0f },
+            { "sweep_cut_end", 16000.0f }, { "sweep_cut_slope", 0.18f }, { "sweep_res_start", 0.15f },
+            { "sweep_res_end", 0.38f }, { "sweep_res_slope", 0.10f } } },
+        { "Tech-Trance 138 Slog Gate", {
+            { "a_type", 0.0f }, { "a_slope", 2.0f }, { "a_cutoff", 450.0f }, { "a_reso", 0.55f },
+            { "a_lfo_shape", 4.0f }, { "a_lfo_rate", 2.0f }, { "a_lfo_depth", 0.90f }, { "drive", 0.48f },
+            { "drive_pos", 1.0f }, { "crush_rate", 14000.0f }, { "crush_bits", 12.0f }, { "crush_mix", 0.25f },
+            { "inertia", 0.0f } } },
+        { "Tech-Trance Screamer HP (8 Bar)", {
+            { "a_type", 1.0f }, { "a_slope", 2.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(8)) }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 35.0f },
+            { "sweep_cut_end", 4500.0f }, { "sweep_cut_slope", 0.40f }, { "sweep_res_start", 0.30f },
+            { "sweep_res_end", 0.82f }, { "sweep_res_slope", 0.30f }, { "drive", 0.30f } } },
+        { "Vocal Trance Ethereal Highpass (8 Bar)", {
+            { "a_type", 1.0f }, { "a_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(8)) }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 25.0f },
+            { "sweep_cut_end", 2200.0f }, { "sweep_cut_slope", 0.32f }, { "sweep_res_start", 0.15f },
+            { "sweep_res_end", 0.50f }, { "sweep_res_slope", 0.20f } } },
+        { "Vocal Trance Pumping Sidechain", {
+            { "b_type", 1.0f }, { "b_slope", 2.0f }, { "b_cutoff", 45.0f }, { "b_lfo_shape", 3.0f },
+            { "b_lfo_rate", 6.0f }, { "b_lfo_depth", 0.70f }, { "inertia", 0.0f } } },
+        { "Classic Tiësto 1999 Anthem Riser (16 Bar)", {
+            { "a_type", 1.0f }, { "a_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(16)) }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 30.0f },
+            { "sweep_cut_end", 5500.0f }, { "sweep_cut_slope", 0.42f }, { "sweep_res_start", 0.20f },
+            { "sweep_res_end", 0.76f }, { "sweep_res_slope", 0.25f }, { "drive", 0.22f } } },
+        { "Paul van Dyk Energy Mirror (16 Bar)", {
+            { "a_type", 0.0f }, { "a_slope", 1.0f }, { "b_type", 2.0f }, { "b_slope", 1.0f },
+            { "b_width", 0.50f }, { "sweep_on", 1.0f }, { "sweep_target", 3.0f }, { "sweep_bars", static_cast<float>(params::sweepBarIndex(16)) },
+            { "sweep_mode", 0.0f }, { "sweep_cut_start", 100.0f }, { "sweep_cut_end", 18000.0f },
+            { "sweep_cut_slope", 0.32f }, { "sweep_res_start", 0.20f }, { "sweep_res_end", 0.68f },
+            { "sweep_res_slope", 0.20f } } },
+        { "Armin ASOT 64-Bar Breakdown Odyssey", {
+            { "a_type", 0.0f }, { "a_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(64)) }, { "sweep_mode", 2.0f }, { "sweep_cut_start", 90.0f },
+            { "sweep_cut_end", 19000.0f }, { "sweep_cut_slope", 0.22f }, { "sweep_res_start", 0.18f },
+            { "sweep_res_end", 0.74f }, { "sweep_res_slope", 0.15f } } },
+        { "Ferry Corsten Gouryella Lead Sweep (8 Bar)", {
+            { "a_type", 0.0f }, { "a_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(8)) }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 160.0f },
+            { "sweep_cut_end", 18000.0f }, { "sweep_cut_slope", 0.30f }, { "sweep_res_start", 0.25f },
+            { "sweep_res_end", 0.75f }, { "sweep_res_slope", 0.20f }, { "drive", 0.28f } } },
+        { "Hard Trance Screaming 96dB Acid", {
+            { "a_type", 0.0f }, { "a_slope", 3.0f }, { "a_cutoff", 700.0f }, { "a_reso", 0.90f },
+            { "fm_rate", 160.0f }, { "fm_depth", 0.30f }, { "drive", 0.50f }, { "drive_pos", 1.0f } } },
+        { "Trance Drop Silence Plunge (4 Bar)", {
+            { "a_type", 0.0f }, { "a_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(4)) }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 19000.0f },
+            { "sweep_cut_end", 90.0f }, { "sweep_cut_slope", -0.42f }, { "sweep_res_start", 0.65f },
+            { "sweep_res_end", 0.15f }, { "sweep_res_slope", -0.25f } } },
+        { "Solarstone Pure Trance Shimmer (16 Bar)", {
+            { "a_type", 2.0f }, { "a_slope", 1.0f }, { "a_width", 0.60f }, { "sweep_on", 1.0f },
+            { "sweep_target", 0.0f }, { "sweep_bars", static_cast<float>(params::sweepBarIndex(16)) }, { "sweep_mode", 0.0f },
+            { "sweep_cut_start", 220.0f }, { "sweep_cut_end", 11000.0f }, { "sweep_cut_slope", 0.28f },
+            { "sweep_res_start", 0.30f }, { "sweep_res_end", 0.72f }, { "sweep_res_slope", 0.18f } } },
+        { "Cosmic Gate Exploration Filter (8 Bar)", {
+            { "a_type", 0.0f }, { "a_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(8)) }, { "sweep_mode", 1.0f }, { "sweep_cut_start", 110.0f },
+            { "sweep_cut_end", 15000.0f }, { "sweep_cut_slope", 0.35f }, { "sweep_res_start", 0.35f },
+            { "sweep_res_end", 0.80f }, { "sweep_res_slope", 0.22f }, { "drive", 0.25f } } },
+        { "138 BPM Supersaw Flanger Notch", {
+            { "a_type", 3.0f }, { "a_slope", 2.0f }, { "a_cutoff", 1100.0f }, { "a_width", 0.55f },
+            { "a_lfo_shape", 0.0f }, { "a_lfo_rate", 9.0f }, { "a_lfo_depth", 0.45f }, { "mix", 0.75f } } },
+        { "Trance Breakdown Muffle Swell (8 Bar)", {
+            { "a_type", 0.0f }, { "a_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(8)) }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 250.0f },
+            { "sweep_cut_end", 17000.0f }, { "sweep_cut_slope", 0.22f }, { "sweep_res_start", 0.15f },
+            { "sweep_res_end", 0.55f }, { "sweep_res_slope", 0.15f } } },
+        { "Hands-Up Euro Trance Stutter (1/8)", {
+            { "a_slope", 1.0f }, { "a_cutoff", 1500.0f }, { "a_reso", 0.35f }, { "a_lfo_shape", 4.0f },
+            { "a_lfo_rate", 4.0f }, { "a_lfo_depth", 0.80f }, { "inertia", 0.0f } } },
+        texturedSweep("Trance Climax Static Burst (16 Bar)", 16, 85.0f, 19500.0f, 0.40f, 0.70f, 0.60f, 6000.0f, 8.0f, 0.75f, 0.85f),
     };
     return presets;
 }
