@@ -81,7 +81,7 @@ The plugins are written to `build/OpenEDMFilter_artefacts/Release/`. Add `-DCMAK
 
 ## CI
 
-`.github/workflows/build.yml` builds and tests on macOS (universal binary), Windows and Linux on code pushes to `main` and pull requests. It runs pluginval at strictness 5 on macOS and Windows, then uploads a zip for each OS. Push a `v*` tag to publish those zips as a GitHub release.
+`.github/workflows/build.yml` builds and tests on macOS 15 (universal arm64 and x86_64), Windows and Linux on code pushes to `main` and pull requests. It runs pluginval at strictness 5 on macOS and Windows, then uploads a zip for each OS. Push a `v*` tag to publish those zips as a GitHub release.
 
 The macOS builds have an ad hoc signature only. On first use, run `xattr -dr com.apple.quarantine <plugin>` or allow the plugin in System Settings.
 
