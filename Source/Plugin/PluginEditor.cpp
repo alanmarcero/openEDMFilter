@@ -37,7 +37,33 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     presetBox_.setSelectedId(processor_.getCurrentProgram() + 1, juce::dontSendNotification);
     presetBox_.onChange = [this] { processor_.setCurrentProgram(presetBox_.getSelectedId() - 1); };
 
+    prevPresetBtn_.setComponentID("prevPreset");
+    prevPresetBtn_.setTooltip("Previous preset");
+    prevPresetBtn_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentA);
+    prevPresetBtn_.onClick = [this] {
+        const int num = processor_.getNumPrograms();
+        if (num <= 0) return;
+        const int cur = processor_.getCurrentProgram();
+        const int nextProg = (cur <= 0 ? num : cur) - 1;
+        processor_.setCurrentProgram(nextProg);
+        presetBox_.setSelectedId(nextProg + 1, juce::dontSendNotification);
+    };
+
+    nextPresetBtn_.setComponentID("nextPreset");
+    nextPresetBtn_.setTooltip("Next preset");
+    nextPresetBtn_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentA);
+    nextPresetBtn_.onClick = [this] {
+        const int num = processor_.getNumPrograms();
+        if (num <= 0) return;
+        const int cur = processor_.getCurrentProgram();
+        const int nextProg = (cur + 1) % num;
+        processor_.setCurrentProgram(nextProg);
+        presetBox_.setSelectedId(nextProg + 1, juce::dontSendNotification);
+    };
+
     addAndMakeVisible(presetBox_);
+    addAndMakeVisible(prevPresetBtn_);
+    addAndMakeVisible(nextPresetBtn_);
     addAndMakeVisible(masterBypass_);
     addAndMakeVisible(inertia_);
     addAndMakeVisible(response_);
@@ -81,7 +107,11 @@ void OpenEdmFilterEditor::paint(juce::Graphics& g) {
 void OpenEdmFilterEditor::resized() {
     auto bounds = getLocalBounds().reduced(kMargin);
     auto header = bounds.removeFromTop(kHeaderHeight);
-    presetBox_.setBounds(header.removeFromRight(240).withSizeKeepingCentre(240, 28));
+    nextPresetBtn_.setBounds(header.removeFromRight(26).withSizeKeepingCentre(26, 28));
+    header.removeFromRight(4);
+    presetBox_.setBounds(header.removeFromRight(180).withSizeKeepingCentre(180, 28));
+    header.removeFromRight(4);
+    prevPresetBtn_.setBounds(header.removeFromRight(26).withSizeKeepingCentre(26, 28));
     header.removeFromRight(8);
     inertia_.setBounds(header.removeFromRight(84));
     header.removeFromRight(8);
