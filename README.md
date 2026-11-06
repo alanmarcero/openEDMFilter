@@ -57,7 +57,7 @@ These presets write all four slots. Slots B, C and D raise the cutoff slope, res
 3. Choose openEDMFilter, select VST3 (or AU on macOS), and install.
 4. Rescan plugins in your DAW. If you chose a custom install folder, add it to the DAW's search paths.
 
-The source version is 1.4.0. Published release packages are still [v1.3.0](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.3.0) until the next tag. For manual installation, download your platform ZIP from that release. The macOS package is universal (Apple Silicon/Intel), with a macOS 11 deployment target. Windows and Linux packages are x64.
+Install the current packages from the [v1.4.0 release](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.4.0): `openEDMFilter-macOS.zip`, `openEDMFilter-Windows.zip`, and `openEDMFilter-Linux.zip`. The macOS package is universal (Apple Silicon/Intel), with a macOS 11 deployment target. Windows and Linux packages are x64. v1.3.0 remains available at its original tag.
 
 | Format | macOS | Windows | Linux |
 | --- | --- | --- | --- |
