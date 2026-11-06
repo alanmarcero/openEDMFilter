@@ -2,7 +2,7 @@
 
 ![Native plugin editor](../assets/native-ui.png)
 
-`assets/native-ui.png` shows the v1.4.0 native JUCE editor at 1100 × 940, captured from the release build on 2026-11-06. It displays the **Neon Staircase** curves in **Auto Mode D** with the **BARS** selector set to **1 Bar**, and the playhead at 90% of that one-bar window. This is a component render of the actual editor, not a mockup or a DAW screenshot.
+`assets/native-ui.png` is the v1.4.0 editor at 1100 x 940, captured from the release build on 2026-11-06. Neon Staircase curves, Auto Mode D, BARS set to 1 Bar, playhead at 90% of that bar. It is a component render of the editor.
 
 Reproduce on macOS from the repository root:
 
