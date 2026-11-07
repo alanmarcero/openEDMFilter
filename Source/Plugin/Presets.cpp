@@ -260,6 +260,55 @@ const std::vector<FactoryPreset>& factoryPresets() {
             { "a_slope", 1.0f }, { "a_cutoff", 1500.0f }, { "a_reso", 0.35f }, { "a_lfo_shape", 4.0f },
             { "a_lfo_rate", 4.0f }, { "a_lfo_depth", 0.80f }, { "inertia", 0.0f } } },
         texturedSweep("Trance Climax Static Burst (16 Bar)", 16, 85.0f, 19500.0f, 0.40f, 0.70f, 0.60f, 6000.0f, 8.0f, 0.75f, 0.85f),
+        { "Festival Mainstage Sub & Top (32 Bar)", {
+            { "a_type", 0.0f }, { "a_slope", 2.0f }, { "b_type", 1.0f }, { "b_slope", 1.0f },
+            { "sweep_on", 1.0f }, { "sweep_target", 2.0f }, { "sweep_bars", static_cast<float>(params::sweepBarIndex(32)) },
+            { "sweep_cut_start", 120.0f }, { "sweep_cut_end", 18500.0f }, { "sweep_cut_slope", 0.45f },
+            { "sweep_res_start", 0.25f }, { "sweep_res_end", 0.85f }, { "drive", 0.35f } } },
+        { "Tech House Acid Acid Acid", {
+            { "a_type", 0.0f }, { "a_slope", 1.0f }, { "a_cutoff", 450.0f }, { "a_reso", 0.82f },
+            { "a_lfo_shape", 2.0f }, { "a_lfo_rate", 2.0f }, { "a_lfo_depth", 0.65f }, { "drive", 0.45f } } },
+        { "Dubstep Talking Formant Notch", {
+            { "a_type", 3.0f }, { "a_slope", 2.0f }, { "a_cutoff", 850.0f }, { "a_width", 0.35f },
+            { "a_reso", 0.75f }, { "a_lfo_rate", 4.0f }, { "a_lfo_depth", 0.6f }, { "crush_bits", 8.0f },
+            { "crush_mix", 0.35f }, { "drive", 0.5f } } },
+        { "Future Rave Laser Sweep (8 Bar)", {
+            { "a_type", 2.0f }, { "a_slope", 2.0f }, { "a_width", 0.30f }, { "sweep_on", 1.0f },
+            { "sweep_target", 0.0f }, { "sweep_bars", static_cast<float>(params::sweepBarIndex(8)) },
+            { "sweep_cut_start", 200.0f }, { "sweep_cut_end", 12000.0f }, { "sweep_cut_slope", 0.35f },
+            { "sweep_res_start", 0.40f }, { "sweep_res_end", 0.90f }, { "drive", 0.40f } } },
+        { "Trance Euphoria 16-Bar Riser", {
+            { "b_type", 1.0f }, { "b_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 1.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(16)) }, { "sweep_cut_start", 40.0f },
+            { "sweep_cut_end", 6500.0f }, { "sweep_cut_slope", 0.45f }, { "sweep_res_start", 0.20f },
+            { "sweep_res_end", 0.75f }, { "drive", 0.25f } } },
+        { "Bass House Wobble Stomp", {
+            { "a_type", 2.0f }, { "a_slope", 2.0f }, { "a_cutoff", 800.0f }, { "a_width", 0.45f },
+            { "a_reso", 0.70f }, { "a_lfo_shape", 3.0f }, { "a_lfo_rate", 3.0f }, { "a_lfo_depth", 0.70f },
+            { "drive", 0.55f } } },
+        { "Drum & Bass Stepper Comb", {
+            { "a_type", 3.0f }, { "a_slope", 3.0f }, { "a_cutoff", 1400.0f }, { "a_width", 0.25f },
+            { "a_lfo_shape", 1.0f }, { "a_lfo_rate", 2.0f }, { "a_lfo_depth", 0.50f }, { "inertia", 0.8f } } },
+        { "Hardstyle Screamer Reso", {
+            { "a_type", 0.0f }, { "a_slope", 2.0f }, { "a_cutoff", 1200.0f }, { "a_reso", 0.88f },
+            { "drive", 0.70f }, { "crush_bits", 6.0f }, { "crush_mix", 0.40f } } },
+        { "Deep House Sub Focus Clean", {
+            { "a_type", 0.0f }, { "a_slope", 1.0f }, { "a_cutoff", 2800.0f }, { "a_reso", 0.25f },
+            { "a_lfo_shape", 0.0f }, { "a_lfo_rate", 8.0f }, { "a_lfo_depth", 0.20f } } },
+        { "Electro Dirty Bit-Filter", {
+            { "a_type", 0.0f }, { "a_slope", 1.0f }, { "a_cutoff", 3500.0f }, { "a_reso", 0.55f },
+            { "crush_rate", 4000.0f }, { "crush_bits", 7.0f }, { "crush_mix", 0.50f }, { "crush_link", 1.0f },
+            { "drive", 0.45f } } },
+        { "Melodic Techno Hypnotic BP (16 Bar)", {
+            { "a_type", 2.0f }, { "a_slope", 1.0f }, { "a_width", 0.60f }, { "sweep_on", 1.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(16)) }, { "sweep_cut_start", 250.0f },
+            { "sweep_cut_end", 4500.0f }, { "sweep_cut_slope", 0.20f }, { "sweep_res_start", 0.35f },
+            { "sweep_res_end", 0.65f } } },
+        { "Trap Drop 808 Clearout (4 Bar)", {
+            { "b_type", 1.0f }, { "b_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 1.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(4)) }, { "sweep_cut_start", 2500.0f },
+            { "sweep_cut_end", 30.0f }, { "sweep_cut_slope", -0.40f }, { "sweep_res_start", 0.50f },
+            { "sweep_res_end", 0.10f } } },
     };
     return presets;
 }
@@ -315,6 +364,74 @@ const std::vector<FactoryPreset>& sweepSlopePresets() {
         { "Clean Sweep FX", {
             { "sweep_crush_start", 0.0f }, { "sweep_crush_end", 0.0f },
             { "sweep_glitch_start", 0.0f }, { "sweep_glitch_end", 0.0f } } },
+        { "Trance 138 Climax Riser (16 Bar)", {
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(16)) },
+            { "sweep_cut_start", 60.0f }, { "sweep_cut_end", 18500.0f }, { "sweep_cut_slope", 0.42f },
+            { "sweep_res_start", 0.22f }, { "sweep_res_end", 0.85f }, { "sweep_res_slope", 0.28f },
+            { "sweep_crush_start", 0.0f }, { "sweep_crush_end", 0.35f }, { "sweep_crush_onset", 0.80f },
+            { "sweep_crush_slope", 0.20f } } },
+        { "Anthem Lead Odyssey (32 Bar)", {
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(32)) },
+            { "sweep_cut_start", 90.0f }, { "sweep_cut_end", 19000.0f }, { "sweep_cut_slope", 0.25f },
+            { "sweep_res_start", 0.18f }, { "sweep_res_end", 0.72f }, { "sweep_res_slope", 0.15f } } },
+        { "Psytrance Acid Laser (4 Bar)", {
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(4)) },
+            { "sweep_cut_start", 120.0f }, { "sweep_cut_end", 14500.0f }, { "sweep_cut_slope", 0.45f },
+            { "sweep_res_start", 0.50f }, { "sweep_res_end", 0.94f }, { "sweep_res_slope", 0.35f } } },
+        { "Festival Drop Plunge (2 Bar)", {
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(2)) },
+            { "sweep_cut_start", 18000.0f }, { "sweep_cut_end", 90.0f }, { "sweep_cut_slope", -0.40f },
+            { "sweep_res_start", 0.65f }, { "sweep_res_end", 0.15f }, { "sweep_res_slope", -0.20f } } },
+        { "Tech-Trance Slog Gate Sweep", {
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 1.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(1)) },
+            { "sweep_cut_start", 150.0f }, { "sweep_cut_end", 13000.0f }, { "sweep_cut_slope", 0.38f },
+            { "sweep_res_start", 0.30f }, { "sweep_res_end", 0.80f }, { "sweep_res_slope", 0.22f } } },
+        { "Euphoric Uplift Peak (8 Bar)", {
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(8)) },
+            { "sweep_cut_start", 30.0f }, { "sweep_cut_end", 4800.0f }, { "sweep_cut_slope", 0.45f },
+            { "sweep_res_start", 0.20f }, { "sweep_res_end", 0.78f }, { "sweep_res_slope", 0.25f },
+            { "sweep_glitch_start", 0.0f }, { "sweep_glitch_end", 0.40f }, { "sweep_glitch_onset", 0.875f },
+            { "sweep_glitch_slope", 0.30f } } },
+        { "Hands-Up Energy Pyramid (4 Bar)", {
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 2.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(4)) },
+            { "sweep_cut_start", 110.0f }, { "sweep_cut_end", 16500.0f }, { "sweep_cut_slope", 0.25f },
+            { "sweep_res_start", 0.20f }, { "sweep_res_end", 0.75f }, { "sweep_res_slope", 0.20f } } },
+        { "Vocal Trance Air Riser (8 Bar)", {
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(8)) },
+            { "sweep_cut_start", 150.0f }, { "sweep_cut_end", 16000.0f }, { "sweep_cut_slope", 0.30f },
+            { "sweep_res_start", 0.15f }, { "sweep_res_end", 0.55f }, { "sweep_res_slope", 0.18f } } },
+        { "Hardstyle Screamer Build (4 Bar)", {
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(4)) },
+            { "sweep_cut_start", 80.0f }, { "sweep_cut_end", 17000.0f }, { "sweep_cut_slope", 0.45f },
+            { "sweep_res_start", 0.45f }, { "sweep_res_end", 0.95f }, { "sweep_res_slope", 0.35f },
+            { "sweep_crush_start", 0.0f }, { "sweep_crush_end", 0.65f }, { "sweep_crush_onset", 0.75f },
+            { "sweep_crush_slope", 0.25f } } },
+        { "Melodic Progressive Inversion (16 Bar)", {
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(16)) },
+            { "sweep_cut_start", 16000.0f }, { "sweep_cut_end", 350.0f }, { "sweep_cut_slope", -0.32f },
+            { "sweep_res_start", 0.40f }, { "sweep_res_end", 0.15f }, { "sweep_res_slope", -0.15f } } },
+        { "Breakdown Stutter Swell (8 Bar)", {
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(8)) },
+            { "sweep_cut_start", 200.0f }, { "sweep_cut_end", 15000.0f }, { "sweep_cut_slope", 0.28f },
+            { "sweep_res_start", 0.25f }, { "sweep_res_end", 0.65f }, { "sweep_res_slope", 0.15f },
+            { "sweep_glitch_start", 0.0f }, { "sweep_glitch_end", 0.50f }, { "sweep_glitch_onset", 0.50f },
+            { "sweep_glitch_slope", 0.20f } } },
+        { "Sub Bass Drop Reset (1 Bar)", {
+            { "sweep_on", 1.0f }, { "sweep_bypass", 0.0f }, { "sweep_mode", 0.0f },
+            { "sweep_bars", static_cast<float>(params::sweepBarIndex(1)) },
+            { "sweep_cut_start", 18500.0f }, { "sweep_cut_end", 70.0f }, { "sweep_cut_slope", -0.48f },
+            { "sweep_res_start", 0.70f }, { "sweep_res_end", 0.10f }, { "sweep_res_slope", -0.30f } } },
     };
     return presets;
 }
