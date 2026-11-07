@@ -475,13 +475,13 @@ TEST_CASE("The bars selector lists 1, 2 and 4 bars and edits the active slot", "
     REQUIRE(processor.currentSweepSettings().bars == 4);
 }
 
-TEST_CASE("All 58 factory presets load and report valid program names", "[plugin]") {
+TEST_CASE("All 70 factory presets load and report valid program names", "[plugin]") {
     OpenEdmFilterProcessor processor;
     const auto& presets = openedm::presets::factoryPresets();
-    REQUIRE(presets.size() == 58);
-    REQUIRE(processor.getNumPrograms() == 58);
+    REQUIRE(presets.size() == 70);
+    REQUIRE(processor.getNumPrograms() == 70);
 
-    for (int i = 0; i < 58; ++i) {
+    for (int i = 0; i < 70; ++i) {
         REQUIRE(processor.getProgramName(i).isNotEmpty());
         processor.setCurrentProgram(i);
         REQUIRE(processor.getCurrentProgram() == i);
@@ -499,4 +499,29 @@ TEST_CASE("All 58 factory presets load and report valid program names", "[plugin
         const auto it = std::ranges::find_if(presets, [&](const auto& p) { return std::string(p.name) == name; });
         REQUIRE(it != presets.end());
     }
+
+    // Spot-check key EDM presets
+    constexpr std::array<const char*, 5> edmPresets{{
+        "Festival Mainstage Sub & Top (32 Bar)",
+        "Tech House Acid Acid Acid",
+        "Future Rave Laser Sweep (8 Bar)",
+        "Bass House Wobble Stomp",
+        "Electro Dirty Bit-Filter"
+    }};
+    std::ranges::for_each(edmPresets, [&](const char* name) {
+        const auto it = std::ranges::find_if(presets, [&](const auto& p) { return std::string(p.name) == name; });
+        REQUIRE(it != presets.end());
+    });
+
+    const auto& sweepPresets = openedm::presets::sweepSlopePresets();
+    REQUIRE(sweepPresets.size() == 24);
+    const std::array<const char*, 3> autoPresets{{
+        "Trance 138 Climax Riser (16 Bar)",
+        "Psytrance Acid Laser (4 Bar)",
+        "Sub Bass Drop Reset (1 Bar)"
+    }};
+    std::ranges::for_each(autoPresets, [&](const char* name) {
+        const auto it = std::ranges::find_if(sweepPresets, [&](const auto& p) { return std::string(p.name) == name; });
+        REQUIRE(it != sweepPresets.end());
+    });
 }
