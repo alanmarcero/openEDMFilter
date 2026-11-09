@@ -96,6 +96,10 @@ void OpenEdmFilterEditor::paint(juce::Graphics& g) {
     const int edmWidth = juce::GlyphArrangement::getStringWidthInt(g.getCurrentFont(), "EDM");
     g.setColour(theme::kAccentB);
     g.drawText("Filter", header.withTrimmedLeft(openWidth + edmWidth), juce::Justification::centredLeft);
+    const int titleWidth = openWidth + edmWidth + juce::GlyphArrangement::getStringWidthInt(g.getCurrentFont(), "Filter");
+    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    g.setColour(theme::kTextDim.withAlpha(0.65f));
+    g.drawText("TPT CASCADE  /  ZDF ANALOG", header.withTrimmedLeft(titleWidth + 24), juce::Justification::centredLeft);
 }
 
 void OpenEdmFilterEditor::resized() {

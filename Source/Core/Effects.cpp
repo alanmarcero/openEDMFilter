@@ -15,7 +15,8 @@ constexpr double kLimiterReleaseMs = 80.0;
 
 float saturate(float input, float drive) noexcept {
     const float gain = 1.0f + kMaxDriveGain * drive;
-    const float saturated = std::tanh(gain * input) / std::sqrt(gain);
+    const float asym = 0.04f * drive * input * std::abs(input);
+    const float saturated = std::tanh(gain * (input + asym)) / std::sqrt(gain);
     return input + drive * (saturated - input);
 }
 
