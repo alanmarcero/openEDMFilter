@@ -182,11 +182,11 @@ const std::vector<FactoryPreset>& factoryPresets() {
             { "sweep_target", 0.0f }, { "sweep_bars", static_cast<float>(params::sweepBarIndex(16)) }, { "sweep_mode", 0.0f },
             { "sweep_cut_start", 150.0f }, { "sweep_cut_end", 9500.0f }, { "sweep_cut_slope", 0.35f },
             { "sweep_res_start", 0.40f }, { "sweep_res_end", 0.88f }, { "sweep_res_slope", 0.25f } } },
-        { "Anjunabeats Pluck Filter", {
+        { "Progressive Pluck Filter", {
             { "a_type", 0.0f }, { "a_slope", 1.0f }, { "a_cutoff", 650.0f }, { "a_reso", 0.32f },
             { "a_env_source", 500.0f }, { "a_env_attack", 1.0f }, { "a_env_release", 140.0f },
             { "a_env_depth", 0.60f }, { "drive", 0.15f } } },
-        { "Anjunabeats Warm Progressive Sweep (16 Bar)", {
+        { "Deep Warm Progressive Sweep (16 Bar)", {
             { "a_type", 0.0f }, { "a_slope", 0.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
             { "sweep_bars", static_cast<float>(params::sweepBarIndex(16)) }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 120.0f },
             { "sweep_cut_end", 16000.0f }, { "sweep_cut_slope", 0.18f }, { "sweep_res_start", 0.15f },
@@ -209,23 +209,23 @@ const std::vector<FactoryPreset>& factoryPresets() {
         { "Vocal Trance Pumping Sidechain", {
             { "b_type", 1.0f }, { "b_slope", 2.0f }, { "b_cutoff", 45.0f }, { "b_lfo_shape", 3.0f },
             { "b_lfo_rate", 6.0f }, { "b_lfo_depth", 0.70f }, { "inertia", 0.0f } } },
-        { "Classic Tiësto 1999 Anthem Riser (16 Bar)", {
+        { "Classic Anthem Riser 1999 (16 Bar)", {
             { "a_type", 1.0f }, { "a_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
             { "sweep_bars", static_cast<float>(params::sweepBarIndex(16)) }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 30.0f },
             { "sweep_cut_end", 5500.0f }, { "sweep_cut_slope", 0.42f }, { "sweep_res_start", 0.20f },
             { "sweep_res_end", 0.76f }, { "sweep_res_slope", 0.25f }, { "drive", 0.22f } } },
-        { "Paul van Dyk Energy Mirror (16 Bar)", {
+        { "Pure Energy Mirror (16 Bar)", {
             { "a_type", 0.0f }, { "a_slope", 1.0f }, { "b_type", 2.0f }, { "b_slope", 1.0f },
             { "b_width", 0.50f }, { "sweep_on", 1.0f }, { "sweep_target", 3.0f }, { "sweep_bars", static_cast<float>(params::sweepBarIndex(16)) },
             { "sweep_mode", 0.0f }, { "sweep_cut_start", 100.0f }, { "sweep_cut_end", 18000.0f },
             { "sweep_cut_slope", 0.32f }, { "sweep_res_start", 0.20f }, { "sweep_res_end", 0.68f },
             { "sweep_res_slope", 0.20f } } },
-        { "Armin ASOT 64-Bar Breakdown Odyssey", {
+        { "Epic 64-Bar Breakdown Odyssey", {
             { "a_type", 0.0f }, { "a_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
             { "sweep_bars", static_cast<float>(params::sweepBarIndex(64)) }, { "sweep_mode", 2.0f }, { "sweep_cut_start", 90.0f },
             { "sweep_cut_end", 19000.0f }, { "sweep_cut_slope", 0.22f }, { "sweep_res_start", 0.18f },
             { "sweep_res_end", 0.74f }, { "sweep_res_slope", 0.15f } } },
-        { "Ferry Corsten Gouryella Lead Sweep (8 Bar)", {
+        { "Celestial Lead Sweep (8 Bar)", {
             { "a_type", 0.0f }, { "a_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
             { "sweep_bars", static_cast<float>(params::sweepBarIndex(8)) }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 160.0f },
             { "sweep_cut_end", 18000.0f }, { "sweep_cut_slope", 0.30f }, { "sweep_res_start", 0.25f },
@@ -238,12 +238,12 @@ const std::vector<FactoryPreset>& factoryPresets() {
             { "sweep_bars", static_cast<float>(params::sweepBarIndex(4)) }, { "sweep_mode", 0.0f }, { "sweep_cut_start", 19000.0f },
             { "sweep_cut_end", 90.0f }, { "sweep_cut_slope", -0.42f }, { "sweep_res_start", 0.65f },
             { "sweep_res_end", 0.15f }, { "sweep_res_slope", -0.25f } } },
-        { "Solarstone Pure Trance Shimmer (16 Bar)", {
+        { "Pure Trance Shimmer (16 Bar)", {
             { "a_type", 2.0f }, { "a_slope", 1.0f }, { "a_width", 0.60f }, { "sweep_on", 1.0f },
             { "sweep_target", 0.0f }, { "sweep_bars", static_cast<float>(params::sweepBarIndex(16)) }, { "sweep_mode", 0.0f },
             { "sweep_cut_start", 220.0f }, { "sweep_cut_end", 11000.0f }, { "sweep_cut_slope", 0.28f },
             { "sweep_res_start", 0.30f }, { "sweep_res_end", 0.72f }, { "sweep_res_slope", 0.18f } } },
-        { "Cosmic Gate Exploration Filter (8 Bar)", {
+        { "Exploration Notch Filter (8 Bar)", {
             { "a_type", 0.0f }, { "a_slope", 1.0f }, { "sweep_on", 1.0f }, { "sweep_target", 0.0f },
             { "sweep_bars", static_cast<float>(params::sweepBarIndex(8)) }, { "sweep_mode", 1.0f }, { "sweep_cut_start", 110.0f },
             { "sweep_cut_end", 15000.0f }, { "sweep_cut_slope", 0.35f }, { "sweep_res_start", 0.35f },

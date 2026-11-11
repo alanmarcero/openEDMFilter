@@ -492,7 +492,7 @@ TEST_CASE("All 70 factory presets load and report valid program names", "[plugin
         "Trance 138 Euphoria Build (16 Bar)",
         "Trance 138 Epic Ascent (32 Bar)",
         "Psytrance 140 Rolling Bass Squelch",
-        "Armin ASOT 64-Bar Breakdown Odyssey",
+        "Epic 64-Bar Breakdown Odyssey",
         "Trance Climax Static Burst (16 Bar)"
     }};
     for (const auto* name : trancePresets) {
