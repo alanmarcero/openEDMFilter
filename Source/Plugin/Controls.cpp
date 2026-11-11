@@ -42,6 +42,9 @@ void Knob::bind(Apvts& state, const juce::String& parameterId) {
         return;
     }
     attachment_.reset();
+    if (auto* param = state.getParameter(parameterId)) {
+        slider_.setDoubleClickReturnValue(true, param->convertFrom0to1(param->getDefaultValue()));
+    }
     attachment_ = std::make_unique<Apvts::SliderAttachment>(state, parameterId, slider_);
 }
 

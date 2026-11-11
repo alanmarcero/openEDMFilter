@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(OpenEDMFilter VERSION 1.7.0 LANGUAGES C CXX)
+project(OpenEDMFilter VERSION 1.8.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -31,7 +31,7 @@ if(OEF_BUILD_PLUGIN)
         GIT_SHALLOW TRUE)
     FetchContent_MakeAvailable(juce)
 
-    juce_add_binary_data(FilterAssets SOURCES assets/analog-cyber-faceplate.png)
+    juce_add_binary_data(FilterAssets SOURCES assets/analog-cyber-faceplate.png assets/cyber-filter-sphere.png)
     set_target_properties(FilterAssets PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
     juce_add_plugin(OpenEDMFilter
