@@ -143,6 +143,22 @@ TEST_CASE("Spectrum analyzer finds an input tone and freeze holds its trace", "[
         REQUIRE(std::abs(processor.displaySpectrum[bin].load() - frozen[bin]) < 1e-7f);
 }
 
+TEST_CASE("Spectrum analyzer clears display bins above host Nyquist", "[plugin]") {
+    OpenEdmFilterProcessor processor;
+    processor.prepareToPlay(8000.0, 2048);
+    juce::AudioBuffer<float> buffer(1, 2048);
+    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+        buffer.setSample(0, sample, static_cast<float>(0.25 * std::cos(2.0 * std::numbers::pi_v<double>
+                                                                      * 4000.0 * sample / 8000.0)));
+    juce::MidiBuffer midi;
+    processor.processBlock(buffer, midi);
+
+    const auto strongest = std::ranges::max_element(processor.displaySpectrum,
+        [](const auto& a, const auto& b) { return a.load() < b.load(); });
+    REQUIRE(strongest->load() > 0.1f);
+    REQUIRE(processor.displaySpectrum.back().load() < 1e-6f);
+}
+
 TEST_CASE("Sweep effects change audio only after onset and respect sweep bypass", "[plugin]") {
     for (const juce::String effect : { "crush", "glitch" }) {
         OpenEdmFilterProcessor processor;
