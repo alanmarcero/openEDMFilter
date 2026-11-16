@@ -192,6 +192,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
                 { -1.0f, 1.0f }, 0.0f, kFormatBipolar, 4);
         });
     });
+    addFloat(layout, kInputGain, "Input Gain", { -24.0f, 24.0f }, 0.0f, kFormatDb, 5);
     return layout;
 }
 

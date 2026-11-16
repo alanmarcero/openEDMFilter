@@ -136,13 +136,14 @@ private:
     juce::ParameterAttachment bypassWatcher_; // dims the band's controls while it is bypassed
 };
 
-class EffectsPanel : public juce::Component {
+class EffectsPanel : public juce::Component, private juce::Timer {
 public:
-    explicit EffectsPanel(Apvts& state);
+    explicit EffectsPanel(OpenEdmFilterProcessor& processor);
     void paint(juce::Graphics& g) override;
     void resized() override;
 
 private:
+    void timerCallback() override { repaint(); }
     struct Section {
         juce::String title;
         juce::Colour accent;
@@ -150,6 +151,8 @@ private:
         juce::Rectangle<int> area;
     };
 
+    OpenEdmFilterProcessor& processor_;
+    Knob inputGain_;
     Knob drive_;
     Choice drivePosition_;
     Knob crushRate_;
@@ -165,7 +168,7 @@ private:
     Knob output_;
     Knob ceiling_;
     Toggle limiter_;
-    std::array<Section, 5> sections_;
+    std::array<Section, 6> sections_;
 };
 
 } // namespace openedm::ui

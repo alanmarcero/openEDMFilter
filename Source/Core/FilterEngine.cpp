@@ -52,6 +52,7 @@ void FilterEngine::reset() noexcept {
     glitchBeatPhase_ = 0.0;
     crushMix_ = 0.0f;
     glitchMix_ = 0.0f;
+    inputGain_ = 1.0f;
     oversampler_.reset();
     limiter_.reset();
     needsSnap_ = true;
@@ -119,6 +120,7 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
             ? std::numbers::pi_v<float> * 0.25f : 0.0f;
         mix_ = settings.bypassed ? 0.0f : settings.mix;
         outputGain_ = settings.bypassed ? 1.0f : settings.outputGain;
+        inputGain_ = settings.bypassed ? 1.0f : settings.inputGain;
         const float progress = AutoSweep::progressAt(settings.sweep.mode, settings.sweep.bars, sweep_.phase());
         const float autoCrush = settings.sweep.enabled ? AutoSweep::envelopeAt(settings.sweep.crush, progress) : 0.0f;
         crushMix_ = settings.crushMix + (1.0f - settings.crushMix) * autoCrush;
@@ -150,11 +152,13 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
 
     const float targetMix = settings.bypassed ? 0.0f : settings.mix;
     const float targetOutputGain = settings.bypassed ? 1.0f : settings.outputGain;
+    const float targetInputGain = settings.bypassed ? 1.0f : settings.inputGain;
 
     std::ranges::for_each(std::views::iota(0, numSamples), [&](int sample) {
+        inputGain_ = targetInputGain + parameterSmoothing_ * (inputGain_ - targetInputGain);
         std::array<Oversampler::Frame, MultiModeFilter::kMaxChannels> upsampled{};
         std::ranges::for_each(channelIndices, [&](int channel) {
-            upsampled[channel] = oversampler_.upsample(channel, channels[channel][sample]);
+            upsampled[channel] = oversampler_.upsample(channel, channels[channel][sample] * inputGain_);
         });
 
         std::ranges::for_each(std::views::iota(0, Oversampler::kFactor), [&](int phase) {

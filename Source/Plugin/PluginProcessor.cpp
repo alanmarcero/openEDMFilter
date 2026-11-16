@@ -3,6 +3,8 @@
 #include "PluginEditor.h"
 #include "Presets.h"
 #include <algorithm>
+#include <cmath>
+#include <numbers>
 #include <ranges>
 
 namespace core = openedm::core;
@@ -42,7 +44,7 @@ OpenEdmFilterProcessor::OpenEdmFilterProcessor()
               raw(params::kOutput), raw(params::kLimiter), raw(params::kCeiling), raw(params::kInertia),
               raw(params::kMasterBypass), raw(params::kClockSync), raw(params::kTempoBpm), raw(params::kTimeSignature),
               raw(params::kSweepEnabled), raw(params::kSweepBypass), raw(params::kSweepSlot),
-              { sweepValues(0), sweepValues(1), sweepValues(2), sweepValues(3) }
+              { sweepValues(0), sweepValues(1), sweepValues(2), sweepValues(3) }, raw(params::kInputGain)
           };
       }()) {
     routing_ = parameters.getRawParameterValue("routing");
@@ -67,6 +69,19 @@ OpenEdmFilterProcessor::OpenEdmFilterProcessor()
 void OpenEdmFilterProcessor::prepareToPlay(double sampleRate, int) {
     processingSampleRate_ = sampleRate;
     engine_.prepare(sampleRate);
+    spectrumFft_ = std::make_unique<juce::dsp::FFT>(kSpectrumFftOrder);
+    spectrumWindowSum_ = 0.0f;
+    for (int sample = 0; sample < kSpectrumFftSize; ++sample) {
+        const float window = 0.5f - 0.5f * std::cos(static_cast<float>(2.0 * std::numbers::pi * sample / (kSpectrumFftSize - 1)));
+        spectrumWindow_[static_cast<size_t>(sample)] = window;
+        spectrumWindowSum_ += window;
+    }
+    spectrumFifo_ = {};
+    spectrumFftData_ = {};
+    spectrumWriteIndex_ = 0;
+    displayInputPeak.store(0.0f);
+    displayOutputPeak.store(0.0f);
+    std::ranges::for_each(displaySpectrum, [](auto& value) { value.store(0.0f); });
     heldVelocities_ = {};
     notePressure_ = {};
     channelPressure_ = {};
@@ -107,6 +122,97 @@ core::AutoSweepSettings OpenEdmFilterProcessor::currentSweepSettings() const noe
 
 juce::AudioProcessorParameter* OpenEdmFilterProcessor::getBypassParameter() const {
     return parameters.getParameter(params::kMasterBypass);
+}
+
+void OpenEdmFilterProcessor::updatePeakMeter(std::atomic<float>& meter, float peak, int samples) noexcept {
+    const float release = std::exp(-static_cast<float>(samples)
+                                   / static_cast<float>(std::max(1.0, processingSampleRate_) * 0.35));
+    const float heldPeak = meter.load(std::memory_order_relaxed) * release;
+    meter.store(std::max(peak, heldPeak), std::memory_order_relaxed);
+}
+
+void OpenEdmFilterProcessor::updateInputAnalysis(const juce::AudioBuffer<float>& buffer, float inputGain) noexcept {
+    const int channels = std::min(2, buffer.getNumChannels());
+    if (channels == 0) {
+        spectrumWriteIndex_ = 0;
+        updatePeakMeter(displayInputPeak, 0.0f, buffer.getNumSamples());
+        return;
+    }
+    float peak = 0.0f;
+    for (int sample = 0; sample < buffer.getNumSamples(); ++sample) {
+        for (int channel = 0; channel < channels; ++channel)
+            peak = std::max(peak, std::abs(buffer.getSample(channel, sample) * inputGain));
+    }
+    updatePeakMeter(displayInputPeak, peak, buffer.getNumSamples());
+
+    if (spectrumFft_ == nullptr || !spectrumVisible.load(std::memory_order_relaxed)) {
+        spectrumWriteIndex_ = 0;
+        return;
+    }
+    if (spectrumFrozen.load(std::memory_order_relaxed)) {
+        spectrumWriteIndex_ = 0;
+        return;
+    }
+
+    for (int sample = 0; sample < buffer.getNumSamples(); ++sample) {
+        const size_t write = spectrumWriteIndex_++;
+        for (int channel = 0; channel < 2; ++channel) {
+            const int sourceChannel = std::min(channel, channels - 1);
+            spectrumFifo_[static_cast<size_t>(channel)][write] = buffer.getSample(sourceChannel, sample) * inputGain;
+        }
+        if (spectrumWriteIndex_ == static_cast<size_t>(kSpectrumFftSize)) {
+            spectrumWriteIndex_ = 0;
+            updateSpectrumFrame();
+        }
+    }
+}
+
+void OpenEdmFilterProcessor::updateOutputMeter(const juce::AudioBuffer<float>& buffer) noexcept {
+    const int channels = std::min(2, buffer.getNumChannels());
+    float peak = 0.0f;
+    for (int channel = 0; channel < channels; ++channel)
+        for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+            peak = std::max(peak, std::abs(buffer.getSample(channel, sample)));
+    updatePeakMeter(displayOutputPeak, peak, buffer.getNumSamples());
+}
+
+void OpenEdmFilterProcessor::updateSpectrumFrame() noexcept {
+    if (spectrumFrozen.load(std::memory_order_relaxed) || !spectrumVisible.load(std::memory_order_relaxed))
+        return;
+
+    std::array<float, kSpectrumDisplayBins> peaks{};
+    const double sampleRate = std::max(1.0, processingSampleRate_);
+    const double displayBinCount = static_cast<double>(kSpectrumDisplayBins);
+    const auto spectrumForChannel = [&](size_t channel, std::array<float, kSpectrumDisplayBins>& destination) {
+        for (int sample = 0; sample < kSpectrumFftSize; ++sample) {
+            const auto index = static_cast<size_t>(sample);
+            spectrumFftData_[index] = spectrumFifo_[channel][index] * spectrumWindow_[index];
+        }
+        std::fill(spectrumFftData_.begin() + kSpectrumFftSize, spectrumFftData_.end(), 0.0f);
+        spectrumFft_->performFrequencyOnlyForwardTransform(spectrumFftData_.data(), true);
+
+        for (size_t displayBin = 0; displayBin < destination.size(); ++displayBin) {
+            const double lowHz = 20.0 * std::pow(1000.0, static_cast<double>(displayBin) / displayBinCount);
+            const double highHz = 20.0 * std::pow(1000.0, static_cast<double>(displayBin + 1) / displayBinCount);
+            const int firstFftBin = std::clamp(static_cast<int>(std::floor(lowHz * kSpectrumFftSize / sampleRate)),
+                                               1, kSpectrumFftSize / 2);
+            const int lastFftBin = std::clamp(static_cast<int>(std::ceil(highHz * kSpectrumFftSize / sampleRate)),
+                                              firstFftBin, kSpectrumFftSize / 2);
+            for (int fftBin = firstFftBin; fftBin <= lastFftBin; ++fftBin) {
+                const float magnitude = spectrumFftData_[static_cast<size_t>(fftBin)] * 2.0f / spectrumWindowSum_;
+                destination[displayBin] = std::max(destination[displayBin], magnitude);
+            }
+        }
+    };
+
+    std::array<float, kSpectrumDisplayBins> left{};
+    std::array<float, kSpectrumDisplayBins> right{};
+    spectrumForChannel(0, left);
+    spectrumForChannel(1, right);
+    for (size_t bin = 0; bin < peaks.size(); ++bin)
+        peaks[bin] = std::max(left[bin], right[bin]);
+    for (size_t bin = 0; bin < peaks.size(); ++bin)
+        displaySpectrum[bin].store(peaks[bin], std::memory_order_relaxed);
 }
 
 void OpenEdmFilterProcessor::handleMidi(const juce::MidiMessage& message) noexcept {
@@ -197,6 +303,8 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
         currentSweepSettings(),
         isOn(values_.masterBypass)
     };
+    settings.inputGain = juce::Decibels::decibelsToGain(values_.inputGain->load());
+    updateInputAnalysis(buffer, settings.bypassed ? 1.0f : settings.inputGain);
 
     settings.parallel = isOn(routing_);
     settings.parallelBlend = parallelBlend_->load();
@@ -273,6 +381,7 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
     });
     renderUntil(buffer.getNumSamples());
     midi.clear();
+    updateOutputMeter(buffer);
 
     const auto cutoffs = engine_.currentCutoffs();
     const auto resonances = engine_.currentResonances();

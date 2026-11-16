@@ -43,6 +43,19 @@ TEST_CASE("Engine with every stage neutral returns the input delayed by its late
     requireDelayedCopy(runEngine(transparentSettings(), input), input);
 }
 
+TEST_CASE("Input gain is applied before the effects and ignored during master bypass", "[engine]") {
+    const auto input = sine(440.0, kNumSamples);
+    auto settings = transparentSettings();
+    settings.inputGain = 2.0f;
+    const auto gained = runEngine(settings, input);
+    for (size_t i = FilterEngine::kLatencySamples + 100; i + FilterEngine::kLatencySamples < input.size(); ++i)
+        REQUIRE_THAT(gained[i], WithinAbs(input[i - FilterEngine::kLatencySamples] * 2.0f, 1e-3));
+
+    settings.bypassed = true;
+    const auto bypassed = runEngine(settings, input);
+    requireDelayedCopy(bypassed, input);
+}
+
 TEST_CASE("Engine at zero mix returns the delayed dry signal", "[engine]") {
     EngineSettings settings = transparentSettings();
     settings.bands[0].shape = FilterShape{ true, FilterType::LowPass, FilterSlope::Slope96dB, 1.0f, 0.0f };

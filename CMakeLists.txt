@@ -76,6 +76,7 @@ if(OEF_BUILD_PLUGIN)
             FilterAssets
             juce::juce_audio_processors
             juce::juce_audio_utils
+            juce::juce_dsp
             juce::juce_gui_basics
         PUBLIC
             juce::juce_recommended_config_flags

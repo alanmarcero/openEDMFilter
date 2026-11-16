@@ -18,6 +18,8 @@ private:
     juce::Image faceplate_;
     juce::ComboBox presetBox_;
     juce::TextButton advancedButton_{"MOD / ROUTING"};
+    juce::TextButton spectrumButton_{"SPECTRUM"};
+    juce::TextButton freezeSpectrumButton_{"FREEZE"};
     std::unique_ptr<juce::GenericAudioProcessorEditor> advancedControls_;
     juce::TextButton prevPresetBtn_{"<"};
     juce::TextButton nextPresetBtn_{">"};

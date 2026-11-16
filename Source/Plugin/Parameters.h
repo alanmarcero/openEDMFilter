@@ -34,6 +34,7 @@ inline constexpr const char* kCrushLink = "crush_link";
 inline constexpr const char* kRingFrequency = "ring_freq";
 inline constexpr const char* kRingMix = "ring_mix";
 inline constexpr const char* kMix = "mix";
+inline constexpr const char* kInputGain = "input_gain";
 inline constexpr const char* kOutput = "output";
 inline constexpr const char* kLimiter = "limiter";
 inline constexpr const char* kCeiling = "ceiling";

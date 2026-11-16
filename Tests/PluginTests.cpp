@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <numbers>
 #include <cmath>
 #include <string>
 
@@ -84,6 +85,62 @@ TEST_CASE("Quick sweep presets edit only the selected slot", "[plugin]") {
     REQUIRE_THAT(processor.currentSweepSettings().cutoffStartHz, WithinAbs(80.0f, 0.01f));
     set(processor, "sweep_slot", 0.0f);
     REQUIRE_THAT(processor.currentSweepSettings().cutoffStartHz, WithinAbs(345.0f, 0.01f));
+}
+
+TEST_CASE("Input trim is saved and the gain meters follow the signal", "[plugin]") {
+    OpenEdmFilterProcessor processor;
+    processor.prepareToPlay(48000.0, 2048);
+    set(processor, "a_bypass", 1.0f);
+    set(processor, "b_bypass", 1.0f);
+    set(processor, "limiter", 0.0f);
+    set(processor, "input_gain", 6.0f);
+
+    juce::AudioBuffer<float> buffer(1, 2048);
+    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+        buffer.setSample(0, sample, static_cast<float>(0.2 * std::sin(2.0 * std::numbers::pi_v<double>
+                                                                      * 1000.0 * sample / 48000.0)));
+    juce::MidiBuffer midi;
+    processor.processBlock(buffer, midi);
+
+    REQUIRE_THAT(processor.displayInputPeak.load(), WithinAbs(0.4f, 0.01f));
+    REQUIRE_THAT(processor.displayOutputPeak.load(), WithinAbs(0.4f, 0.02f));
+
+    juce::MemoryBlock saved;
+    processor.getStateInformation(saved);
+    OpenEdmFilterProcessor restored;
+    restored.setStateInformation(saved.getData(), static_cast<int>(saved.getSize()));
+    REQUIRE_THAT(restored.parameters.getRawParameterValue("input_gain")->load(), WithinAbs(6.0f, 0.01f));
+}
+
+TEST_CASE("Spectrum analyzer finds an input tone and freeze holds its trace", "[plugin]") {
+    OpenEdmFilterProcessor processor;
+    processor.prepareToPlay(48000.0, 2048);
+    set(processor, "a_bypass", 1.0f);
+    set(processor, "b_bypass", 1.0f);
+    juce::MidiBuffer midi;
+    const auto renderTone = [&](double frequency) {
+        juce::AudioBuffer<float> buffer(1, 2048);
+        for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+            buffer.setSample(0, sample, static_cast<float>(0.25 * std::sin(2.0 * std::numbers::pi_v<double>
+                                                                           * frequency * sample / 48000.0)));
+        processor.processBlock(buffer, midi);
+    };
+
+    renderTone(1000.0);
+    const auto strongest = std::ranges::max_element(processor.displaySpectrum,
+        [](const auto& a, const auto& b) { return a.load() < b.load(); });
+    const int peakBin = static_cast<int>(std::distance(processor.displaySpectrum.begin(), strongest));
+    const int expectedBin = juce::roundToInt(std::log(1000.0 / 20.0) / std::log(20000.0 / 20.0)
+                                             * static_cast<double>(processor.displaySpectrum.size() - 1));
+    REQUIRE(strongest->load() > 0.15f);
+    REQUIRE(std::abs(peakBin - expectedBin) <= 2);
+
+    std::array<float, 128> frozen{};
+    std::ranges::transform(processor.displaySpectrum, frozen.begin(), [](const auto& bin) { return bin.load(); });
+    processor.spectrumFrozen.store(true);
+    renderTone(3000.0);
+    for (size_t bin = 0; bin < frozen.size(); ++bin)
+        REQUIRE(std::abs(processor.displaySpectrum[bin].load() - frozen[bin]) < 1e-7f);
 }
 
 TEST_CASE("Sweep effects change audio only after onset and respect sweep bypass", "[plugin]") {
@@ -179,11 +236,19 @@ TEST_CASE("Editor slot buttons and host automation rebind the visible sweep knob
     OpenEdmFilterProcessor processor;
     processor.setCurrentProgram(31);
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    juce::TextButton* spectrumButton = nullptr;
+    juce::TextButton* freezeButton = nullptr;
     openedm::ui::SweepPanel* panel = nullptr;
     for (auto* child : editor->getChildren()) {
         if (auto* sweep = dynamic_cast<openedm::ui::SweepPanel*>(child)) panel = sweep;
+        if (auto* button = dynamic_cast<juce::TextButton*>(child)) {
+            if (button->getButtonText() == "SPECTRUM") spectrumButton = button;
+            if (button->getButtonText() == "FREEZE") freezeButton = button;
+        }
     }
     REQUIRE(panel != nullptr);
+    REQUIRE(spectrumButton != nullptr);
+    REQUIRE(freezeButton != nullptr);
     std::vector<juce::Slider*> sliders;
     std::array<juce::TextButton*, 4> buttons{};
     for (auto* child : panel->getChildren()) {
@@ -232,6 +297,19 @@ TEST_CASE("Editor slot buttons and host automation rebind the visible sweep knob
         processor.setCurrentProgram(31);
         set(processor, "sweep_slot", 3.0f);
         set(processor, "sweep_d_bars", static_cast<float>(openedm::params::sweepBarIndex(1)));
+        set(processor, "input_gain", 3.0f);
+        processor.prepareToPlay(44100.0, 4096);
+        juce::AudioBuffer<float> signal(2, 4096);
+        for (int sample = 0; sample < signal.getNumSamples(); ++sample) {
+            const float time = static_cast<float>(sample) / 44100.0f;
+            const float value = 0.25f * std::sin(2.0f * std::numbers::pi_v<float> * 110.0f * time)
+                + 0.14f * std::sin(2.0f * std::numbers::pi_v<float> * 440.0f * time)
+                + 0.07f * std::sin(2.0f * std::numbers::pi_v<float> * 2000.0f * time);
+            signal.setSample(0, sample, value);
+            signal.setSample(1, sample, value);
+        }
+        juce::MidiBuffer midi;
+        processor.processBlock(signal, midi);
         processor.displaySweepPhase.store(0.9f);
         const auto snapshot = editor->createComponentSnapshot(editor->getLocalBounds(), true, 1.0f);
         juce::FileOutputStream stream{ juce::File(capture) };

@@ -62,6 +62,7 @@ struct EngineSettings {
     LfoShape fmShape = LfoShape::Sine;
     ModTarget fmTarget = ModTarget::Both;
     StereoMode stereoMode = StereoMode::Linked;
+    float inputGain = 1.0f;
 };
 
 struct Transport {
@@ -127,6 +128,7 @@ private:
     double ringPhase_ = 0.0;
     float mix_ = 1.0f;
     float outputGain_ = 1.0f;
+    float inputGain_ = 1.0f;
     float parameterSmoothing_ = 0.0f;
     bool needsSnap_ = true;
 };

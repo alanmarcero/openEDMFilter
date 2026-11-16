@@ -26,6 +26,22 @@ constexpr double kFallbackSampleRate = 44100.0;
 constexpr int kCaptionHeight = 14;
 constexpr int kSectionGap = 10;
 
+void drawLevelMeter(juce::Graphics& g, juce::Rectangle<int> section, float peak, juce::Colour accent) {
+    const auto bounds = section.reduced(10, 0);
+    const auto bar = juce::Rectangle<float>(static_cast<float>(bounds.getX()),
+        static_cast<float>(bounds.getBottom() - 26), static_cast<float>(bounds.getWidth()), 7.0f);
+    g.setColour(theme::kTrack);
+    g.fillRoundedRectangle(bar, 3.5f);
+    const float db = peak > 0.0f ? juce::Decibels::gainToDecibels(peak) : -60.0f;
+    const float fill = juce::jlimit(0.0f, 1.0f, (db + 48.0f) / 48.0f);
+    g.setColour(peak >= 1.0f ? juce::Colour(0xffff665e) : accent);
+    g.fillRoundedRectangle(bar.withWidth(bar.getWidth() * fill), 3.5f);
+    g.setFont(juce::FontOptions(9.0f));
+    g.setColour(theme::kTextDim);
+    const juce::String value = db <= -59.9f ? "-INF dBFS" : juce::String(db, 1) + " dBFS";
+    g.drawText(value, bounds.withY(bounds.getBottom() - 17).withHeight(12), juce::Justification::centredLeft);
+}
+
 } // namespace
 
 ResponseView::ResponseView(OpenEdmFilterProcessor& processor)
@@ -134,6 +150,21 @@ void ResponseView::paint(juce::Graphics& g) {
         g.drawText((db > 0.0f ? "+" : "") + juce::String(juce::roundToInt(db)) + " dB",
                    juce::Rectangle<float>(plot.getX() + 3.0f, y + 1.0f, 50.0f, 12.0f), juce::Justification::centredLeft);
     });
+
+    if (processor_.spectrumVisible.load(std::memory_order_relaxed)) {
+        juce::Path spectrum;
+        std::ranges::for_each(std::views::iota(size_t{0}, processor_.displaySpectrum.size()), [&](size_t bin) {
+            const float magnitude = processor_.displaySpectrum[bin].load(std::memory_order_relaxed);
+            const float db = juce::jlimit(-72.0f, 3.0f, juce::Decibels::gainToDecibels(magnitude, -72.0f));
+            const float x = plot.getX() + static_cast<float>(bin) / static_cast<float>(processor_.displaySpectrum.size() - 1)
+                * plot.getWidth();
+            const float y = juce::jmap(db, -72.0f, 3.0f, plot.getBottom(), plot.getY());
+            if (bin == 0) spectrum.startNewSubPath(x, y);
+            else spectrum.lineTo(x, y);
+        });
+        g.setColour(theme::kAccentSpectrum.withAlpha(0.82f));
+        g.strokePath(spectrum, juce::PathStrokeType(1.4f));
+    }
 
     const auto& state = processor_.parameters;
     const auto value = [&](size_t band, const char* suffix) {
@@ -732,29 +763,34 @@ void BandPanel::resized() {
     layoutRow(envelopeArea_.withTrimmedTop(kCaptionHeight), { &envSource_, &envAttack_, &envRelease_, &envDepth_ });
 }
 
-EffectsPanel::EffectsPanel(Apvts& state)
-    : drive_(state, params::kDrive, "Amount", theme::kAccentFx),
-      drivePosition_(state, params::kDrivePosition, "Position", theme::kAccentFx),
-      crushRate_(state, params::kCrushRate, "Rate", theme::kAccentFx),
-      crushBits_(state, params::kCrushBits, "Bits", theme::kAccentFx),
-      crushMix_(state, params::kCrushMix, "Mix", theme::kAccentFx),
-      crushPosition_(state, params::kCrushPosition, "Position", theme::kAccentFx),
-      crushLink_(state, params::kCrushLink, "LINK A", theme::kAccentFx),
-      ringFrequency_(state, params::kRingFrequency, "Freq", theme::kAccentFx),
-      ringMix_(state, params::kRingMix, "Mix", theme::kAccentFx),
-      fmRate_(state, params::kFmRate, "Rate", theme::kAccentFx),
-      fmDepth_(state, params::kFmDepth, "Depth", theme::kAccentFx),
-      mix_(state, params::kMix, "Dry/Wet", theme::kAccentOut),
-      output_(state, params::kOutput, "Gain", theme::kAccentOut),
-      ceiling_(state, params::kCeiling, "Ceiling", theme::kAccentOut),
-      limiter_(state, params::kLimiter, "LIMIT", theme::kAccentOut),
-      sections_{ { { "Drive", theme::kAccentFx, 2, {} },
+EffectsPanel::EffectsPanel(OpenEdmFilterProcessor& processor)
+    : processor_(processor),
+      inputGain_(processor.parameters, params::kInputGain, "Gain", theme::kAccentOut),
+      drive_(processor.parameters, params::kDrive, "Amount", theme::kAccentFx),
+      drivePosition_(processor.parameters, params::kDrivePosition, "Position", theme::kAccentFx),
+      crushRate_(processor.parameters, params::kCrushRate, "Rate", theme::kAccentFx),
+      crushBits_(processor.parameters, params::kCrushBits, "Bits", theme::kAccentFx),
+      crushMix_(processor.parameters, params::kCrushMix, "Mix", theme::kAccentFx),
+      crushPosition_(processor.parameters, params::kCrushPosition, "Position", theme::kAccentFx),
+      crushLink_(processor.parameters, params::kCrushLink, "LINK A", theme::kAccentFx),
+      ringFrequency_(processor.parameters, params::kRingFrequency, "Freq", theme::kAccentFx),
+      ringMix_(processor.parameters, params::kRingMix, "Mix", theme::kAccentFx),
+      fmRate_(processor.parameters, params::kFmRate, "Rate", theme::kAccentFx),
+      fmDepth_(processor.parameters, params::kFmDepth, "Depth", theme::kAccentFx),
+      mix_(processor.parameters, params::kMix, "Dry/Wet", theme::kAccentOut),
+      output_(processor.parameters, params::kOutput, "Gain", theme::kAccentOut),
+      ceiling_(processor.parameters, params::kCeiling, "Ceiling", theme::kAccentOut),
+      limiter_(processor.parameters, params::kLimiter, "LIMIT", theme::kAccentOut),
+      sections_{ { { "Input", theme::kAccentOut, 2, {} },
+                   { "Drive", theme::kAccentFx, 2, {} },
                    { "Crush", theme::kAccentFx, 5, {} },
                    { "Ring Mod", theme::kAccentFx, 2, {} },
                    { "Cutoff FM", theme::kAccentFx, 2, {} },
-                   { "Output", theme::kAccentOut, 4, {} } } } {
+                   { "Output", theme::kAccentOut, 5, {} } } } {
+    startTimerHz(kRefreshHz);
     std::ranges::for_each(std::initializer_list<juce::Component*>{
-                              &drive_, &drivePosition_, &crushRate_, &crushBits_, &crushMix_, &crushPosition_,
+                              &inputGain_, &drive_, &drivePosition_, &crushRate_, &crushBits_, &crushPosition_,
+                              &crushMix_,
                               &crushLink_, &ringFrequency_, &ringMix_, &fmRate_, &fmDepth_, &mix_, &output_,
                               &ceiling_, &limiter_ },
                           [this](juce::Component* control) { addAndMakeVisible(control); });
@@ -764,9 +800,11 @@ void EffectsPanel::paint(juce::Graphics& g) {
     std::ranges::for_each(sections_, [&](const Section& section) {
         drawPanel(g, section.area, section.title, section.accent);
     });
+    drawLevelMeter(g, sections_[0].area, processor_.displayInputPeak.load(), theme::kAccentOut);
+    drawLevelMeter(g, sections_[5].area, processor_.displayOutputPeak.load(), theme::kAccentOut);
     g.setFont(juce::FontOptions(10.0f));
     g.setColour(theme::kTextDim);
-    g.drawText("v" JucePlugin_VersionString, getLocalBounds().reduced(8, 2), juce::Justification::bottomRight);
+    g.drawText("v" JucePlugin_VersionString, getLocalBounds().reduced(8, 2).removeFromTop(14), juce::Justification::topRight);
 }
 
 void EffectsPanel::resized() {
@@ -782,11 +820,12 @@ void EffectsPanel::resized() {
     sections_.back().area = sections_.back().area.withRight(getWidth());
 
     const auto content = [&](size_t section) { return sections_[section].area.reduced(10, 0).withTrimmedTop(34).withTrimmedBottom(8); };
-    layoutRow(content(0), { &drive_, &drivePosition_ });
-    layoutRow(content(1), { &crushRate_, &crushBits_, &crushMix_, &crushPosition_, &crushLink_ });
-    layoutRow(content(2), { &ringFrequency_, &ringMix_ });
-    layoutRow(content(3), { &fmRate_, &fmDepth_ });
-    layoutRow(content(4), { &mix_, &output_, &ceiling_, &limiter_ });
+    inputGain_.setBounds(content(0).withTrimmedBottom(24));
+    layoutRow(content(1), { &drive_, &drivePosition_ });
+    layoutRow(content(2), { &crushRate_, &crushBits_, &crushMix_, &crushPosition_, &crushLink_ });
+    layoutRow(content(3), { &ringFrequency_, &ringMix_ });
+    layoutRow(content(4), { &fmRate_, &fmDepth_ });
+    layoutRow(content(5).withTrimmedBottom(24), { &mix_, &output_, &ceiling_, &limiter_ });
 }
 
 } // namespace openedm::ui
