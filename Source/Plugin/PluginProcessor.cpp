@@ -182,6 +182,7 @@ void OpenEdmFilterProcessor::updateSpectrumFrame() noexcept {
 
     std::array<float, kSpectrumDisplayBins> peaks{};
     const double sampleRate = std::max(1.0, processingSampleRate_);
+    const double nyquist = sampleRate * 0.5;
     const double displayBinCount = static_cast<double>(kSpectrumDisplayBins);
     const auto spectrumForChannel = [&](size_t channel, std::array<float, kSpectrumDisplayBins>& destination) {
         for (int sample = 0; sample < kSpectrumFftSize; ++sample) {
@@ -193,7 +194,9 @@ void OpenEdmFilterProcessor::updateSpectrumFrame() noexcept {
 
         for (size_t displayBin = 0; displayBin < destination.size(); ++displayBin) {
             const double lowHz = 20.0 * std::pow(1000.0, static_cast<double>(displayBin) / displayBinCount);
-            const double highHz = 20.0 * std::pow(1000.0, static_cast<double>(displayBin + 1) / displayBinCount);
+            if (lowHz >= nyquist) continue;
+            const double highHz = std::min(
+                20.0 * std::pow(1000.0, static_cast<double>(displayBin + 1) / displayBinCount), nyquist);
             const int firstFftBin = std::clamp(static_cast<int>(std::floor(lowHz * kSpectrumFftSize / sampleRate)),
                                                1, kSpectrumFftSize / 2);
             const int lastFftBin = std::clamp(static_cast<int>(std::ceil(highHz * kSpectrumFftSize / sampleRate)),
