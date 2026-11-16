@@ -1,4 +1,4 @@
-# openEDMFilter
+# openEDMFilter v1.9.0
 
 [Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest)
 
