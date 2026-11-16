@@ -2,7 +2,7 @@
 
 [Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest)
 
-Dual multimode filter. Two filters in series, four auto-sweep slots (cutoff, resonance, bitcrush, glitch), a per-filter LFO and envelope follower, drive, and a lookahead limiter. Release packages contain VST3, LV2 and a standalone app on macOS, Windows and Linux; macOS also includes AU.
+Dual multimode filter. Serial or parallel filters, MIDI and step modulation, four auto-sweep slots (cutoff, resonance, bitcrush, glitch), a per-filter LFO and envelope follower, drive, and a lookahead limiter. Release packages contain VST3, LV2 and a standalone app on macOS, Windows and Linux; macOS also includes AU.
 
 ![openEDMFilter native editor](assets/native-ui.png)
 
@@ -10,7 +10,7 @@ Dual multimode filter. Two filters in series, four auto-sweep slots (cutoff, res
 
 ## Features
 
-- Two filters in series (A into B). Each has low-pass, high-pass, band-pass and notch, slopes of 12, 24, 48 or 96 dB/oct, resonance, and resonance width. Width also sets the band for band-pass and notch.
+- Two filters in series (A into B) or parallel. Parallel A/B Blend selects A at 0%, B at 100%, or a blend between them; both receive the same input. Routing and blend changes are smoothed. Each filter has low-pass, high-pass, band-pass and notch, slopes of 12, 24, 48 or 96 dB/oct, resonance, and resonance width. Width also sets the band for band-pass and notch.
 - BYPASS on a filter crossfades over 10 ms. A bypassed filter does no processing, and its curve leaves the display.
 - HOST SYNC follows the host transport. Off, the internal clock runs from 40 to 240 BPM. Time signatures: 4/4, 3/4, 2/4, 5/4, 6/4, 6/8, 7/8, 9/8, 12/8. The 4/4 entry uses the host signature when the host sends one.
 - Auto-sweep lengths are 1, 2, 4, 8, 16, 32 and 64 bars. The BARS menu sets the length for the selected slot. Modes are Bar Window, Every Bar, Up & Down, and Bar + Macro. Targets are Filter A, Filter B, Both A+B, and A/B Mirror. The default length is 8 bars.
@@ -20,7 +20,7 @@ Dual multimode filter. Two filters in series, four auto-sweep slots (cutoff, res
 - The preset menu and the slope preset menu in the Auto Sweep panel include low-pass, high-pass, band-pass and notch sweeps, plus 32-bar and 64-bar builds.
 - Each filter has an LFO: sine, triangle, saw up, saw down, square. Rates run from 1/32 to 8 bars, with triplets. Depth is bipolar. While the host is playing, the phase locks to the transport.
 - Each filter has an envelope follower with source frequency, attack, release and bipolar depth. It listens to a band of the input around the source frequency.
-- Cutoff FM is one sine oscillator on both cutoffs, up to audio rate.
+- Cutoff FM uses sine, triangle, saw up, saw down or square, up to audio rate. FM Destination selects Both, Filter A or Filter B. Existing sessions retain sine FM on both cutoffs.
 - Drive is tanh saturation, before or after the filters.
 - Crush is a sample-rate reducer and bit crusher, before or after the filters. LINK A makes the crush rate follow filter A's cutoff modulation.
 - The ring modulator has frequency and mix.
@@ -32,6 +32,16 @@ Dual multimode filter. Two filters in series, four auto-sweep slots (cutoff, res
 - Every parameter can be automated.
 
 VST2 and AAX are not built by this project.
+
+## Modulation and routing controls
+
+Click **MOD / ROUTING** in the native editor to open the scrollable native parameter controls, including all routing and modulation settings. Click **CLOSE CONTROLS** to return to the main panels. All controls support host automation and session recall. Factory presets reset the new controls to their defaults; older sessions retain serial routing and linked stereo, with MIDI and steps off.
+
+Each filter has MIDI Source (Off, Velocity, Aftertouch, CC), a CC number (0–127), and bipolar MIDI Depth. All MIDI channels are accepted. Velocity uses the highest velocity among held notes; releasing a note removes it. Aftertouch uses the highest channel or polyphonic pressure. CC uses the latest value of the selected controller. All Notes Off and All Sound Off clear notes and pressure on their MIDI channel; Reset All Controllers clears controller and pressure values. MIDI events take effect at their sample offsets. Route MIDI to this audio effect in your host; the standalone app also accepts MIDI input.
+
+Step Mode selects Off, Steps or Euclidean. Each filter has 16 editable bipolar step values, length 1–16, rotation 0–15, beats per step (1/16 to 4 quarter-note beats), and bipolar Step Depth. Euclidean mode distributes Pulses evenly over Length; extra pulses clamp to Length. Pulses output +1 and rests output −1. Rotation moves the first step forward. Both modes follow host tempo and PPQ, including negative positions and seeks, and hold on a stopped host playhead. With no playhead, they follow the internal clock. Step Depth 0 is neutral.
+
+Modulation Channels selects Linked (the historical default), Left/Right or Mid/Side. The existing depths control L or M. Each band's R/S Mod Depth scales its LFO, envelope, MIDI and step modulation independently (including inversion), R/S Phase Offset shifts its LFO and step pattern, and R/S Cutoff Offset moves its cutoff by up to six octaves. Envelope followers listen to their own L/R or M/S lane in independent modes. Linked ignores the R/S settings. M/S uses an energy-preserving matrix around the filters; drive, crusher, ring modulation and output remain in L/R. Mono uses the first lane. Stereo mode changes use a smoothed matrix, and cutoff changes retain the existing smoothing. The response graph shows the L/M lane and the phase-aware serial or parallel combined response.
 
 ## Auto mode
 

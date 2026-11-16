@@ -2,6 +2,7 @@
 
 #include "Svf.h"
 #include <array>
+#include <complex>
 
 namespace openedm::core {
 
@@ -42,6 +43,9 @@ public:
     // Magnitude response of the digital filter at sampleRate, for drawing the curve in the editor.
     [[nodiscard]] static double magnitudeAt(const FilterShape& shape, double cutoffHz, double frequencyHz,
                                             double sampleRate) noexcept;
+
+    [[nodiscard]] static std::complex<double> responseAt(const FilterShape& shape, double cutoffHz,
+                                                       double frequencyHz, double sampleRate) noexcept;
 
 private:
     float activeMix_ = -1.0f; // 0 bypassed, 1 active; negative until the first update snaps it

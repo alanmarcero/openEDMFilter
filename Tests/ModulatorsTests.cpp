@@ -149,3 +149,26 @@ TEST_CASE("Envelope follower ignores content far from its source frequency", "[e
         [&](float, float sample) { return envelope.process(sample); });
     REQUIRE(level < 0.1f);
 }
+
+TEST_CASE("Step and Euclidean modulation wrap and respect pulses and rotation", "[approved][modulators]") {
+    StepSettings settings;
+    settings.mode = StepMode::Steps;
+    settings.length = 4;
+    settings.values = { -1.0f, 0.0f, 0.5f, 1.0f };
+    REQUIRE(StepModulator::valueAt(settings, 0.0) == -1.0f);
+    REQUIRE(StepModulator::valueAt(settings, 0.5) == 0.5f);
+    REQUIRE(StepModulator::valueAt(settings, -0.25) == 1.0f);
+    settings.mode = StepMode::Euclidean;
+    settings.length = 8;
+    settings.pulses = 3;
+    int pulses = 0;
+    for (int i = 0; i < 8; ++i) pulses += StepModulator::valueAt(settings, i / 8.0) > 0.0f ? 1 : 0;
+    REQUIRE(pulses == 3);
+    REQUIRE(StepModulator::valueAt(settings, 0.0) == 1.0f);
+    settings.rotation = 1;
+    REQUIRE(StepModulator::valueAt(settings, 0.125) == 1.0f);
+    settings.pulses = 0;
+    REQUIRE(StepModulator::valueAt(settings, 0.125) == -1.0f);
+    settings.pulses = 99;
+    REQUIRE(StepModulator::valueAt(settings, 0.125) == 1.0f);
+}

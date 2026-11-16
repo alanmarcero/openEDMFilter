@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Svf.h"
+#include <array>
 
 namespace openedm::core {
 
@@ -10,6 +11,23 @@ enum class LfoShape {
     SawUp,
     SawDown,
     Square
+};
+
+enum class StepMode { Off, Steps, Euclidean };
+
+struct StepSettings {
+    StepMode mode = StepMode::Off;
+    int length = 16;
+    int pulses = 4;
+    int rotation = 0;
+    double beatsPerStep = 0.25;
+    float depth = 0.0f;
+    std::array<float, 16> values{};
+};
+
+class StepModulator {
+public:
+    [[nodiscard]] static float valueAt(const StepSettings& settings, double phase) noexcept;
 };
 
 enum class SweepMode {
@@ -63,6 +81,7 @@ public:
     [[nodiscard]] float next(LfoShape shape, double phaseIncrement) noexcept;
 
     [[nodiscard]] static float valueAt(LfoShape shape, double phase) noexcept;
+    [[nodiscard]] double phase() const noexcept { return phase_; }
 
 private:
     double phase_ = 0.0;

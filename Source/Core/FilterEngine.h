@@ -14,6 +14,10 @@ enum class Placement {
     PostFilter
 };
 
+enum class ModTarget { Both, BandA, BandB };
+enum class MidiSource { Off, Velocity, Aftertouch, CC };
+enum class StereoMode { Linked, LeftRight, MidSide };
+
 struct BandSettings {
     FilterShape shape{};
     float cutoffHz = 1000.0f;
@@ -24,6 +28,13 @@ struct BandSettings {
     float envAttackMs = 5.0f;
     float envReleaseMs = 150.0f;
     float envDepth = 0.0f; // -1..1
+    MidiSource midiSource = MidiSource::Off;
+    int midiCC = 1;
+    float midiDepth = 0.0f;
+    StepSettings step{};
+    float lane2Depth = 1.0f; // scales modulation on R or S; L/M uses the original depths
+    float lane2Phase = 0.0f; // additional LFO and step phase in cycles
+    float lane2Offset = 0.0f; // independent R/S cutoff offset in octaves
 };
 
 struct EngineSettings {
@@ -46,6 +57,11 @@ struct EngineSettings {
     bool inertia = true; // slows cutoff moves on 48 and 96 dB slopes so they stay click-free
     AutoSweepSettings sweep{};
     bool bypassed = false; // full engine bypass, crossfaded over 10 ms at constant latency
+    bool parallel = false;
+    float parallelBlend = 0.5f; // A at 0, B at 1
+    LfoShape fmShape = LfoShape::Sine;
+    ModTarget fmTarget = ModTarget::Both;
+    StereoMode stereoMode = StereoMode::Linked;
 };
 
 struct Transport {
@@ -55,7 +71,7 @@ struct Transport {
     bool playing = true;               // with a playhead, false holds synced clocks on that position
 };
 
-// Full signal chain: drive and crush (pre or post), band A into band B, ring mod, dry/wet, output, limiter.
+// Full signal chain: drive/crush (pre or post), serial or parallel A/B, ring mod, dry/wet, output, limiter.
 // Everything before the limiter runs at twice the host rate, so drive, ring mod and FM alias less.
 class FilterEngine {
 public:
@@ -71,21 +87,28 @@ public:
 
     // Modulated cutoff and resonance of each band at the end of the last block.
     [[nodiscard]] std::array<float, kNumBands> currentCutoffs() const noexcept;
+    [[nodiscard]] std::array<float, kNumBands> currentLaneCutoffs(int lane) const noexcept;
+    void setMidiValue(MidiSource source, float value, int controller = 1) noexcept;
+    void clearMidi() noexcept;
     [[nodiscard]] std::array<float, kNumBands> currentResonances() const noexcept { return resonances_; }
     [[nodiscard]] float currentSweepPhase() const noexcept { return static_cast<float>(sweep_.phase()); }
 
 private:
     double sampleRate_ = 88200.0; // the oversampled rate
     // Two filters per band. A type or slope change starts the new one clean and crossfades from the old one.
-    std::array<std::array<MultiModeFilter, 2>, kNumBands> filters_{};
+    using FilterLanes = std::array<MultiModeFilter, 2>;
+    std::array<std::array<FilterLanes, 2>, kNumBands> filters_{};
+    std::array<FilterLanes, 2> parallelB_{};
     std::array<std::array<FilterShape, 2>, kNumBands> slotShapes_{};
     std::array<int, kNumBands> activeSlot_{};
     std::array<int, kNumBands> fadeRemaining_{};
     int fadeSamples_ = 1;
     std::array<Lfo, kNumBands> lfos_{};
     AutoSweep sweep_{};
-    std::array<EnvelopeFollower, kNumBands> envelopes_{};
+    std::array<std::array<EnvelopeFollower, 2>, kNumBands> envelopes_{};
     std::array<float, kNumBands> logCutoffs_{}; // smoothed, in log2 Hz
+    std::array<float, kNumBands> lane2LogCutoffs_{};
+    std::array<std::array<float, kNumBands>, 2> displayedCutoffs_{}; // actual lane cutoff in Hz, including FM
     std::array<float, kNumBands> resonances_{}; // smoothed, 0..1
     BitCrusher crusher_{};
     BeatStutter stutter_{};
@@ -95,6 +118,12 @@ private:
     Oversampler oversampler_{};
     PeakLimiter limiter_{};
     double fmPhase_ = 0.0;
+    std::array<double, kNumBands> stepPhases_{};
+    std::array<float, 4> midiValues_{};
+    std::array<float, 128> midiCCs_{};
+    float routingMix_ = 0.0f;
+    float parallelBlend_ = 0.5f;
+    float stereoAngle_ = 0.0f;
     double ringPhase_ = 0.0;
     float mix_ = 1.0f;
     float outputGain_ = 1.0f;

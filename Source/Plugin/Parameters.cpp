@@ -1,5 +1,6 @@
 #include "Parameters.h"
 #include <algorithm>
+#include <ranges>
 
 namespace openedm::params {
 
@@ -163,6 +164,34 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         addFloat(layout, sweepId(slot, kSweepGlitchSlope), name + "Glitch Slope", { -1.0f, 1.0f }, 0.35f, kFormatBipolar, 2);
         addFloat(layout, sweepId(slot, kSweepGlitchOnset), name + "Glitch Onset", { 0.0f, 0.99f }, 0.75f, kFormatPercent, 2);
     }
+    // Version 4 parameters are appended so existing parameter order and IDs stay intact.
+    addChoice(layout, "routing", "Filter Routing", { "Serial", "Parallel" }, 0, 4);
+    addFloat(layout, "parallel_blend", "Parallel A/B Blend", { 0.0f, 1.0f }, 0.5f, kFormatPercent, 4);
+    addChoice(layout, "fm_shape", "FM Waveform", { "Sine", "Triangle", "Saw Up", "Saw Down", "Square" }, 0, 4);
+    addChoice(layout, "fm_target", "FM Destination", { "Both", "Filter A", "Filter B" }, 0, 4);
+    addChoice(layout, "stereo_mode", "Modulation Channels", { "Linked", "Left/Right", "Mid/Side" }, 0, 4);
+    std::ranges::for_each(std::views::iota(0, 2), [&](int band) {
+        const auto id = [band](const char* suffix) { return bandId(band, suffix); };
+        const juce::String name = band == 0 ? "A " : "B ";
+        addChoice(layout, id("midi_source"), name + "MIDI Source", { "Off", "Velocity", "Aftertouch", "CC" }, 0, 4);
+        layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{ id("midi_cc"), 4 }, name + "MIDI CC", 0, 127, 1));
+        addFloat(layout, id("midi_depth"), name + "MIDI Depth", { -1.0f, 1.0f }, 0.0f, kFormatBipolar, 4);
+        addChoice(layout, id("step_mode"), name + "Step Mode", { "Off", "Steps", "Euclidean" }, 0, 4);
+        layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{ id("step_length"), 4 }, name + "Step Length", 1, 16, 16));
+        layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{ id("step_pulses"), 4 }, name + "Euclidean Pulses", 0, 16, 4));
+        layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{ id("step_rotation"), 4 }, name + "Step Rotation", 0, 15, 0));
+        addFloat(layout, id("step_beats"), name + "Beats per Step", { 0.0625f, 4.0f }, 0.25f,
+            [](float value, int) { return juce::String(value, 4) + " beats"; }, 4);
+        addFloat(layout, id("step_depth"), name + "Step Depth", { -1.0f, 1.0f }, 0.0f, kFormatBipolar, 4);
+        addFloat(layout, id("lane2_depth"), name + "R/S Mod Depth", { -1.0f, 1.0f }, 1.0f, kFormatBipolar, 4);
+        addFloat(layout, id("lane2_phase"), name + "R/S Phase Offset", { 0.0f, 1.0f }, 0.0f, kFormatPercent, 4);
+        addFloat(layout, id("lane2_offset"), name + "R/S Cutoff Offset", { -6.0f, 6.0f }, 0.0f,
+            [](float value, int) { return juce::String(value, 2) + " oct"; }, 4);
+        std::ranges::for_each(std::views::iota(0, 16), [&](int step) {
+            addFloat(layout, bandId(band, "step_") + juce::String(step + 1), name + "Step " + juce::String(step + 1),
+                { -1.0f, 1.0f }, 0.0f, kFormatBipolar, 4);
+        });
+    });
     return layout;
 }
 

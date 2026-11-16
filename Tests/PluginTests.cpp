@@ -525,3 +525,115 @@ TEST_CASE("All 70 factory presets load and report valid program names", "[plugin
         REQUIRE(it != sweepPresets.end());
     });
 }
+
+TEST_CASE("Approved routing and modulation controls are automatable and recalled", "[approved][plugin]") {
+    OpenEdmFilterProcessor processor;
+    REQUIRE(processor.acceptsMidi());
+    const std::array<std::pair<const char*, float>, 13> controls{{
+        {"routing", 1}, {"parallel_blend", 0.8f}, {"fm_shape", 4}, {"fm_target", 2},
+        {"stereo_mode", 2}, {"a_midi_source", 3}, {"a_midi_cc", 74}, {"a_midi_depth", 0.6f},
+        {"a_step_mode", 2}, {"a_step_pulses", 5}, {"a_step_3", -0.75f},
+        {"a_lane2_depth", -0.5f}, {"a_lane2_phase", 0.25f}
+    }};
+    for (const auto& [id, value] : controls) {
+        set(processor, id, value);
+        REQUIRE(processor.parameters.getParameter(id)->isAutomatable());
+    }
+    juce::MemoryBlock saved;
+    processor.getStateInformation(saved);
+    OpenEdmFilterProcessor restored;
+    restored.setStateInformation(saved.getData(), static_cast<int>(saved.getSize()));
+    for (const auto& [id, value] : controls)
+        REQUIRE_THAT(restored.parameters.getRawParameterValue(id)->load(), WithinAbs(value, 1e-5f));
+}
+
+TEST_CASE("MIDI velocity aftertouch and selected CC reach DSP at their sample offsets", "[approved][plugin]") {
+    for (int source : {1, 2, 3}) {
+        OpenEdmFilterProcessor processor;
+        processor.prepareToPlay(48000.0, 4800);
+        set(processor, "a_cutoff", 1000.0f);
+        set(processor, "a_midi_source", static_cast<float>(source));
+        set(processor, "a_midi_depth", 1.0f / 6.0f);
+        set(processor, "a_midi_cc", 74.0f);
+        juce::AudioBuffer<float> buffer(2, 4800);
+        buffer.clear();
+        juce::MidiBuffer midi;
+        if (source == 1) midi.addEvent(juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(127)), 2400);
+        if (source == 2) midi.addEvent(juce::MidiMessage::channelPressureChange(1, 127), 2400);
+        if (source == 3) {
+            midi.addEvent(juce::MidiMessage::controllerEvent(1, 73, 127), 0);
+            midi.addEvent(juce::MidiMessage::controllerEvent(1, 74, 127), 2400);
+        }
+        processor.processBlock(buffer, midi);
+        REQUIRE_THAT(processor.displayCutoffs[0].load(), WithinAbs(2000.0f, 2.0f));
+    }
+}
+
+TEST_CASE("MIDI event offsets match split-block processing and note release resets velocity", "[approved][plugin]") {
+    OpenEdmFilterProcessor whole, split;
+    for (auto* processor : {&whole, &split}) {
+        processor->prepareToPlay(48000, 4800);
+        set(*processor, "a_cutoff", 1000);
+        set(*processor, "a_midi_source", 1);
+        set(*processor, "a_midi_depth", 1.0f / 6.0f);
+    }
+    juce::AudioBuffer<float> block(2, 4800), first(2, 2400), second(2, 2400);
+    for (int i = 0; i < 4800; ++i) {
+        const float value = 0.1f * std::sin(static_cast<float>(i) * 0.2f);
+        for (int channel = 0; channel < 2; ++channel) {
+            block.setSample(channel, i, value);
+            (i < 2400 ? first : second).setSample(channel, i % 2400, value);
+        }
+    }
+    juce::MidiBuffer events;
+    events.addEvent(juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(127)), 2400);
+    whole.processBlock(block, events);
+    juce::MidiBuffer empty;
+    split.processBlock(first, empty);
+    REQUIRE_THAT(split.displayCutoffs[0].load(), WithinAbs(1000, 0.1));
+    events.addEvent(juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(127)), 0);
+    split.processBlock(second, events);
+    for (int i = 0; i < 4800; ++i)
+        REQUIRE_THAT(block.getSample(0, i), WithinAbs((i < 2400 ? first : second).getSample(0, i % 2400), 1e-6));
+    events.addEvent(juce::MidiMessage::noteOff(1, 60), 0);
+    split.processBlock(block, events);
+    REQUIRE_THAT(split.displayCutoffs[0].load(), WithinAbs(1000, 0.1));
+}
+
+TEST_CASE("Old sessions reset new modulation controls to neutral defaults", "[approved][plugin]") {
+    OpenEdmFilterProcessor processor;
+    set(processor, "routing", 1);
+    set(processor, "stereo_mode", 2);
+    set(processor, "a_midi_depth", 1);
+    set(processor, "a_step_mode", 2);
+    juce::XmlElement legacy("openEDMFilter");
+    auto* cutoff = legacy.createNewChildElement("PARAM");
+    cutoff->setAttribute("id", "a_cutoff");
+    cutoff->setAttribute("value", 1234);
+    juce::MemoryBlock data;
+    juce::AudioProcessor::copyXmlToBinary(legacy, data);
+    processor.setStateInformation(data.getData(), static_cast<int>(data.getSize()));
+    for (auto id : {"routing", "stereo_mode", "a_midi_depth", "a_step_mode", "fm_shape", "fm_target"})
+        REQUIRE_THAT(processor.parameters.getRawParameterValue(id)->load(), WithinAbs(0.0f, 1e-6f));
+    REQUIRE_THAT(processor.parameters.getRawParameterValue("a_cutoff")->load(), WithinAbs(1234, 0.01));
+}
+
+TEST_CASE("Native editor opens and closes the routing and modulation controls", "[approved][plugin][ui]") {
+#if JUCE_LINUX
+    if (std::getenv("DISPLAY") == nullptr) SKIP("Native editor requires a display");
+#endif
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenEdmFilterProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    auto* button = dynamic_cast<juce::TextButton*>(editor->findChildWithID("advancedModulation"));
+    REQUIRE(button != nullptr);
+    button->onClick();
+    auto control = std::ranges::find_if(editor->getChildren(), [](auto* child) {
+        return dynamic_cast<juce::GenericAudioProcessorEditor*>(child) != nullptr;
+    });
+    REQUIRE(control != editor->getChildren().end());
+    REQUIRE((*control)->isVisible());
+    REQUIRE((*control)->getWidth() > 500);
+    button->onClick();
+    REQUIRE_FALSE((*control)->isVisible());
+}

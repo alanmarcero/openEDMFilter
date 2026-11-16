@@ -102,9 +102,12 @@ float MultiModeFilter::process(int channel, float input) noexcept {
 
 double MultiModeFilter::magnitudeAt(const FilterShape& shape, double cutoffHz, double frequencyHz,
                                     double sampleRate) noexcept {
-    if (!shape.enabled) {
-        return 1.0;
-    }
+    return std::abs(responseAt(shape, cutoffHz, frequencyHz, sampleRate));
+}
+
+std::complex<double> MultiModeFilter::responseAt(const FilterShape& shape, double cutoffHz, double frequencyHz,
+                                                double sampleRate) noexcept {
+    if (!shape.enabled) return 1.0;
     using Complex = std::complex<double>;
     const StageDesign design = designStages(shape);
     // The TPT SVF is the prewarped bilinear transform of the analog one, so warping the frequency axis
@@ -127,7 +130,7 @@ double MultiModeFilter::magnitudeAt(const FilterShape& shape, double cutoffHz, d
 
     const double peakQ = design.peakQ;
     const Complex peak = 1.0 + static_cast<double>(design.peakGain) * (s / peakQ) / (s * s + s / peakQ + 1.0);
-    return std::abs(cascade * peak);
+    return cascade * peak;
 }
 
 } // namespace openedm::core

@@ -43,6 +43,18 @@ float Lfo::valueAt(LfoShape shape, double phase) noexcept {
     return 0.0f;
 }
 
+float StepModulator::valueAt(const StepSettings& settings, double phase) noexcept {
+    if (settings.mode == StepMode::Off) return 0.0f;
+    const int length = std::clamp(settings.length, 1, 16);
+    const double wrapped = phase - std::floor(phase);
+    const int step = std::min(length - 1, static_cast<int>(wrapped * length));
+    const int rotation = ((settings.rotation % length) + length) % length;
+    const int index = (step + length - rotation) % length;
+    if (settings.mode == StepMode::Steps) return std::clamp(settings.values[static_cast<size_t>(index)], -1.0f, 1.0f);
+    const int pulses = std::clamp(settings.pulses, 0, length);
+    return (index * pulses) % length < pulses ? 1.0f : -1.0f;
+}
+
 void AutoSweep::syncToTransport(double ppqPosition, double beatsPerBar, int bars) noexcept {
     const double totalBeats = std::max(0.25, beatsPerBar * static_cast<double>(std::max(1, bars)));
     const double cycles = ppqPosition / totalBeats;
