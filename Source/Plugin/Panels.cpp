@@ -450,7 +450,7 @@ void SweepSlopeEditor::paint(juce::Graphics& g) {
     g.strokePath(resPath, juce::PathStrokeType(1.75f));
 
     const std::array envelopes{ settings.crush, settings.glitch };
-    const std::array colours{ theme::kAccentFx, juce::Colour(0xffcf9bdc) };
+    const std::array colours{ theme::kAccentFx, theme::kAccentB };
     for (size_t i = 0; i < envelopes.size(); ++i) {
         const auto path = buildCurve([&](double phase) {
             const float progress = core::AutoSweep::progressAt(settings.mode, settings.bars, phase);
@@ -548,7 +548,7 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
       }) {
     const std::array<const char*, 4> effectTitles{ "Start", "End", "Slope", "Onset" };
     for (size_t i = 0; i < effectKnobs_.size(); ++i) {
-        const auto colour = i < 4 ? theme::kAccentFx : juce::Colour(0xffcf9bdc);
+        const auto colour = i < 4 ? theme::kAccentFx : theme::kAccentB;
         effectKnobs_[i] = std::make_unique<Knob>(processor.parameters, params::kSweepEffectIds[i], effectTitles[i % 4], colour);
         addAndMakeVisible(*effectKnobs_[i]);
     }
@@ -613,7 +613,7 @@ void SweepPanel::paint(juce::Graphics& g) {
     g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
     g.drawText("AUTO MODE", slotArea_.withWidth(76), juce::Justification::centredLeft);
     const std::array<const char*, 4> labels{ "CUTOFF", "RESONANCE", "BITCRUSH", "GLITCH" };
-    const std::array colours{ theme::kAccentA, theme::kAccentB, theme::kAccentFx, juce::Colour(0xffcf9bdc) };
+    const std::array colours{ theme::kAccentA, theme::kAccentB, theme::kAccentFx, theme::kAccentB };
     auto legend = slotArea_.withTrimmedLeft(280);
     for (size_t i = 0; i < labels.size(); ++i) {
         g.setColour(colours[i]);

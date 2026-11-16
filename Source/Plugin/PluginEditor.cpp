@@ -94,7 +94,7 @@ OpenEdmFilterEditor::~OpenEdmFilterEditor() {
 
 void OpenEdmFilterEditor::paint(juce::Graphics& g) {
     g.fillAll(theme::kBackground);
-    g.setOpacity(0.75f);
+    g.setOpacity(0.12f);
     g.drawImage(faceplate_, getLocalBounds().toFloat(), juce::RectanglePlacement::stretchToFit);
     g.setOpacity(1.0f);
     g.setColour(theme::kPanelEdge);
