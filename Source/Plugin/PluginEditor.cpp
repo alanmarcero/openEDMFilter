@@ -27,7 +27,7 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
       sweep_(processorToEdit),
       bandA_(processorToEdit.parameters, 0),
       bandB_(processorToEdit.parameters, 1),
-      effects_(processorToEdit.parameters) {
+      effects_(processorToEdit) {
     setLookAndFeel(&lookAndFeel_);
     faceplate_ = juce::ImageCache::getFromMemory(BinaryData::analogcyberfaceplate_png, BinaryData::analogcyberfaceplate_pngSize);
 
@@ -74,7 +74,19 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
         advancedButton_.setButtonText(show ? "CLOSE CONTROLS" : "MOD / ROUTING");
         resized();
     };
+    spectrumButton_.setClickingTogglesState(true);
+    spectrumButton_.setToggleState(processor_.spectrumVisible.load(), juce::dontSendNotification);
+    spectrumButton_.setTooltip("Show or hide the live input spectrum in the response display");
+    spectrumButton_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentSpectrum);
+    spectrumButton_.onClick = [this] { processor_.spectrumVisible.store(spectrumButton_.getToggleState()); };
+    freezeSpectrumButton_.setClickingTogglesState(true);
+    freezeSpectrumButton_.setToggleState(processor_.spectrumFrozen.load(), juce::dontSendNotification);
+    freezeSpectrumButton_.setTooltip("Hold the current spectrum trace");
+    freezeSpectrumButton_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentB);
+    freezeSpectrumButton_.onClick = [this] { processor_.spectrumFrozen.store(freezeSpectrumButton_.getToggleState()); };
     addAndMakeVisible(advancedButton_);
+    addAndMakeVisible(spectrumButton_);
+    addAndMakeVisible(freezeSpectrumButton_);
     addAndMakeVisible(presetBox_);
     addAndMakeVisible(prevPresetBtn_);
     addAndMakeVisible(nextPresetBtn_);
@@ -120,6 +132,10 @@ void OpenEdmFilterEditor::resized() {
     presetBox_.setBounds(header.removeFromRight(180).withSizeKeepingCentre(180, 28));
     header.removeFromRight(4);
     prevPresetBtn_.setBounds(header.removeFromRight(26).withSizeKeepingCentre(26, 28));
+    header.removeFromRight(4);
+    freezeSpectrumButton_.setBounds(header.removeFromRight(70).withSizeKeepingCentre(70, 28));
+    header.removeFromRight(4);
+    spectrumButton_.setBounds(header.removeFromRight(84).withSizeKeepingCentre(84, 28));
     header.removeFromRight(8);
     inertia_.setBounds(header.removeFromRight(84));
     header.removeFromRight(8);

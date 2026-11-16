@@ -4,10 +4,14 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <memory>
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_dsp/juce_dsp.h>
 
 class OpenEdmFilterProcessor : public juce::AudioProcessor {
 public:
+    static constexpr size_t kSpectrumDisplayBins = 128;
+
     OpenEdmFilterProcessor();
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
@@ -45,8 +49,16 @@ public:
     std::atomic<float> displaySweepPhase{ 0.0f };
     std::atomic<float> displayBpm{ 128.0f };
     std::atomic<float> displayBeatsPerBar{ 4.0f };
+    std::atomic<float> displayInputPeak{ 0.0f };
+    std::atomic<float> displayOutputPeak{ 0.0f };
+    std::array<std::atomic<float>, kSpectrumDisplayBins> displaySpectrum{};
+    std::atomic<bool> spectrumVisible{ true };
+    std::atomic<bool> spectrumFrozen{ false };
 
 private:
+    static constexpr int kSpectrumFftOrder = 11;
+    static constexpr int kSpectrumFftSize = 1 << kSpectrumFftOrder;
+
     struct BandParameters {
         std::atomic<float>* bypass;
         std::atomic<float>* type;
@@ -103,6 +115,7 @@ private:
         std::atomic<float>* sweepBypass;
         std::atomic<float>* sweepSlot;
         std::array<SweepParameters, 4> sweeps;
+        std::atomic<float>* inputGain;
     };
 
     struct ModulationParameters {
@@ -139,7 +152,17 @@ private:
     std::array<std::array<ControllerValue, 128>, 16> controllers_{};
     std::uint64_t controllerOrder_ = 0;
     void handleMidi(const juce::MidiMessage& message) noexcept;
+    void updateInputAnalysis(const juce::AudioBuffer<float>& buffer, float inputGain) noexcept;
+    void updateOutputMeter(const juce::AudioBuffer<float>& buffer) noexcept;
+    void updateSpectrumFrame() noexcept;
+    void updatePeakMeter(std::atomic<float>& meter, float peak, int samples) noexcept;
     openedm::core::FilterEngine engine_;
+    std::unique_ptr<juce::dsp::FFT> spectrumFft_;
+    std::array<std::array<float, kSpectrumFftSize>, 2> spectrumFifo_{};
+    std::array<float, kSpectrumFftSize * 2> spectrumFftData_{};
+    std::array<float, kSpectrumFftSize> spectrumWindow_{};
+    size_t spectrumWriteIndex_ = 0;
+    float spectrumWindowSum_ = 0.0f;
     int currentProgram_ = 0;
     double processingSampleRate_ = 44100.0;
 

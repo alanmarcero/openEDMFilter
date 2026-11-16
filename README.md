@@ -24,10 +24,12 @@ Dual multimode filter. Serial or parallel filters, MIDI and step modulation, fou
 - Drive is tanh saturation, before or after the filters.
 - Crush is a sample-rate reducer and bit crusher, before or after the filters. LINK A makes the crush rate follow filter A's cutoff modulation.
 - The ring modulator has frequency and mix.
+- Input Gain trims the signal by -24 to +24 dB before the effects; changes are smoothed and the trim is ignored during master bypass.
+- Input and output peak meters show post-trim input and final output level with a 350 ms release. They turn red above 0 dBFS.
 - Output has dry/wet, gain, and a stereo-linked lookahead peak limiter with a ceiling.
 - Filter inertia uses a 30 ms smoother on cutoff moves for 48 and 96 dB slopes. Off, those slopes use a 2 ms smoother.
 - There are 58 factory presets in the preset menu and as host programs, and 12 slope presets in the Auto Sweep panel.
-- The response display shows each filter curve and the combined curve, including the auto-sweep, LFO, envelope and FM. Drag a band marker horizontally for cutoff and vertically for resonance.
+- The response display shows each filter curve and the combined curve, including the auto-sweep, LFO, envelope and FM. Drag a band marker horizontally for cutoff and vertically for resonance. A live 128-bin log spectrum shows the louder channel in each frequency bin after input trim and before filtering; SPECTRUM hides it and FREEZE holds the trace.
 - The signal before the limiter runs at twice the host sample rate. Reported latency is 110 samples: 47 from the oversampler and 63 from the limiter lookahead.
 - Every parameter can be automated.
 
