@@ -113,3 +113,14 @@ TEST_CASE("Drawn response matches the measured response near Nyquist", "[filter]
     const FilterShape bandPass{ true, FilterType::BandPass, FilterSlope::Slope48dB, 0.0f, 0.8f };
     REQUIRE_THAT(gainAt(bandPass, 6000.0, 15000.0), WithinRel(MultiModeFilter::magnitudeAt(bandPass, 6000.0, 15000.0, kSampleRate), 0.02));
 }
+
+TEST_CASE("Complex filter response preserves phase cancellation in parallel", "[approved][filter]") {
+    FilterShape low;
+    low.slope = FilterSlope::Slope12dB;
+    auto high = low;
+    high.type = FilterType::HighPass;
+    const auto a = MultiModeFilter::responseAt(low, 1000, 1000, 96000);
+    const auto b = MultiModeFilter::responseAt(high, 1000, 1000, 96000);
+    REQUIRE(std::abs(0.5 * (a + b)) < 1e-6);
+    REQUIRE_THAT(std::abs(a), WithinRel(MultiModeFilter::magnitudeAt(low, 1000, 1000, 96000), 1e-6));
+}

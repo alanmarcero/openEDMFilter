@@ -154,7 +154,13 @@ void ResponseView::paint(juce::Graphics& g) {
     const auto bandMagnitude = [&](size_t band, double hz) {
         return core::MultiModeFilter::magnitudeAt(shapes[band], displayCutoffs[band], hz, filterRate);
     };
-    const auto combinedMagnitude = [&](double hz) { return bandMagnitude(0, hz) * bandMagnitude(1, hz); };
+    const bool parallel = state.getRawParameterValue("routing")->load() > 0.5f;
+    const double blend = state.getRawParameterValue("parallel_blend")->load();
+    const auto combinedMagnitude = [&](double hz) {
+        const auto a = core::MultiModeFilter::responseAt(shapes[0], displayCutoffs[0], hz, filterRate);
+        const auto b = core::MultiModeFilter::responseAt(shapes[1], displayCutoffs[1], hz, filterRate);
+        return std::abs(parallel ? a + blend * (b - a) : a * b);
+    };
     const auto curve = [&](const auto& magnitudeAt) {
         juce::Path path;
         std::ranges::for_each(std::views::iota(0, kCurvePoints), [&](int point) {

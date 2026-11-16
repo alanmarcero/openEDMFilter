@@ -61,6 +61,20 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
         presetBox_.setSelectedId(nextProg + 1, juce::dontSendNotification);
     };
 
+    advancedButton_.setComponentID("advancedModulation");
+    advancedButton_.setTooltip("Routing, FM, MIDI, step patterns and independent R/S modulation");
+    advancedButton_.onClick = [this] {
+        if (!advancedControls_) {
+            advancedControls_ = std::make_unique<juce::GenericAudioProcessorEditor>(processor_);
+            addChildComponent(*advancedControls_);
+        }
+        const bool show = !advancedControls_->isVisible();
+        advancedControls_->setVisible(show);
+        if (show) advancedControls_->toFront(false);
+        advancedButton_.setButtonText(show ? "CLOSE CONTROLS" : "MOD / ROUTING");
+        resized();
+    };
+    addAndMakeVisible(advancedButton_);
     addAndMakeVisible(presetBox_);
     addAndMakeVisible(prevPresetBtn_);
     addAndMakeVisible(nextPresetBtn_);
@@ -96,10 +110,6 @@ void OpenEdmFilterEditor::paint(juce::Graphics& g) {
     const int edmWidth = juce::GlyphArrangement::getStringWidthInt(g.getCurrentFont(), "EDM");
     g.setColour(theme::kAccentB);
     g.drawText("Filter", header.withTrimmedLeft(openWidth + edmWidth), juce::Justification::centredLeft);
-    const int titleWidth = openWidth + edmWidth + juce::GlyphArrangement::getStringWidthInt(g.getCurrentFont(), "Filter");
-    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-    g.setColour(theme::kTextDim.withAlpha(0.65f));
-    g.drawText("TPT CASCADE  /  ZDF ANALOG", header.withTrimmedLeft(titleWidth + 24), juce::Justification::centredLeft);
 }
 
 void OpenEdmFilterEditor::resized() {
@@ -114,6 +124,8 @@ void OpenEdmFilterEditor::resized() {
     inertia_.setBounds(header.removeFromRight(84));
     header.removeFromRight(8);
     masterBypass_.setBounds(header.removeFromRight(76));
+    header.removeFromRight(8);
+    advancedButton_.setBounds(header.removeFromRight(126).withSizeKeepingCentre(126, 28));
 
     bounds.removeFromTop(4);
     response_.setBounds(bounds.removeFromTop(kResponseHeight));
@@ -126,4 +138,6 @@ void OpenEdmFilterEditor::resized() {
     bandB_.setBounds(bands);
     bounds.removeFromTop(10);
     effects_.setBounds(bounds);
+    if (advancedControls_)
+        advancedControls_->setBounds(getLocalBounds().reduced(kMargin).withTrimmedTop(kHeaderHeight + 4));
 }

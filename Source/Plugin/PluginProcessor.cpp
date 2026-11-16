@@ -3,6 +3,7 @@
 #include "PluginEditor.h"
 #include "Presets.h"
 #include <algorithm>
+#include <ranges>
 
 namespace core = openedm::core;
 namespace params = openedm::params;
@@ -44,12 +45,31 @@ OpenEdmFilterProcessor::OpenEdmFilterProcessor()
               { sweepValues(0), sweepValues(1), sweepValues(2), sweepValues(3) }
           };
       }()) {
+    routing_ = parameters.getRawParameterValue("routing");
+    parallelBlend_ = parameters.getRawParameterValue("parallel_blend");
+    fmShape_ = parameters.getRawParameterValue("fm_shape");
+    fmTarget_ = parameters.getRawParameterValue("fm_target");
+    stereoMode_ = parameters.getRawParameterValue("stereo_mode");
+    std::ranges::for_each(std::views::iota(0, 2), [&](int band) {
+        const auto raw = [&](const char* suffix) { return parameters.getRawParameterValue(params::bandId(band, suffix)); };
+        auto& mod = modulation_[static_cast<size_t>(band)];
+        mod = { raw("midi_source"), raw("midi_cc"), raw("midi_depth"), raw("step_mode"), raw("step_length"),
+            raw("step_pulses"), raw("step_rotation"), raw("step_beats"), raw("step_depth"), raw("lane2_depth"),
+            raw("lane2_phase"), raw("lane2_offset"), {} };
+        std::ranges::for_each(std::views::iota(0, 16), [&](int step) {
+            mod.steps[static_cast<size_t>(step)] = parameters.getRawParameterValue(params::bandId(band, "step_") + juce::String(step + 1));
+        });
+    });
     setLatencySamples(core::FilterEngine::kLatencySamples);
     parameters.state.setProperty("barsLayout", params::kSweepBarsLayout, nullptr);
 }
 
 void OpenEdmFilterProcessor::prepareToPlay(double sampleRate, int) {
+    processingSampleRate_ = sampleRate;
     engine_.prepare(sampleRate);
+    heldVelocities_ = {};
+    notePressure_ = {};
+    channelPressure_ = {};
 }
 
 bool OpenEdmFilterProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const {
@@ -87,7 +107,42 @@ juce::AudioProcessorParameter* OpenEdmFilterProcessor::getBypassParameter() cons
     return parameters.getParameter(params::kMasterBypass);
 }
 
-void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) {
+void OpenEdmFilterProcessor::handleMidi(const juce::MidiMessage& message) noexcept {
+    const auto channel = static_cast<size_t>(std::clamp(message.getChannel() - 1, 0, 15));
+    if (message.isNoteOn())
+        heldVelocities_[channel][static_cast<size_t>(message.getNoteNumber())] = message.getFloatVelocity();
+    if (message.isNoteOff()) {
+        heldVelocities_[channel][static_cast<size_t>(message.getNoteNumber())] = 0.0f;
+        notePressure_[channel][static_cast<size_t>(message.getNoteNumber())] = 0.0f;
+    }
+    if (message.isChannelPressure()) channelPressure_[channel] = static_cast<float>(message.getChannelPressureValue()) / 127.0f;
+    if (message.isAftertouch()) notePressure_[channel][static_cast<size_t>(message.getNoteNumber())] = static_cast<float>(message.getAfterTouchValue()) / 127.0f;
+    if (message.isAllNotesOff() || message.isAllSoundOff()) {
+        heldVelocities_[channel] = {};
+        notePressure_[channel] = {};
+        channelPressure_[channel] = 0.0f;
+    }
+    if (message.isController()) {
+        if (message.getControllerNumber() == 121) {
+            engine_.clearMidi();
+            notePressure_ = {};
+            channelPressure_ = {};
+        }
+        engine_.setMidiValue(core::MidiSource::CC, static_cast<float>(message.getControllerValue()) / 127.0f, message.getControllerNumber());
+    }
+    float velocity = 0.0f, pressure = 0.0f;
+    std::ranges::for_each(std::views::iota(size_t{0}, heldVelocities_.size()), [&](size_t lane) {
+        pressure = std::max(pressure, channelPressure_[lane]);
+        std::ranges::for_each(std::views::iota(size_t{0}, heldVelocities_[lane].size()), [&](size_t note) {
+            velocity = std::max(velocity, heldVelocities_[lane][note]);
+            pressure = std::max(pressure, notePressure_[lane][note]);
+        });
+    });
+    engine_.setMidiValue(core::MidiSource::Velocity, velocity);
+    engine_.setMidiValue(core::MidiSource::Aftertouch, pressure);
+}
+
+void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) {
     juce::ScopedNoDenormals noDenormals;
     const auto isOn = [](const std::atomic<float>* value) { return value->load() > 0.5f; };
     const auto choice = [](const std::atomic<float>* value) { return static_cast<int>(value->load()); };
@@ -108,7 +163,7 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
         };
     };
 
-    const core::EngineSettings settings{
+    core::EngineSettings settings{
         { bandSettings(values_.bands[0]), bandSettings(values_.bands[1]) },
         values_.fmRate->load(),
         values_.fmDepth->load(),
@@ -129,6 +184,29 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
         currentSweepSettings(),
         isOn(values_.masterBypass)
     };
+
+    settings.parallel = isOn(routing_);
+    settings.parallelBlend = parallelBlend_->load();
+    settings.fmShape = static_cast<core::LfoShape>(choice(fmShape_));
+    settings.fmTarget = static_cast<core::ModTarget>(choice(fmTarget_));
+    settings.stereoMode = static_cast<core::StereoMode>(choice(stereoMode_));
+    std::ranges::for_each(std::views::iota(size_t{0}, modulation_.size()), [&](size_t band) {
+        const auto& mod = modulation_[band];
+        auto& target = settings.bands[band];
+        target.midiSource = static_cast<core::MidiSource>(choice(mod.midiSource));
+        target.midiCC = choice(mod.midiCC);
+        target.midiDepth = mod.midiDepth->load();
+        target.step.mode = static_cast<core::StepMode>(choice(mod.stepMode));
+        target.step.length = choice(mod.stepLength);
+        target.step.pulses = choice(mod.stepPulses);
+        target.step.rotation = choice(mod.stepRotation);
+        target.step.beatsPerStep = mod.stepBeats->load();
+        target.step.depth = mod.stepDepth->load();
+        target.lane2Depth = mod.lane2Depth->load();
+        target.lane2Phase = mod.lane2Phase->load();
+        target.lane2Offset = mod.lane2Offset->load();
+        std::ranges::transform(mod.steps, target.step.values.begin(), [](const auto* value) { return value->load(); });
+    });
 
     const bool syncToHost = isOn(values_.clockSync);
     const double manualBpm = static_cast<double>(values_.tempoBpm->load());
@@ -162,7 +240,26 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
         return core::Transport{ bpm, *position->getPpqPosition(), beatsPerBar, position->getIsPlaying() };
     }();
 
-    engine_.process(settings, transport, buffer.getArrayOfWritePointers(), buffer.getNumChannels(), buffer.getNumSamples());
+    int rendered = 0;
+    const auto renderUntil = [&](int end) {
+        if (end <= rendered) return;
+        std::array<float*, 2> channels{};
+        const int count = std::min(2, buffer.getNumChannels());
+        std::ranges::for_each(std::views::iota(0, count), [&](int channel) {
+            channels[static_cast<size_t>(channel)] = buffer.getWritePointer(channel) + rendered;
+        });
+        auto segmentTransport = transport;
+        if (segmentTransport.ppqPosition.has_value() && transport.playing)
+            *segmentTransport.ppqPosition += rendered / processingSampleRate_ * transport.bpm / 60.0;
+        engine_.process(settings, segmentTransport, channels.data(), count, end - rendered);
+        rendered = end;
+    };
+    std::ranges::for_each(midi, [&](const auto metadata) {
+        renderUntil(std::clamp(metadata.samplePosition, 0, buffer.getNumSamples()));
+        if (metadata.numBytes <= 3) handleMidi(metadata.getMessage());
+    });
+    renderUntil(buffer.getNumSamples());
+    midi.clear();
 
     const auto cutoffs = engine_.currentCutoffs();
     const auto resonances = engine_.currentResonances();

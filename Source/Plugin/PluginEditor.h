@@ -17,6 +17,8 @@ private:
     openedm::ui::EdmLookAndFeel lookAndFeel_;
     juce::Image faceplate_;
     juce::ComboBox presetBox_;
+    juce::TextButton advancedButton_{"MOD / ROUTING"};
+    std::unique_ptr<juce::GenericAudioProcessorEditor> advancedControls_;
     juce::TextButton prevPresetBtn_{"<"};
     juce::TextButton nextPresetBtn_{">"};
     openedm::ui::Toggle masterBypass_;

@@ -18,7 +18,7 @@ public:
     bool hasEditor() const override { return true; }
 
     const juce::String getName() const override { return JucePlugin_Name; }
-    bool acceptsMidi() const override { return false; }
+    bool acceptsMidi() const override { return true; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
@@ -104,9 +104,37 @@ private:
         std::array<SweepParameters, 4> sweeps;
     };
 
+    struct ModulationParameters {
+        std::atomic<float>* midiSource{};
+        std::atomic<float>* midiCC{};
+        std::atomic<float>* midiDepth{};
+        std::atomic<float>* stepMode{};
+        std::atomic<float>* stepLength{};
+        std::atomic<float>* stepPulses{};
+        std::atomic<float>* stepRotation{};
+        std::atomic<float>* stepBeats{};
+        std::atomic<float>* stepDepth{};
+        std::atomic<float>* lane2Depth{};
+        std::atomic<float>* lane2Phase{};
+        std::atomic<float>* lane2Offset{};
+        std::array<std::atomic<float>*, 16> steps{};
+    };
+
     ParameterValues values_;
+    std::array<ModulationParameters, 2> modulation_{};
+    std::atomic<float>* routing_{};
+    std::atomic<float>* parallelBlend_{};
+    std::atomic<float>* fmShape_{};
+    std::atomic<float>* fmTarget_{};
+    std::atomic<float>* stereoMode_{};
+    // Per-note pressure and held velocity make releases deterministic for overlapping notes.
+    std::array<std::array<float, 128>, 16> heldVelocities_{};
+    std::array<std::array<float, 128>, 16> notePressure_{};
+    std::array<float, 16> channelPressure_{};
+    void handleMidi(const juce::MidiMessage& message) noexcept;
     openedm::core::FilterEngine engine_;
     int currentProgram_ = 0;
+    double processingSampleRate_ = 44100.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OpenEdmFilterProcessor)
 };

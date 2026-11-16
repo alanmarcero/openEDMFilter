@@ -314,3 +314,169 @@ TEST_CASE("Engine 1, 2 and 4 bar modes land on the musical cutoff while the host
         requireWrappedPhase(engine.currentSweepPhase(), 0.5);
     }
 }
+
+TEST_CASE("Parallel routing blends independently filtered input", "[approved][engine]") {
+    auto settings = transparentSettings();
+    settings.bands[0].shape.enabled = true;
+    settings.bands[0].cutoffHz = 100.0f;
+    settings.parallel = true;
+    settings.parallelBlend = 1.0f;
+    const auto input = sine(3000.0, kNumSamples);
+    requireDelayedCopy(runEngine(settings, input), input);
+    settings.parallelBlend = 0.0f;
+    REQUIRE(settledRms(runEngine(settings, input)) < 0.01f);
+    settings.parallelBlend = 0.5f;
+    REQUIRE_THAT(settledRms(runEngine(settings, input)), WithinAbs(settledRms(input) * 0.5f, 0.005f));
+}
+
+TEST_CASE("FM shapes target either cutoff without changing the other", "[approved][engine]") {
+    auto settings = transparentSettings();
+    settings.fmDepth = 1.0f;
+    settings.fmShape = LfoShape::Square;
+    settings.fmTarget = ModTarget::BandA;
+    auto input = sine(440.0, kNumSamples);
+    FilterEngine engine;
+    engine.prepare(kSampleRate);
+    float* channels[]{input.data()};
+    engine.process(settings, {}, channels, 1, kNumSamples);
+    REQUIRE_THAT(engine.currentLaneCutoffs(0)[0], WithinRel(8000.0f, 0.01f));
+    REQUIRE_THAT(engine.currentLaneCutoffs(0)[1], WithinRel(1000.0f, 0.01f));
+}
+
+TEST_CASE("MIDI and step sources modulate cutoff with bounded independent stereo depths", "[approved][engine]") {
+    auto settings = transparentSettings();
+    settings.stereoMode = StereoMode::LeftRight;
+    settings.bands[0].midiSource = MidiSource::Velocity;
+    settings.bands[0].midiDepth = 1.0f / 6.0f;
+    settings.bands[0].lane2Depth = -1.0f;
+    FilterEngine engine;
+    engine.prepare(kSampleRate);
+    engine.setMidiValue(MidiSource::Velocity, 1.0f);
+    auto left = sine(440.0, kNumSamples), right = left;
+    float* channels[]{left.data(), right.data()};
+    engine.process(settings, {}, channels, 2, kNumSamples);
+    REQUIRE_THAT(engine.currentLaneCutoffs(0)[0], WithinRel(2000.0f, 0.01f));
+    REQUIRE_THAT(engine.currentLaneCutoffs(1)[0], WithinRel(500.0f, 0.01f));
+    engine.reset();
+    engine.process(settings, {}, channels, 2, kNumSamples);
+    REQUIRE_THAT(engine.currentLaneCutoffs(0)[0], WithinRel(1000.0f, 0.01f));
+    settings.bands[0].step.mode = StepMode::Steps;
+    settings.bands[0].step.values.fill(1.0f);
+    settings.bands[0].step.depth = 1.0f / 6.0f;
+    engine.process(settings, {120.0, 0.0, 4.0, false}, channels, 2, kNumSamples);
+    REQUIRE_THAT(engine.currentLaneCutoffs(0)[0], WithinRel(2000.0f, 0.01f));
+}
+
+TEST_CASE("M/S processing preserves mono when side modulation differs", "[approved][engine]") {
+    auto settings = transparentSettings();
+    settings.stereoMode = StereoMode::MidSide;
+    settings.bands[0].shape.enabled = true;
+    settings.bands[0].lfoShape = LfoShape::Square;
+    settings.bands[0].lfoDepth = 0.2f;
+    settings.bands[0].lane2Depth = -1.0f;
+    auto left = sine(440.0, kNumSamples), right = left;
+    float* channels[]{left.data(), right.data()};
+    FilterEngine engine;
+    engine.prepare(kSampleRate);
+    engine.process(settings, {}, channels, 2, kNumSamples);
+    for (size_t i = 0; i < left.size(); ++i) REQUIRE_THAT(left[i], WithinAbs(right[i], 1e-5f));
+}
+
+TEST_CASE("Step modulation locks to transport, holds stopped and is block independent", "[approved][engine]") {
+    auto settings = transparentSettings();
+    settings.bands[0].step.mode = StepMode::Steps;
+    settings.bands[0].step.length = 4;
+    settings.bands[0].step.beatsPerStep = 0.25;
+    settings.bands[0].step.values = { -1, 0, 1, 0 };
+    settings.bands[0].step.depth = 1.0f / 6.0f;
+    const auto render = [&](int blockSize) {
+        auto audio = sine(1000.0, 24000);
+        FilterEngine engine;
+        engine.prepare(kSampleRate);
+        for (int offset = 0; offset < static_cast<int>(audio.size()); offset += blockSize) {
+            float* channels[]{audio.data() + offset};
+            engine.process(settings, {120.0, offset / kSampleRate * 2.0}, channels, 1,
+                std::min(blockSize, static_cast<int>(audio.size()) - offset));
+        }
+        return audio;
+    };
+    const auto whole = render(24000), split = render(127);
+    for (size_t i = 0; i < whole.size(); ++i) REQUIRE_THAT(split[i], WithinAbs(whole[i], 1e-6f));
+    auto audio = sine(440, kNumSamples);
+    float* channels[]{audio.data()};
+    FilterEngine engine;
+    engine.prepare(kSampleRate);
+    engine.process(settings, {120, 0.5, 4, false}, channels, 1, kNumSamples);
+    REQUIRE_THAT(engine.currentCutoffs()[0], WithinRel(2000.0f, 0.01f));
+    engine.process(settings, {120, -1.0, 4, false}, channels, 1, kNumSamples);
+    REQUIRE_THAT(engine.currentCutoffs()[0], WithinRel(500.0f, 0.01f));
+}
+
+TEST_CASE("Independent stereo envelope followers listen to their own channel", "[approved][engine]") {
+    auto settings = transparentSettings();
+    settings.stereoMode = StereoMode::LeftRight;
+    settings.bands[0].envDepth = 0.2f;
+    auto left = sine(1000.0, 24000);
+    std::vector<float> right(left.size());
+    float* channels[]{left.data(), right.data()};
+    FilterEngine engine;
+    engine.prepare(kSampleRate);
+    engine.process(settings, {}, channels, 2, static_cast<int>(left.size()));
+    REQUIRE(engine.currentLaneCutoffs(0)[0] > 1100.0f);
+    REQUIRE_THAT(engine.currentLaneCutoffs(1)[0], WithinAbs(1000.0f, 0.1f));
+}
+
+TEST_CASE("Independent L/R and M/S cutoffs change the intended audio lane", "[approved][engine]") {
+    auto settings = transparentSettings();
+    settings.bands[0].shape.enabled = true;
+    settings.bands[0].cutoffHz = 1000.0f;
+    settings.bands[0].lane2Offset = 3.0f;
+    const auto renderStereo = [&](StereoMode mode, bool opposite) {
+        auto left = sine(3000.0, kNumSamples), right = left;
+        if (opposite) std::ranges::transform(right, right.begin(), [](float x) { return -x; });
+        float* channels[]{left.data(), right.data()};
+        FilterEngine engine;
+        engine.prepare(kSampleRate);
+        settings.stereoMode = mode;
+        engine.process(settings, {}, channels, 2, kNumSamples);
+        return std::array{settledRms(left), settledRms(right)};
+    };
+    const auto lr = renderStereo(StereoMode::LeftRight, false);
+    REQUIRE(lr[1] > lr[0] * 5.0f);
+    const auto mid = renderStereo(StereoMode::MidSide, false);
+    const auto side = renderStereo(StereoMode::MidSide, true);
+    REQUIRE(side[0] > mid[0] * 5.0f);
+    REQUIRE_THAT(mid[0], WithinAbs(mid[1], 1e-6f));
+    REQUIRE_THAT(side[0], WithinAbs(side[1], 1e-6f));
+}
+
+TEST_CASE("Routing and stereo automation stay finite under combined modulation", "[approved][engine]") {
+    EngineSettings settings;
+    settings.fmDepth = 0.5f;
+    settings.fmRateHz = 2000.0f;
+    settings.ceiling = 0.8f;
+    settings.bands[0].lfoDepth = 0.1f;
+    settings.bands[0].midiSource = MidiSource::CC;
+    settings.bands[0].midiDepth = 0.1f;
+    settings.bands[0].step.mode = StepMode::Euclidean;
+    settings.bands[0].step.depth = 0.1f;
+    settings.bands[0].lane2Depth = -1.0f;
+    settings.bands[0].lane2Offset = 3.0f;
+    for (double rate : {44100.0, 48000.0, 96000.0}) {
+        FilterEngine engine;
+        engine.prepare(rate);
+        for (int block = 0; block < 40; ++block) {
+            settings.parallel = block % 2 == 0;
+            settings.parallelBlend = block % 3 == 0 ? 0.0f : 1.0f;
+            settings.stereoMode = static_cast<StereoMode>(block % 3);
+            settings.fmShape = static_cast<LfoShape>(block % 5);
+            settings.fmTarget = static_cast<ModTarget>(block % 3);
+            engine.setMidiValue(MidiSource::CC, block % 2 == 0 ? 0.0f : 1.0f);
+            auto left = sine(2000.0, 128), right = sine(3000.0, 128);
+            float* channels[]{left.data(), right.data()};
+            engine.process(settings, {}, channels, 2, 128);
+            for (const auto& audio : {left, right})
+                REQUIRE(std::ranges::all_of(audio, [&](float value) { return std::isfinite(value) && std::abs(value) <= settings.ceiling; }));
+        }
+    }
+}
