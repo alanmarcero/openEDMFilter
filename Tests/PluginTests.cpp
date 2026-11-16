@@ -637,3 +637,39 @@ TEST_CASE("Native editor opens and closes the routing and modulation controls", 
     button->onClick();
     REQUIRE_FALSE((*control)->isVisible());
 }
+
+TEST_CASE("Reset All Controllers only resets the addressed MIDI channel", "[approved][plugin][midi-reset]") {
+    OpenEdmFilterProcessor processor;
+    processor.prepareToPlay(48000.0, 4800);
+    set(processor, "a_cutoff", 1000.0f);
+    set(processor, "a_midi_depth", 1.0f / 6.0f);
+    set(processor, "a_midi_cc", 74.0f);
+    juce::AudioBuffer<float> buffer(2, 4800);
+    buffer.clear();
+    juce::MidiBuffer midi;
+    float initialCutoff = 2000.0f;
+    SECTION("channel pressure survives another channel reset") {
+        set(processor, "a_midi_source", 2.0f);
+        midi.addEvent(juce::MidiMessage::channelPressureChange(1, 127), 0);
+        midi.addEvent(juce::MidiMessage::channelPressureChange(2, 64), 0);
+    }
+    SECTION("polyphonic pressure survives another channel reset") {
+        set(processor, "a_midi_source", 2.0f);
+        midi.addEvent(juce::MidiMessage::aftertouchChange(1, 60, 127), 0);
+        midi.addEvent(juce::MidiMessage::aftertouchChange(2, 61, 64), 0);
+    }
+    SECTION("selected CC falls back to the latest unreset channel value") {
+        set(processor, "a_midi_source", 3.0f);
+        initialCutoff = 1000.0f * std::exp2(64.0f / 127.0f);
+        midi.addEvent(juce::MidiMessage::controllerEvent(1, 74, 127), 0);
+        midi.addEvent(juce::MidiMessage::controllerEvent(2, 74, 64), 0);
+    }
+    processor.processBlock(buffer, midi);
+    REQUIRE_THAT(processor.displayCutoffs[0].load(), WithinAbs(initialCutoff, 2.0f));
+    midi.addEvent(juce::MidiMessage::controllerEvent(2, 121, 0), 0);
+    processor.processBlock(buffer, midi);
+    REQUIRE_THAT(processor.displayCutoffs[0].load(), WithinAbs(2000.0f, 2.0f));
+    midi.addEvent(juce::MidiMessage::controllerEvent(1, 121, 0), 0);
+    processor.processBlock(buffer, midi);
+    REQUIRE_THAT(processor.displayCutoffs[0].load(), WithinAbs(1000.0f, 1.0f));
+}
