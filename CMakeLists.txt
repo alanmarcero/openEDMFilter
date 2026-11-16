@@ -44,7 +44,7 @@ if(OEF_BUILD_PLUGIN)
         FORMATS VST3 AU LV2 Standalone
         LV2URI "https://github.com/alanmarcero/openEDMFilter"
         VST3_CATEGORIES Fx Filter
-        AU_MAIN_TYPE kAudioUnitType_Effect
+        AU_MAIN_TYPE kAudioUnitType_MusicEffect
         IS_SYNTH FALSE
         NEEDS_MIDI_INPUT TRUE
         NEEDS_MIDI_OUTPUT FALSE

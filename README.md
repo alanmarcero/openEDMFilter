@@ -37,7 +37,7 @@ VST2 and AAX are not built by this project.
 
 Click **MOD / ROUTING** in the native editor to open the scrollable native parameter controls, including all routing and modulation settings. Click **CLOSE CONTROLS** to return to the main panels. All controls support host automation and session recall. Factory presets reset the new controls to their defaults; older sessions retain serial routing and linked stereo, with MIDI and steps off.
 
-Each filter has MIDI Source (Off, Velocity, Aftertouch, CC), a CC number (0–127), and bipolar MIDI Depth. All MIDI channels are accepted. Velocity uses the highest velocity among held notes; releasing a note removes it. Aftertouch uses the highest channel or polyphonic pressure. CC uses the latest value of the selected controller. All Notes Off and All Sound Off clear notes and pressure on their MIDI channel; Reset All Controllers clears controller and pressure values. MIDI events take effect at their sample offsets. Route MIDI to this audio effect in your host; the standalone app also accepts MIDI input.
+Each filter has MIDI Source (Off, Velocity, Aftertouch, CC), a CC number (0–127), and bipolar MIDI Depth. All MIDI channels are accepted. Velocity uses the highest velocity among held notes; releasing a note removes it. Aftertouch uses the highest channel or polyphonic pressure. CC uses the latest value of the selected controller. All Notes Off and All Sound Off clear notes and pressure on their MIDI channel; Reset All Controllers clears controller and pressure values only on its MIDI channel. A selected CC then falls back to the most recent value from another channel, or zero if none remains. MIDI events take effect at their sample offsets. Route MIDI to this audio effect in your host; the standalone app also accepts MIDI input.
 
 Step Mode selects Off, Steps or Euclidean. Each filter has 16 editable bipolar step values, length 1–16, rotation 0–15, beats per step (1/16 to 4 quarter-note beats), and bipolar Step Depth. Euclidean mode distributes Pulses evenly over Length; extra pulses clamp to Length. Pulses output +1 and rests output −1. Rotation moves the first step forward. Both modes follow host tempo and PPQ, including negative positions and seeks, and hold on a stopped host playhead. With no playhead, they follow the internal clock. Step Depth 0 is neutral.
 
@@ -75,6 +75,8 @@ Install the current packages from the [v1.5.0 release](https://github.com/alanma
 | VST3 | `~/Library/Audio/Plug-Ins/VST3/` | `C:\Program Files\Common Files\VST3\` | `~/.vst3/` |
 | AU | `~/Library/Audio/Plug-Ins/Components/` | n/a | n/a |
 | LV2 | `~/Library/Audio/Plug-Ins/LV2/` | Your host's LV2 search folder | `~/.lv2/` |
+
+The AU now registers as a MIDI-controlled effect (`aumf`, Music Effect) so compatible hosts can route MIDI modulation to it. Its bundle ID, manufacturer and subtype remain unchanged. Rescan Audio Units after upgrading. Hosts identify AUs by type as well as manufacturer/subtype, so sessions saved with the earlier `aufx` AU may need the plugin manually relinked or replaced and its saved settings reloaded. VST3, LV2 and standalone identities are unchanged.
 
 Extract and copy the entire bundle to the appropriate folder, then rescan your host. OpenVST Manager installs VST3/AU; install LV2 and run the included standalone app manually. Standalone mode uses its own clock because there is no DAW transport.
 

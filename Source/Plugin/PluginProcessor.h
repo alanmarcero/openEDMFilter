@@ -3,6 +3,7 @@
 #include "FilterEngine.h"
 #include <array>
 #include <atomic>
+#include <cstdint>
 #include <juce_audio_processors/juce_audio_processors.h>
 
 class OpenEdmFilterProcessor : public juce::AudioProcessor {
@@ -131,6 +132,12 @@ private:
     std::array<std::array<float, 128>, 16> heldVelocities_{};
     std::array<std::array<float, 128>, 16> notePressure_{};
     std::array<float, 16> channelPressure_{};
+    struct ControllerValue {
+        float value = 0.0f;
+        std::uint64_t order = 0;
+    };
+    std::array<std::array<ControllerValue, 128>, 16> controllers_{};
+    std::uint64_t controllerOrder_ = 0;
     void handleMidi(const juce::MidiMessage& message) noexcept;
     openedm::core::FilterEngine engine_;
     int currentProgram_ = 0;

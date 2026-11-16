@@ -70,6 +70,8 @@ void OpenEdmFilterProcessor::prepareToPlay(double sampleRate, int) {
     heldVelocities_ = {};
     notePressure_ = {};
     channelPressure_ = {};
+    controllers_ = {};
+    controllerOrder_ = 0;
 }
 
 bool OpenEdmFilterProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const {
@@ -123,12 +125,23 @@ void OpenEdmFilterProcessor::handleMidi(const juce::MidiMessage& message) noexce
         channelPressure_[channel] = 0.0f;
     }
     if (message.isController()) {
-        if (message.getControllerNumber() == 121) {
-            engine_.clearMidi();
-            notePressure_ = {};
-            channelPressure_ = {};
+        const auto controller = static_cast<size_t>(message.getControllerNumber());
+        if (controller == 121) {
+            notePressure_[channel] = {};
+            channelPressure_[channel] = 0.0f;
+            controllers_[channel] = {};
+            std::ranges::for_each(std::views::iota(size_t{0}, controllers_[channel].size()), [&](size_t number) {
+                const auto latest = std::ranges::max_element(controllers_, {}, [number](const auto& values) {
+                    return values[number].order;
+                });
+                engine_.setMidiValue(core::MidiSource::CC, (*latest)[number].value, static_cast<int>(number));
+            });
         }
-        engine_.setMidiValue(core::MidiSource::CC, static_cast<float>(message.getControllerValue()) / 127.0f, message.getControllerNumber());
+        if (controller != 121) {
+            const float value = static_cast<float>(message.getControllerValue()) / 127.0f;
+            controllers_[channel][controller] = { value, ++controllerOrder_ };
+            engine_.setMidiValue(core::MidiSource::CC, value, static_cast<int>(controller));
+        }
     }
     float velocity = 0.0f, pressure = 0.0f;
     std::ranges::for_each(std::views::iota(size_t{0}, heldVelocities_.size()), [&](size_t lane) {
