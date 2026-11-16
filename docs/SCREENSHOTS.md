@@ -2,7 +2,7 @@
 
 ![Native plugin editor](../assets/native-ui.png)
 
-`assets/native-ui.png` is the v1.4.0 editor at 1100 x 940, captured from the release build on 2026-11-06. Neon Staircase curves, Auto Mode D, BARS set to 1 Bar, playhead at 90% of that bar. It is a component render of the editor.
+`assets/native-ui.png` is the v1.8.2 editor at 1100 x 940, captured from the Release build on 2026-11-16. Neon Staircase curves, Auto Mode D, BARS set to 1 Bar, playhead at 90% of that bar. It is a component render of the editor.
 
 Reproduce on macOS from the repository root:
 
