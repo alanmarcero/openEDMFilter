@@ -72,6 +72,10 @@ void EdmLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int width
     const auto tail = centre.getPointOnCircumference(bodyRadius * 0.35f, valueAngle);
     g.setColour(theme::kText);
     g.drawLine({ tail, tip }, 2.0f);
+    if (slider.hasKeyboardFocus(true)) {
+        g.setColour(accent);
+        g.drawRoundedRectangle(bounds, 4.0f, 1.2f);
+    }
 }
 
 void EdmLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height, bool, int, int, int, int,
@@ -79,7 +83,7 @@ void EdmLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height, bool
     const auto bounds = juce::Rectangle<int>(width, height).toFloat().reduced(0.5f);
     g.setColour(box.findColour(juce::ComboBox::backgroundColourId));
     g.fillRoundedRectangle(bounds, kCornerRadius);
-    g.setColour(box.findColour(juce::ComboBox::outlineColourId).withAlpha(box.isMouseOver(true) ? 0.9f : 0.45f));
+    g.setColour(box.findColour(juce::ComboBox::outlineColourId).withAlpha(box.hasKeyboardFocus(true) || box.isMouseOver(true) ? 1.0f : 0.65f));
     g.drawRoundedRectangle(bounds, kCornerRadius, 1.0f);
 
     const auto arrowArea = bounds.withLeft(bounds.getRight() - 18.0f).reduced(5.0f, bounds.getHeight() * 0.38f);
@@ -102,7 +106,7 @@ void EdmLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& butto
     const bool isOn = button.getToggleState();
     g.setColour(isOn ? accent : theme::kKnobBody);
     g.fillRoundedRectangle(bounds, kCornerRadius);
-    g.setColour(accent.withAlpha(isHighlighted || isOn ? 0.9f : 0.45f));
+    g.setColour(accent.withAlpha(button.hasKeyboardFocus(true) || isHighlighted || isOn ? 1.0f : 0.57f));
     g.drawRoundedRectangle(bounds, kCornerRadius, 1.0f);
 }
 

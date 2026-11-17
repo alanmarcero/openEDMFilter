@@ -20,7 +20,7 @@ OpenEdmFilterProcessor::OpenEdmFilterProcessor()
           const auto bandValues = [&](int band) {
               const auto bandRaw = [&](const char* suffix) { return raw(params::bandId(band, suffix)); };
               return BandParameters{
-                  bandRaw(params::kBypass), bandRaw(params::kType), bandRaw(params::kSlope), bandRaw(params::kCutoff),
+                  bandRaw(params::kBypass), bandRaw(params::kType), bandRaw(params::kExtendedType), bandRaw(params::kSlope), bandRaw(params::kCutoff),
                   bandRaw(params::kResonance), bandRaw(params::kWidth), bandRaw(params::kLfoShape),
                   bandRaw(params::kLfoRate), bandRaw(params::kLfoDepth), bandRaw(params::kEnvSource),
                   bandRaw(params::kEnvAttack), bandRaw(params::kEnvRelease), bandRaw(params::kEnvDepth)
@@ -271,7 +271,7 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
 
     const auto bandSettings = [&](const BandParameters& band) {
         return core::BandSettings{
-            core::FilterShape{ !isOn(band.bypass), static_cast<core::FilterType>(choice(band.type)),
+            core::FilterShape{ !isOn(band.bypass), static_cast<core::FilterType>(params::effectiveType(choice(band.type), choice(band.extendedType))),
                                static_cast<core::FilterSlope>(choice(band.slope)), band.resonance->load(),
                                band.width->load() },
             band.cutoff->load(),
@@ -337,6 +337,7 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
     const int sigChoice = choice(values_.timeSignature);
     const double manualBeatsPerBar = params::beatsPerBarForSignature(sigChoice);
 
+    bool hostStopped = false;
     const core::Transport transport = [&] {
         if (!syncToHost) {
             return core::Transport{ manualBpm, std::nullopt, manualBeatsPerBar };
@@ -349,6 +350,7 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
         if (!position.hasValue()) {
             return core::Transport{ manualBpm, std::nullopt, manualBeatsPerBar };
         }
+        hostStopped = wrapperType != wrapperType_Standalone && !position->getIsPlaying();
         const double bpm = position->getBpm().orFallback(manualBpm);
         double beatsPerBar = manualBeatsPerBar;
         if (sigChoice == 0 && position->getTimeSignature().hasValue()) {
@@ -393,8 +395,16 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
     displayResonances[0].store(resonances[0]);
     displayResonances[1].store(resonances[1]);
     displaySweepPhase.store(engine_.currentSweepPhase());
+    displayBeatPhase.store(hostStopped ? 1.0f : engine_.currentBeatPhase(), std::memory_order_relaxed);
     displayBpm.store(static_cast<float>(transport.bpm));
     displayBeatsPerBar.store(static_cast<float>(transport.beatsPerBar));
+}
+
+float OpenEdmFilterProcessor::animationBeatPhase(double seconds) const noexcept {
+    const float phase = displayBeatPhase.load(std::memory_order_relaxed);
+    if (phase >= 0) return phase;
+    const auto beats = seconds * values_.tempoBpm->load(std::memory_order_relaxed) / 60.0;
+    return static_cast<float>(beats - std::floor(beats));
 }
 
 juce::AudioProcessorEditor* OpenEdmFilterProcessor::createEditor() {
@@ -424,7 +434,7 @@ const juce::String OpenEdmFilterProcessor::getProgramName(int index) {
 
 void OpenEdmFilterProcessor::getStateInformation(juce::MemoryBlock& destData) {
     auto state = parameters.copyState();
-    state.setProperty("program", currentProgram_, nullptr);
+    state.setProperty("program", currentProgram_.load(), nullptr);
     state.setProperty("barsLayout", params::kSweepBarsLayout, nullptr);
     const auto xml = state.createXml();
     copyXmlToBinary(*xml, destData);
@@ -446,7 +456,7 @@ void OpenEdmFilterProcessor::setStateInformation(const void* data, int sizeInByt
             state.appendChild(value, nullptr);
         }
     }
-    currentProgram_ = state.getProperty("program", 0);
+    currentProgram_ = static_cast<int>(state.getProperty("program", 0));
     parameters.replaceState(state);
 }
 

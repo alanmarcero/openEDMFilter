@@ -10,7 +10,7 @@ inline const juce::Colour kPanelEdge{ 0xff283842 };
 inline const juce::Colour kKnobBody{ 0xff1b272d };
 inline const juce::Colour kTrack{ 0xff283842 };
 inline const juce::Colour kText{ 0xffe6f0f5 };
-inline const juce::Colour kTextDim{ 0xff869ca8 };
+inline const juce::Colour kTextDim{ 0xffa9bac1 };
 inline const juce::Colour kAccentA{ 0xff48f0c8 };
 inline const juce::Colour kAccentB{ 0xffffbe3b };
 inline const juce::Colour kAccentFx{ 0xff48f0c8 };

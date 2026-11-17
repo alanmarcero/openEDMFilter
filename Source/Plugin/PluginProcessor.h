@@ -47,6 +47,8 @@ public:
     std::array<std::atomic<float>, openedm::core::FilterEngine::kNumBands> displayCutoffs{};
     std::array<std::atomic<float>, openedm::core::FilterEngine::kNumBands> displayResonances{ -1.0f, -1.0f };
     std::atomic<float> displaySweepPhase{ 0.0f };
+    std::atomic<float> displayBeatPhase{ -1.0f };
+    float animationBeatPhase(double seconds) const noexcept;
     std::atomic<float> displayBpm{ 128.0f };
     std::atomic<float> displayBeatsPerBar{ 4.0f };
     std::atomic<float> displayInputPeak{ 0.0f };
@@ -62,6 +64,7 @@ private:
     struct BandParameters {
         std::atomic<float>* bypass;
         std::atomic<float>* type;
+        std::atomic<float>* extendedType;
         std::atomic<float>* slope;
         std::atomic<float>* cutoff;
         std::atomic<float>* resonance;
@@ -163,7 +166,7 @@ private:
     std::array<float, kSpectrumFftSize> spectrumWindow_{};
     size_t spectrumWriteIndex_ = 0;
     float spectrumWindowSum_ = 0.0f;
-    int currentProgram_ = 0;
+    std::atomic<int> currentProgram_{ 0 };
     double processingSampleRate_ = 44100.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OpenEdmFilterProcessor)

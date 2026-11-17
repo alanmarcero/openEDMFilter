@@ -11,10 +11,11 @@ namespace theme = openedm::theme;
 constexpr int kEditorWidth = 1200;
 constexpr int kEditorHeight = 1000;
 constexpr int kMargin = 12;
+const juce::Rectangle<int> pulseArea{ 170, 13, 79, 37 };
 constexpr int kHeaderHeight = 40;
 constexpr int kResponseHeight = 140;
 constexpr int kSweepHeight = 320;
-constexpr int kBandHeight = 220;
+constexpr int kBandHeight = 248;
 
 } // namespace
 
@@ -31,6 +32,7 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     setLookAndFeel(&lookAndFeel_);
     faceplate_ = juce::ImageCache::getFromMemory(BinaryData::analogcyberfaceplate_png, BinaryData::analogcyberfaceplate_pngSize);
 
+    pulse_ = juce::Drawable::createFromImageData(BinaryData::filterpulse_svg, BinaryData::filterpulse_svgSize);
     const auto& presets = openedm::presets::factoryPresets();
     std::ranges::for_each(presets, [&, id = 1](const auto& preset) mutable { presetBox_.addItem(preset.name, id++); });
     presetBox_.setColour(juce::ComboBox::outlineColourId, theme::kText);
@@ -98,10 +100,18 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     addAndMakeVisible(bandB_);
     addAndMakeVisible(effects_);
     setSize(kEditorWidth, kEditorHeight);
+    startTimerHz(30);
 }
 
 OpenEdmFilterEditor::~OpenEdmFilterEditor() {
+    stopTimer();
     setLookAndFeel(nullptr);
+}
+
+void OpenEdmFilterEditor::timerCallback() {
+    const auto id = processor_.getCurrentProgram() + 1;
+    if (presetBox_.getSelectedId() != id) presetBox_.setSelectedId(id, juce::dontSendNotification);
+    repaint(pulseArea);
 }
 
 void OpenEdmFilterEditor::paint(juce::Graphics& g) {
@@ -112,6 +122,13 @@ void OpenEdmFilterEditor::paint(juce::Graphics& g) {
     g.setColour(theme::kPanelEdge);
     g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(4), 5, 1);
 
+    if (pulse_ && g.clipRegionIntersects(pulseArea)) {
+        const float beat = processor_.animationBeatPhase(juce::Time::getMillisecondCounterHiRes() * 0.001);
+        const float motion = std::exp(-5.0f * beat);
+        auto frame = pulseArea.toFloat().reduced(3, 2);
+        frame = frame.withSizeKeepingCentre(frame.getWidth(), frame.getHeight() * (0.78f + 0.22f * motion));
+        pulse_->drawWithin(g, frame, juce::RectanglePlacement::stretchToFit, 0.72f + 0.28f * motion);
+    }
     const auto header = getLocalBounds().reduced(kMargin, 0).removeFromTop(kHeaderHeight + kMargin).withTrimmedTop(kMargin);
     g.setFont(juce::FontOptions(24.0f, juce::Font::bold));
     g.setColour(theme::kText);
@@ -129,7 +146,7 @@ void OpenEdmFilterEditor::resized() {
     auto header = bounds.removeFromTop(kHeaderHeight);
     nextPresetBtn_.setBounds(header.removeFromRight(58).withSizeKeepingCentre(58, 36));
     header.removeFromRight(4);
-    presetBox_.setBounds(header.removeFromRight(180).withSizeKeepingCentre(180, 36));
+    presetBox_.setBounds(header.removeFromRight(240).withSizeKeepingCentre(240, 36));
     header.removeFromRight(4);
     prevPresetBtn_.setBounds(header.removeFromRight(58).withSizeKeepingCentre(58, 36));
     header.removeFromRight(4);
@@ -137,11 +154,11 @@ void OpenEdmFilterEditor::resized() {
     header.removeFromRight(4);
     spectrumButton_.setBounds(header.removeFromRight(88).withSizeKeepingCentre(88, 36));
     header.removeFromRight(8);
-    inertia_.setBounds(header.removeFromRight(100));
+    inertia_.setBounds(header.removeFromRight(82));
     header.removeFromRight(8);
-    masterBypass_.setBounds(header.removeFromRight(86));
+    masterBypass_.setBounds(header.removeFromRight(72));
     header.removeFromRight(8);
-    advancedButton_.setBounds(header.removeFromRight(192).withSizeKeepingCentre(192, 36));
+    advancedButton_.setBounds(header.removeFromRight(164).withSizeKeepingCentre(164, 36));
 
     bounds.removeFromTop(4);
     response_.setBounds(bounds.removeFromTop(kResponseHeight));
@@ -154,6 +171,10 @@ void OpenEdmFilterEditor::resized() {
     bandB_.setBounds(bands);
     bounds.removeFromTop(10);
     effects_.setBounds(bounds);
-    if (advancedControls_)
-        advancedControls_->setBounds(getLocalBounds().reduced(kMargin).withTrimmedTop(kHeaderHeight + 4));
+    if (advancedControls_) {
+        const auto area = getLocalBounds().reduced(kMargin).withTrimmedTop(kHeaderHeight + 4);
+        constexpr float scale = 1.8f; // JUCE's parameter menu uses a 20-pixel control.
+        advancedControls_->setBounds(0, 0, juce::roundToInt(area.getWidth() / scale), juce::roundToInt(area.getHeight() / scale));
+        advancedControls_->setTransform(juce::AffineTransform::scale(scale).translated(float(area.getX()), float(area.getY())));
+    }
 }

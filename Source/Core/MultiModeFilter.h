@@ -10,7 +10,7 @@ enum class FilterType {
     LowPass,
     HighPass,
     BandPass,
-    Notch
+    Notch, AllPass, LowShelf, HighShelf, BellCut
 };
 
 enum class FilterSlope {
@@ -49,7 +49,7 @@ public:
 
 private:
     float activeMix_ = -1.0f; // 0 bypassed, 1 active; negative until the first update snaps it
-    FilterType type_ = FilterType::LowPass;
+    std::array<float, 4> stageMix_{};
     int numStages_ = 2;
     float peakGain_ = 0.0f;
     std::array<SvfCoefficients, kMaxStages> stageCoefficients_{};

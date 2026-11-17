@@ -193,6 +193,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         });
     });
     addFloat(layout, kInputGain, "Input Gain", { -24.0f, 24.0f }, 0.0f, kFormatDb, 5);
+    for (int band = 0; band < 2; ++band)
+        addChoice(layout, bandId(band, kExtendedType), band == 0 ? "A Response" : "B Response",
+                  { "Original Type", "All Pass", "Low Shelf", "High Shelf", "Bell Cut" }, 0, 5);
     return layout;
 }
 

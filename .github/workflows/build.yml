@@ -143,4 +143,5 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: openEDMFilter-*.zip
+          body: '![openEDMFilter native editor](https://raw.githubusercontent.com/alanmarcero/openEDMFilter/${{ github.ref_name }}/assets/native-ui.png)'
           generate_release_notes: true

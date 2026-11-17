@@ -124,3 +124,41 @@ TEST_CASE("Complex filter response preserves phase cancellation in parallel", "[
     REQUIRE(std::abs(0.5 * (a + b)) < 1e-6);
     REQUIRE_THAT(std::abs(a), WithinRel(MultiModeFilter::magnitudeAt(low, 1000, 1000, 96000), 1e-6));
 }
+
+TEST_CASE("Extended modes match their measured responses and maintain gain across slopes", "[filter][extended]") {
+    for (auto type : { FilterType::AllPass, FilterType::LowShelf, FilterType::HighShelf, FilterType::BellCut }) {
+        for (auto slope : { FilterSlope::Slope12dB, FilterSlope::Slope96dB }) {
+            const FilterShape shape{ true, type, slope, 1.0f, 0.5f };
+            for (double hz : { 40.0, 1000.0, 12000.0 }) {
+                const auto actual = gainAt(shape, 1000.0, hz);
+                const auto shown = MultiModeFilter::magnitudeAt(shape, 1000.0, hz, kSampleRate);
+                CAPTURE(static_cast<int>(type), static_cast<int>(slope), hz);
+                CHECK_THAT(actual, WithinRel(shown, 0.02));
+                if (type == FilterType::AllPass) CHECK_THAT(actual, WithinAbs(1.0, 0.01));
+                if (type == FilterType::LowShelf && hz == 40) CHECK_THAT(actual, WithinRel(3.981, 0.01));
+                if (type == FilterType::HighShelf && hz == 12000) CHECK_THAT(actual, WithinRel(3.981, 0.02));
+                if (type == FilterType::BellCut && hz == 1000) CHECK_THAT(actual, WithinRel(0.12589, 0.01));
+            }
+        }
+    }
+    const FilterShape allPass{ true, FilterType::AllPass, FilterSlope::Slope12dB, 1, 0 };
+    CHECK(std::abs(1.0 + MultiModeFilter::responseAt(allPass, 1000, 1000, kSampleRate)) < 1e-6);
+}
+
+TEST_CASE("New responses remain bounded at extreme rates cutoff width and resonance", "[filter][extended]") {
+    for (auto rate : { 32000.0, 192000.0 }) for (float width : { 0.0f, 1.0f }) {
+        for (auto mode : { FilterType::AllPass, FilterType::LowShelf, FilterType::HighShelf, FilterType::BellCut }) {
+            MultiModeFilter filter;
+            const FilterShape shape{ true, mode, FilterSlope::Slope96dB, 1, width };
+            float peak = 0;
+            for (int sample = 0; sample < 2048; ++sample) {
+                const double cutoff = 20 * std::exp2(10.0 * double(sample) / 2048);
+                filter.update(shape, cutoff, rate);
+                const auto value = filter.process(0, 0.1f * std::sin(float(sample) * 0.03f));
+                REQUIRE(std::isfinite(value));
+                peak = std::max(peak, std::abs(value));
+            }
+            CHECK(peak < 2.0f);
+        }
+    }
+}

@@ -4,7 +4,7 @@
 #include "Panels.h"
 #include "PluginProcessor.h"
 
-class OpenEdmFilterEditor : public juce::AudioProcessorEditor {
+class OpenEdmFilterEditor : public juce::AudioProcessorEditor, private juce::Timer {
 public:
     explicit OpenEdmFilterEditor(OpenEdmFilterProcessor& processor);
     ~OpenEdmFilterEditor() override;
@@ -13,9 +13,11 @@ public:
     void resized() override;
 
 private:
+    void timerCallback() override;
     OpenEdmFilterProcessor& processor_;
     openedm::ui::EdmLookAndFeel lookAndFeel_;
     juce::Image faceplate_;
+    std::unique_ptr<juce::Drawable> pulse_;
     juce::ComboBox presetBox_;
     juce::TextButton advancedButton_{"MODULATION / ROUTING"};
     juce::TextButton spectrumButton_{"SPECTRUM"};
