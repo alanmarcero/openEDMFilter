@@ -270,7 +270,7 @@ TEST_CASE("Editor slot buttons and host automation rebind the visible sweep knob
     for (auto* child : panel->getChildren()) {
         if (auto* button = dynamic_cast<juce::TextButton*>(child)) {
             for (int slot = 0; slot < 4; ++slot) {
-                if (button->getButtonText() == juce::String::charToString(static_cast<juce::juce_wchar>('A' + slot)))
+                if (button->getButtonText() == "SLOT " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + slot)))
                     buttons[static_cast<size_t>(slot)] = button;
             }
         }
