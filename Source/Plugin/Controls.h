@@ -35,6 +35,16 @@ private:
     std::unique_ptr<Apvts::ComboBoxAttachment> attachment_;
 };
 
+class FilterTypeMenu : public juce::ComboBox {
+public:
+    FilterTypeMenu(Apvts& state, int band, juce::Colour accent);
+private:
+    juce::AudioParameterChoice& original_;
+    juce::AudioParameterChoice& response_;
+    juce::ParameterAttachment originalAttachment_, responseAttachment_;
+    void sync();
+};
+
 class Toggle : public juce::Component {
 public:
     Toggle(Apvts& state, const juce::String& parameterId, const juce::String& text, juce::Colour accent);

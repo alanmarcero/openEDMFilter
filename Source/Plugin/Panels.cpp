@@ -172,7 +172,8 @@ void ResponseView::paint(juce::Graphics& g) {
     };
     const auto shapeFor = [&](size_t band) {
         return core::FilterShape{ value(band, params::kBypass) < 0.5f,
-                                  static_cast<core::FilterType>(static_cast<int>(value(band, params::kType))),
+                                  static_cast<core::FilterType>(params::effectiveType(static_cast<int>(value(band, params::kType)),
+                                      static_cast<int>(value(band, params::kExtendedType)))),
                                   static_cast<core::FilterSlope>(static_cast<int>(value(band, params::kSlope))),
                                   displayResonance(static_cast<int>(band)), value(band, params::kWidth) };
     };
@@ -567,7 +568,7 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
       resEnd_(processor.parameters, params::kSweepResEnd, "End", theme::kAccentB),
       resSlope_(processor.parameters, params::kSweepResSlope, "Slope", theme::kAccentB),
       bypassWatcher_(*processor.parameters.getParameter(params::kSweepBypass), [this](float isBypassed) {
-          const float alpha = isBypassed > 0.5f ? 0.35f : 1.0f;
+          const float alpha = isBypassed > 0.5f ? 0.72f : 1.0f;
           std::ranges::for_each(getChildren(), [&](juce::Component* control) {
               if (control != &bypass_) {
                   control->setAlpha(alpha);
@@ -645,7 +646,7 @@ void SweepPanel::paint(juce::Graphics& g) {
     g.drawText("AUTO MODE", slotArea_.withWidth(76), juce::Justification::centredLeft);
     const std::array<const char*, 4> labels{ "CUTOFF", "RESONANCE", "BITCRUSH", "GLITCH" };
     const std::array colours{ theme::kAccentA, theme::kAccentB, theme::kAccentFx, theme::kAccentB };
-    auto legend = slotArea_.withTrimmedLeft(280);
+    auto legend = slotArea_.withTrimmedLeft(400);
     for (size_t i = 0; i < labels.size(); ++i) {
         g.setColour(colours[i]);
         g.drawText(labels[i], legend.removeFromLeft(90), juce::Justification::centredLeft);
@@ -704,7 +705,7 @@ BandPanel::BandPanel(Apvts& state, int band)
     : title_(band == 0 ? "Filter A" : "Filter B"),
       accent_(band == 0 ? theme::kAccentA : theme::kAccentB),
       bypass_(state, params::bandId(band, params::kBypass), "BYPASS", accent_),
-      type_(state, params::bandId(band, params::kType), {}, accent_),
+      type_(state, band, accent_),
       slope_(state, params::bandId(band, params::kSlope), {}, accent_),
       cutoff_(state, params::bandId(band, params::kCutoff), "Cutoff", accent_),
       resonance_(state, params::bandId(band, params::kResonance), "Resonance", accent_),
@@ -717,7 +718,7 @@ BandPanel::BandPanel(Apvts& state, int band)
       envRelease_(state, params::bandId(band, params::kEnvRelease), "Release", accent_),
       envDepth_(state, params::bandId(band, params::kEnvDepth), "Depth", accent_),
       bypassWatcher_(*state.getParameter(params::bandId(band, params::kBypass)), [this](float isBypassed) {
-          const float alpha = isBypassed > 0.5f ? 0.35f : 1.0f;
+          const float alpha = isBypassed > 0.5f ? 0.72f : 1.0f;
           std::ranges::for_each(getChildren(), [&](juce::Component* control) {
               if (control != &bypass_) {
                   control->setAlpha(alpha);
@@ -743,7 +744,7 @@ void BandPanel::resized() {
     auto header = bounds.removeFromTop(42);
     slope_.setBounds(header.removeFromRight(76));
     header.removeFromRight(6);
-    type_.setBounds(header.removeFromRight(108));
+    type_.setBounds(header.removeFromRight(132).withSizeKeepingCentre(132, 36));
     header.removeFromRight(6);
     bypass_.setBounds(header.removeFromRight(68));
 
@@ -756,9 +757,10 @@ void BandPanel::resized() {
 
     layoutRow(filterArea_.withTrimmedTop(kCaptionHeight), { &cutoff_, &resonance_, &width_ });
     auto lfoControls = lfoArea_.withTrimmedTop(kCaptionHeight);
-    auto lfoChoices = lfoControls.removeFromLeft(lfoControls.getWidth() / 2);
-    lfoShape_.setBounds(lfoChoices.removeFromTop(lfoChoices.getHeight() / 2).reduced(0, 1));
-    lfoRate_.setBounds(lfoChoices.reduced(0, 1));
+    lfoShape_.setBounds(lfoControls.removeFromLeft(86));
+    lfoControls.removeFromLeft(3);
+    lfoRate_.setBounds(lfoControls.removeFromLeft(66));
+    lfoControls.removeFromLeft(3);
     lfoDepth_.setBounds(lfoControls);
     layoutRow(envelopeArea_.withTrimmedTop(kCaptionHeight), { &envSource_, &envAttack_, &envRelease_, &envDepth_ });
 }

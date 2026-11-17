@@ -92,6 +92,7 @@ public:
     void setMidiValue(MidiSource source, float value, int controller = 1) noexcept;
     void clearMidi() noexcept;
     [[nodiscard]] std::array<float, kNumBands> currentResonances() const noexcept { return resonances_; }
+    [[nodiscard]] float currentBeatPhase() const noexcept { return static_cast<float>(glitchBeatPhase_); }
     [[nodiscard]] float currentSweepPhase() const noexcept { return static_cast<float>(sweep_.phase()); }
 
 private:

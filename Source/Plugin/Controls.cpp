@@ -1,5 +1,6 @@
 #include "Controls.h"
 #include "Theme.h"
+#include "Parameters.h"
 
 namespace openedm::ui {
 
@@ -81,6 +82,35 @@ void Choice::resized() {
         title_.setBounds(bounds.removeFromTop(kTitleHeight));
     }
     box_.setBounds(bounds.withSizeKeepingCentre(bounds.getWidth(), juce::jmin(kControlHeight, bounds.getHeight())));
+}
+
+FilterTypeMenu::FilterTypeMenu(Apvts& state, int band, juce::Colour accent)
+    : original_(static_cast<juce::AudioParameterChoice&>(*state.getParameter(params::bandId(band, params::kType)))),
+      response_(static_cast<juce::AudioParameterChoice&>(*state.getParameter(params::bandId(band, params::kExtendedType)))),
+      originalAttachment_(original_, [this](float) { sync(); }, nullptr),
+      responseAttachment_(response_, [this](float) { sync(); }, nullptr) {
+    addItemList(original_.choices, 1);
+    for (int i = 1; i < response_.choices.size(); ++i)
+        addItem(response_.choices[i], original_.choices.size() + i);
+    setColour(juce::ComboBox::outlineColourId, accent);
+    setComponentID(params::bandId(band, params::kType));
+    setName(band == 0 ? "Filter A type" : "Filter B type");
+    onChange = [this] {
+        const int index = getSelectedId() - 1;
+        if (index < 0) return;
+        if (index < original_.choices.size()) {
+            originalAttachment_.setValueAsCompleteGesture(static_cast<float>(index));
+            responseAttachment_.setValueAsCompleteGesture(0);
+        } else {
+            responseAttachment_.setValueAsCompleteGesture(static_cast<float>(index - original_.choices.size() + 1));
+        }
+        sync();
+    };
+    sync();
+}
+
+void FilterTypeMenu::sync() {
+    setSelectedId(params::effectiveType(original_.getIndex(), response_.getIndex()) + 1, juce::dontSendNotification);
 }
 
 Toggle::Toggle(Apvts& state, const juce::String& parameterId, const juce::String& text, juce::Colour accent)

@@ -2,7 +2,9 @@
 
 ![Native plugin editor](../assets/native-ui.png)
 
-`assets/native-ui.png` is the v1.9.1 editor at 1200 x 1000, captured from the Release build on 2026-11-17. The response graph shows a live multitone spectrum; the Input Gain is +3 dB and both peak meters are active. Neon Staircase curves, Auto Mode D, BARS set to 1 Bar, playhead at 90% of that bar. The Auto Mode slots have full labels, and the capture shows all panels without clipping. It is a component render of the editor.
+`assets/native-ui.png` is the v1.10.0 editor at 1200 x 1000, captured from the Release build on 2026-11-17. The response graph shows a live multitone spectrum; the Input Gain is +3 dB and both peak meters are active. The A and B menus select Low Shelf and Bell Cut. The title contains a beat-synced response SVG. Neon Staircase curves, Auto Mode D, BARS set to 1 Bar, playhead at 90% of that bar. The Auto Mode slots have full labels, and the capture shows all panels without clipping. It is a component render of the editor.
+
+![Advanced routing and modulation editor](../assets/native-advanced.png)
 
 Reproduce on macOS from the repository root:
 

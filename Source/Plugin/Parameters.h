@@ -10,6 +10,10 @@ namespace openedm::params {
 // Per-band parameter suffixes. Use bandId() to build the full ID ("a_cutoff", "b_bypass").
 inline constexpr const char* kBypass = "bypass";
 inline constexpr const char* kType = "type";
+inline constexpr const char* kExtendedType = "response";
+inline constexpr int effectiveType(int original, int response) noexcept {
+    return response == 0 ? original : 3 + response;
+}
 inline constexpr const char* kSlope = "slope";
 inline constexpr const char* kCutoff = "cutoff";
 inline constexpr const char* kResonance = "reso";

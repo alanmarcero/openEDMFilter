@@ -22,6 +22,7 @@ struct StageDesign {
     std::array<float, MultiModeFilter::kMaxStages> qs;
     float peakQ;
     float peakGain;
+    std::array<float, 4> mix; // input, low, normalized band, high
 };
 
 // Low-pass and high-pass stages use Butterworth Qs so the cascade stays flat below the cutoff.
@@ -31,12 +32,38 @@ StageDesign designStages(const FilterShape& shape) noexcept {
     const float widthQ = kNarrowQ + (kWideQ - kNarrowQ) * shape.width;
     const bool isButterworth = shape.type == FilterType::LowPass || shape.type == FilterType::HighPass;
 
-    StageDesign design{ count, {}, widthQ, kMaxPeakGain * shape.resonance };
-    std::ranges::generate(design.qs, [&, stage = 0]() mutable {
-        const double angle = (2.0 * stage++ + 1.0) * std::numbers::pi / (4.0 * count);
-        const float butterworthQ = static_cast<float>(1.0 / (2.0 * std::sin(angle)));
-        return isButterworth ? butterworthQ : widthQ;
-    });
+    const bool extended = shape.type > FilterType::Notch;
+    StageDesign design{ count, {}, widthQ, extended ? 0.0f : kMaxPeakGain * shape.resonance, {} };
+    const bool shelf = shape.type == FilterType::LowShelf || shape.type == FilterType::HighShelf;
+    for (int stage = 0; stage < count; ++stage) {
+        float q = widthQ;
+        if (isButterworth) {
+            const double angle = (2.0 * stage + 1.0) * std::numbers::pi / (4.0 * count);
+            q = static_cast<float>(1.0 / (2.0 * std::sin(angle)));
+        }
+        if (shelf) q = std::lerp(0.8f, 0.52f, shape.width);
+        if (shape.type == FilterType::AllPass) q *= 0.5f + shape.resonance;
+        design.qs[static_cast<size_t>(stage)] = q;
+    }
+    switch (shape.type) {
+        case FilterType::LowPass:  design.mix = { 0, 1, 0, 0 }; break;
+        case FilterType::HighPass: design.mix = { 0, 0, 0, 1 }; break;
+        case FilterType::BandPass: design.mix = { 0, 0, 1, 0 }; break;
+        case FilterType::Notch:    design.mix = { 1, 0, -1, 0 }; break;
+        case FilterType::AllPass:  design.mix = { 1, 0, -2, 0 }; break;
+        case FilterType::LowShelf:
+        case FilterType::HighShelf: {
+            const float gain = std::pow(10.0f, (3.0f + 9.0f * shape.resonance) / (20.0f * count));
+            design.mix = { 0, shape.type == FilterType::LowShelf ? gain : 1.0f,
+                           std::sqrt(gain), shape.type == FilterType::HighShelf ? gain : 1.0f };
+            break;
+        }
+        case FilterType::BellCut: {
+            const float gain = std::pow(10.0f, (-3.0f - 15.0f * shape.resonance) / (20.0f * count));
+            design.mix = { 1, 0, gain - 1.0f, 0 };
+            break;
+        }
+    }
     return design;
 }
 
@@ -67,7 +94,7 @@ void MultiModeFilter::update(const FilterShape& shape, double cutoffHz, double s
         });
     }
 
-    type_ = shape.type;
+    stageMix_ = design.mix;
     numStages_ = design.count;
     peakGain_ = design.peakGain;
     peakCoefficients_ = makeSvfCoefficients(g, design.peakQ);
@@ -86,13 +113,8 @@ float MultiModeFilter::process(int channel, float input) noexcept {
         [&](float signal, int stage) {
             const SvfCoefficients& c = stageCoefficients_[stage];
             const SvfOutput out = channelStages[stage].process(signal, c);
-            switch (type_) {
-                case FilterType::LowPass: return out.low;
-                case FilterType::HighPass: return out.high;
-                case FilterType::BandPass: return c.k * out.band;
-                case FilterType::Notch: return signal - c.k * out.band;
-            }
-            return signal;
+            return stageMix_[0] * signal + stageMix_[1] * out.low
+                + stageMix_[2] * (c.k * out.band) + stageMix_[3] * out.high;
         });
 
     const SvfOutput peak = peaks_[channel].process(filtered, peakCoefficients_);
@@ -119,13 +141,9 @@ std::complex<double> MultiModeFilter::responseAt(const FilterShape& shape, doubl
     const Complex cascade = std::accumulate(design.qs.begin(), design.qs.begin() + design.count, Complex(1.0),
         [&](Complex response, float q) {
             const Complex denominator = s * s + s / static_cast<double>(q) + 1.0;
-            switch (shape.type) {
-                case FilterType::LowPass: return response / denominator;
-                case FilterType::HighPass: return response * s * s / denominator;
-                case FilterType::BandPass: return response * (s / static_cast<double>(q)) / denominator;
-                case FilterType::Notch: return response * (s * s + 1.0) / denominator;
-            }
-            return response;
+            const auto& m = design.mix;
+            const auto numerator = double(m[1]) + double(m[2]) * s / static_cast<double>(q) + double(m[3]) * s * s;
+            return response * (double(m[0]) + numerator / denominator);
         });
 
     const double peakQ = design.peakQ;

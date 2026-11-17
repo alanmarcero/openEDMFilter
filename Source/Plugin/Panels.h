@@ -118,7 +118,7 @@ private:
     juce::String title_;
     juce::Colour accent_;
     Toggle bypass_;
-    Choice type_;
+    FilterTypeMenu type_;
     Choice slope_;
     Knob cutoff_;
     Knob resonance_;

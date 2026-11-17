@@ -262,9 +262,40 @@ TEST_CASE("Editor slot buttons and host automation rebind the visible sweep knob
             if (button->getButtonText() == "FREEZE") freezeButton = button;
         }
     }
+    const auto audit = [&](auto&& self, juce::Component& parent) -> void {
+        for (auto* child : parent.getChildren()) {
+            if (!child->isVisible()) continue;
+            if (dynamic_cast<juce::TextButton*>(child) || dynamic_cast<juce::ComboBox*>(child)) {
+                CAPTURE(child->getName().toStdString(), child->getBounds().toString().toStdString());
+                CHECK(child->getHeight() >= 36);
+                CHECK(child->getWidth() >= 44);
+                CHECK(parent.getLocalBounds().contains(child->getBounds()));
+            } else self(self, *child);
+        }
+    };
+    audit(audit, *editor);
     REQUIRE(panel != nullptr);
     REQUIRE(spectrumButton != nullptr);
     REQUIRE(freezeButton != nullptr);
+    int bands = 0;
+    for (auto* child : editor->getChildren()) {
+        auto* band = dynamic_cast<openedm::ui::BandPanel*>(child);
+        if (!band) continue;
+        const auto prefix = bands++ == 0 ? juce::String("a_") : juce::String("b_");
+        auto* menu = dynamic_cast<juce::ComboBox*>(band->findChildWithID(prefix + "type"));
+        REQUIRE(menu != nullptr);
+        REQUIRE(menu->getNumItems() == 8);
+        for (int id = 1; id <= 8; ++id) {
+            menu->setSelectedId(id, juce::sendNotificationSync);
+            const auto legacy = processor.parameters.getRawParameterValue(prefix + "type")->load();
+            const auto response = processor.parameters.getRawParameterValue(prefix + "response")->load();
+            CHECK(openedm::params::effectiveType(int(legacy), int(response)) == id - 1);
+        }
+        menu->setSelectedId(1, juce::sendNotificationSync);
+        processor.parameters.getParameter(prefix + "type")->setValueNotifyingHost(2.0f / 3);
+        CHECK(menu->getSelectedId() == 3);
+    }
+    REQUIRE(bands == 2);
     std::vector<juce::Slider*> sliders;
     std::array<juce::TextButton*, 4> buttons{};
     for (auto* child : panel->getChildren()) {
@@ -314,6 +345,8 @@ TEST_CASE("Editor slot buttons and host automation rebind the visible sweep knob
         set(processor, "sweep_slot", 3.0f);
         set(processor, "sweep_d_bars", static_cast<float>(openedm::params::sweepBarIndex(1)));
         set(processor, "input_gain", 3.0f);
+        set(processor, "a_response", 2);
+        set(processor, "b_response", 4);
         processor.prepareToPlay(44100.0, 4096);
         juce::AudioBuffer<float> signal(2, 4096);
         for (int sample = 0; sample < signal.getNumSamples(); ++sample) {
@@ -700,6 +733,8 @@ TEST_CASE("Old sessions reset new modulation controls to neutral defaults", "[ap
     set(processor, "stereo_mode", 2);
     set(processor, "a_midi_depth", 1);
     set(processor, "a_step_mode", 2);
+    set(processor, "a_response", 2);
+    set(processor, "b_response", 4);
     juce::XmlElement legacy("openEDMFilter");
     auto* cutoff = legacy.createNewChildElement("PARAM");
     cutoff->setAttribute("id", "a_cutoff");
@@ -707,7 +742,7 @@ TEST_CASE("Old sessions reset new modulation controls to neutral defaults", "[ap
     juce::MemoryBlock data;
     juce::AudioProcessor::copyXmlToBinary(legacy, data);
     processor.setStateInformation(data.getData(), static_cast<int>(data.getSize()));
-    for (auto id : {"routing", "stereo_mode", "a_midi_depth", "a_step_mode", "fm_shape", "fm_target"})
+    for (auto id : {"routing", "stereo_mode", "a_midi_depth", "a_step_mode", "fm_shape", "fm_target", "a_response", "b_response"})
         REQUIRE_THAT(processor.parameters.getRawParameterValue(id)->load(), WithinAbs(0.0f, 1e-6f));
     REQUIRE_THAT(processor.parameters.getRawParameterValue("a_cutoff")->load(), WithinAbs(1234, 0.01));
 }
@@ -728,6 +763,25 @@ TEST_CASE("Native editor opens and closes the routing and modulation controls", 
     REQUIRE(control != editor->getChildren().end());
     REQUIRE((*control)->isVisible());
     REQUIRE((*control)->getWidth() > 500);
+    const auto audit = [&](auto&& self, juce::Component& parent) -> void {
+        for (auto* child : parent.getChildren()) {
+            if (!child->isVisible()) continue;
+            if (dynamic_cast<juce::Button*>(child) || dynamic_cast<juce::ComboBox*>(child)) {
+                const auto hit = editor->getLocalArea(child, child->getLocalBounds());
+                CHECK(hit.getWidth() >= 44);
+                CHECK(hit.getHeight() >= 36);
+            } else self(self, *child);
+        }
+    };
+    audit(audit, **control);
+    if (const char* capture = std::getenv("OEF_CAPTURE")) {
+        const auto snapshot = editor->createComponentSnapshot(editor->getLocalBounds());
+        juce::FileOutputStream stream{ juce::File(capture).getSiblingFile("native-advanced.png") };
+        REQUIRE(stream.openedOk());
+        REQUIRE(stream.setPosition(0));
+        REQUIRE(stream.truncate().wasOk());
+        REQUIRE(juce::PNGImageFormat().writeImageToStream(snapshot, stream));
+    }
     button->onClick();
     REQUIRE_FALSE((*control)->isVisible());
 }
@@ -766,4 +820,58 @@ TEST_CASE("Reset All Controllers only resets the addressed MIDI channel", "[appr
     midi.addEvent(juce::MidiMessage::controllerEvent(1, 121, 0), 0);
     processor.processBlock(buffer, midi);
     REQUIRE_THAT(processor.displayCutoffs[0].load(), WithinAbs(1000.0f, 1.0f));
+}
+
+TEST_CASE("Extended types recall on both lanes and survive stereo routing and modulation changes", "[plugin][extended]") {
+    OpenEdmFilterProcessor source, processor;
+    set(source, "a_response", 2);
+    set(source, "b_response", 4);
+    juce::MemoryBlock saved;
+    source.getStateInformation(saved);
+    processor.setStateInformation(saved.getData(), static_cast<int>(saved.getSize()));
+    REQUIRE(processor.parameters.getRawParameterValue("a_response")->load() == 2);
+    REQUIRE(processor.parameters.getRawParameterValue("b_response")->load() == 4);
+    for (int band = 0; band < 2; ++band) {
+        auto* original = processor.parameters.getParameter(openedm::params::bandId(band, "type"));
+        REQUIRE(original->getNumSteps() == 4);
+        for (int step = 0; step < 4; ++step)
+            CHECK_THAT(original->convertFrom0to1(float(step) / 3), WithinAbs(step, 1e-6));
+    }
+    processor.prepareToPlay(48000, 2048);
+    set(processor, "a_lfo_depth", 0.6f);
+    set(processor, "b_cutoff", 950);
+    juce::AudioBuffer<float> buffer(2, 2048);
+    juce::MidiBuffer midi;
+    for (int routing = 0; routing < 2; ++routing) for (int stereo = 0; stereo < 3; ++stereo) {
+        set(processor, "routing", float(routing));
+        set(processor, "stereo_mode", float(stereo));
+        for (int mode = 1; mode <= 4; ++mode) {
+            set(processor, "a_response", float(mode));
+            set(processor, "b_response", float(5 - mode));
+            for (int i = 0; i < buffer.getNumSamples(); ++i) {
+                buffer.setSample(0, i, 0.08f * std::sin(0.06f * float(i)));
+                buffer.setSample(1, i, 0.05f * std::cos(0.09f * float(i)));
+            }
+            processor.processBlock(buffer, midi);
+            CHECK(buffer.getMagnitude(0, 2048) < 2.0f);
+            CHECK(buffer.getRMSLevel(1, 512, 1536) > 0.0001f);
+        }
+    }
+    ScriptedPlayHead host;
+    host.info.setIsPlaying(true);
+    host.info.setBpm(120.0);
+    host.info.setPpqPosition(-0.75);
+    processor.setPlayHead(&host);
+    processor.processBlock(buffer, midi);
+    CHECK_THAT(processor.animationBeatPhase(0), WithinAbs(0.25 + 2048.0 / 24000, 0.001));
+    host.info.setPpqPosition(8.5);
+    host.info.setBpm(60.0);
+    processor.processBlock(buffer, midi);
+    CHECK_THAT(processor.animationBeatPhase(0), WithinAbs(0.5 + 2048.0 / 48000, 0.001));
+    host.info.setIsPlaying(false);
+    processor.processBlock(buffer, midi);
+    CHECK(processor.animationBeatPhase(0) == 1);
+    processor.setPlayHead(nullptr);
+    processor.processBlock(buffer, midi);
+    CHECK(processor.animationBeatPhase(0) < 1);
 }
