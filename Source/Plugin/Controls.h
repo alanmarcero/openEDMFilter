@@ -39,6 +39,7 @@ class Toggle : public juce::Component {
 public:
     Toggle(Apvts& state, const juce::String& parameterId, const juce::String& text, juce::Colour accent);
     void resized() override;
+    void setTooltip(const juce::String& text);
 
 private:
     juce::TextButton button_;

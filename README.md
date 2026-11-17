@@ -1,4 +1,4 @@
-# openEDMFilter v1.9.0
+# openEDMFilter v1.9.1
 
 [Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest)
 
@@ -6,7 +6,7 @@ Dual multimode filter. Serial or parallel filters, MIDI and step modulation, fou
 
 ![openEDMFilter native editor](assets/native-ui.png)
 
-*Captured from the native editor. [Capture details and provenance](docs/SCREENSHOTS.md).*
+*Captured from the v1.9.1 native editor. [Capture details and provenance](docs/SCREENSHOTS.md).*
 
 ## Features
 
@@ -37,7 +37,7 @@ VST2 and AAX are not built by this project.
 
 ## Modulation and routing controls
 
-Click **MOD / ROUTING** in the native editor to open the scrollable native parameter controls, including all routing and modulation settings. Click **CLOSE CONTROLS** to return to the main panels. All controls support host automation and session recall. Factory presets reset the new controls to their defaults; older sessions retain serial routing and linked stereo, with MIDI and steps off.
+Click **MODULATION / ROUTING** in the native editor to open the scrollable native parameter controls, including all routing and modulation settings. Click **CLOSE CONTROLS** to return to the main panels. All controls support host automation and session recall. Factory presets reset the new controls to their defaults; older sessions retain serial routing and linked stereo, with MIDI and steps off.
 
 Each filter has MIDI Source (Off, Velocity, Aftertouch, CC), a CC number (0–127), and bipolar MIDI Depth. All MIDI channels are accepted. Velocity uses the highest velocity among held notes; releasing a note removes it. Aftertouch uses the highest channel or polyphonic pressure. CC uses the latest value of the selected controller. All Notes Off and All Sound Off clear notes and pressure on their MIDI channel; Reset All Controllers clears controller and pressure values only on its MIDI channel. A selected CC then falls back to the most recent value from another channel, or zero if none remains. MIDI events take effect at their sample offsets. Route MIDI to this audio effect in your host; the standalone app also accepts MIDI input.
 
@@ -70,7 +70,7 @@ These presets write all four slots. Slots B, C and D raise the cutoff slope, res
 3. Choose openEDMFilter, select VST3 (or AU on macOS), and install.
 4. Rescan plugins in your DAW. If you chose a custom install folder, add it to the DAW's search paths.
 
-Install the current packages from the [v1.5.0 release](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.5.0): `openEDMFilter-macOS.zip`, `openEDMFilter-Windows.zip`, and `openEDMFilter-Linux.zip`. The macOS package is universal (Apple Silicon/Intel), with a macOS 11 deployment target. Windows and Linux packages are x64. v1.3.0 remains available at its original tag.
+Install the current packages from the [v1.9.1 release](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.9.1): `openEDMFilter-macOS.zip`, `openEDMFilter-Windows.zip`, and `openEDMFilter-Linux.zip`. The macOS package is universal (Apple Silicon/Intel), with a macOS 11 deployment target. Windows and Linux packages are x64. v1.3.0 remains available at its original tag.
 
 | Format | macOS | Windows | Linux |
 | --- | --- | --- | --- |

@@ -7,7 +7,7 @@ namespace {
 
 constexpr int kTitleHeight = 15;
 constexpr int kValueHeight = 15;
-constexpr int kControlHeight = 24;
+constexpr int kControlHeight = 36;
 constexpr int kCellGap = 4;
 constexpr float kTitleFontSize = 11.0f;
 
@@ -94,6 +94,10 @@ Toggle::Toggle(Apvts& state, const juce::String& parameterId, const juce::String
 void Toggle::resized() {
     const auto bounds = getLocalBounds();
     button_.setBounds(bounds.withSizeKeepingCentre(bounds.getWidth(), juce::jmin(kControlHeight, bounds.getHeight())));
+}
+
+void Toggle::setTooltip(const juce::String& text) {
+    button_.setTooltip(text);
 }
 
 void layoutRow(juce::Rectangle<int> area, std::initializer_list<juce::Component*> components) {

@@ -585,7 +585,7 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
     }
     for (size_t i = 0; i < slotButtons_.size(); ++i) {
         auto& button = slotButtons_[i];
-        button.setButtonText(juce::String::charToString(static_cast<juce::juce_wchar>('A' + i)));
+        button.setButtonText("SLOT " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + i)));
         button.setColour(juce::TextButton::buttonOnColourId, theme::kAccentA);
         button.setTooltip("Auto Mode: select and edit this sweep slot. Automate Auto Mode in your DAW.");
         button.onClick = [this, i] { slotWatcher_.setValueAsCompleteGesture(static_cast<float>(i)); };
@@ -654,8 +654,8 @@ void SweepPanel::paint(juce::Graphics& g) {
 
 void SweepPanel::resized() {
     auto bounds = getLocalBounds().reduced(12, 6);
-    auto header = bounds.removeFromTop(28);
-    slopePresetBox_.setBounds(header.removeFromRight(138).withSizeKeepingCentre(138, 24));
+    auto header = bounds.removeFromTop(40);
+    slopePresetBox_.setBounds(header.removeFromRight(138).withSizeKeepingCentre(138, 36));
     header.removeFromRight(5);
     target_.setBounds(header.removeFromRight(88));
     header.removeFromRight(5);
@@ -666,17 +666,17 @@ void SweepPanel::resized() {
     header.removeFromRight(5);
     timeSig_.setBounds(header.removeFromRight(60));
     header.removeFromRight(5);
-    clockSync_.setBounds(header.removeFromRight(78));
+    clockSync_.setBounds(header.removeFromRight(90));
     header.removeFromRight(5);
-    enabled_.setBounds(header.removeFromRight(88));
+    enabled_.setBounds(header.removeFromRight(95));
     header.removeFromRight(5);
-    bypass_.setBounds(header.removeFromRight(68));
+    bypass_.setBounds(header.removeFromRight(78));
 
     bounds.removeFromTop(4);
-    slotArea_ = bounds.removeFromTop(26);
+    slotArea_ = bounds.removeFromTop(40);
     auto buttons = slotArea_.withTrimmedLeft(78);
     for (auto& button : slotButtons_) {
-        button.setBounds(buttons.removeFromLeft(40).reduced(2, 1));
+        button.setBounds(buttons.removeFromLeft(74).withSizeKeepingCentre(70, 36));
     }
     bounds.removeFromTop(6);
     clockArea_ = bounds.removeFromLeft(70);
@@ -740,7 +740,7 @@ void BandPanel::paint(juce::Graphics& g) {
 
 void BandPanel::resized() {
     auto bounds = getLocalBounds().reduced(12, 6);
-    auto header = bounds.removeFromTop(30);
+    auto header = bounds.removeFromTop(42);
     slope_.setBounds(header.removeFromRight(76));
     header.removeFromRight(6);
     type_.setBounds(header.removeFromRight(108));
@@ -787,6 +787,8 @@ EffectsPanel::EffectsPanel(OpenEdmFilterProcessor& processor)
                    { "Ring Mod", theme::kAccentFx, 2, {} },
                    { "Cutoff FM", theme::kAccentFx, 2, {} },
                    { "Output", theme::kAccentOut, 5, {} } } } {
+    crushLink_.setTooltip("Make the crush rate follow Filter A's cutoff modulation.");
+    limiter_.setTooltip("Limit output peaks to the selected ceiling.");
     startTimerHz(kRefreshHz);
     std::ranges::for_each(std::initializer_list<juce::Component*>{
                               &inputGain_, &drive_, &drivePosition_, &crushRate_, &crushBits_, &crushPosition_,

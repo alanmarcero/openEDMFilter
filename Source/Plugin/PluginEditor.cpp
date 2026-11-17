@@ -8,12 +8,12 @@ namespace {
 
 namespace theme = openedm::theme;
 
-constexpr int kEditorWidth = 1100;
-constexpr int kEditorHeight = 940;
+constexpr int kEditorWidth = 1200;
+constexpr int kEditorHeight = 1000;
 constexpr int kMargin = 12;
-constexpr int kHeaderHeight = 32;
+constexpr int kHeaderHeight = 40;
 constexpr int kResponseHeight = 140;
-constexpr int kSweepHeight = 300;
+constexpr int kSweepHeight = 320;
 constexpr int kBandHeight = 220;
 
 } // namespace
@@ -71,7 +71,7 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
         const bool show = !advancedControls_->isVisible();
         advancedControls_->setVisible(show);
         if (show) advancedControls_->toFront(false);
-        advancedButton_.setButtonText(show ? "CLOSE CONTROLS" : "MOD / ROUTING");
+        advancedButton_.setButtonText(show ? "CLOSE CONTROLS" : "MODULATION / ROUTING");
         resized();
     };
     spectrumButton_.setClickingTogglesState(true);
@@ -127,21 +127,21 @@ void OpenEdmFilterEditor::paint(juce::Graphics& g) {
 void OpenEdmFilterEditor::resized() {
     auto bounds = getLocalBounds().reduced(kMargin);
     auto header = bounds.removeFromTop(kHeaderHeight);
-    nextPresetBtn_.setBounds(header.removeFromRight(26).withSizeKeepingCentre(26, 28));
+    nextPresetBtn_.setBounds(header.removeFromRight(58).withSizeKeepingCentre(58, 36));
     header.removeFromRight(4);
-    presetBox_.setBounds(header.removeFromRight(180).withSizeKeepingCentre(180, 28));
+    presetBox_.setBounds(header.removeFromRight(180).withSizeKeepingCentre(180, 36));
     header.removeFromRight(4);
-    prevPresetBtn_.setBounds(header.removeFromRight(26).withSizeKeepingCentre(26, 28));
+    prevPresetBtn_.setBounds(header.removeFromRight(58).withSizeKeepingCentre(58, 36));
     header.removeFromRight(4);
-    freezeSpectrumButton_.setBounds(header.removeFromRight(70).withSizeKeepingCentre(70, 28));
+    freezeSpectrumButton_.setBounds(header.removeFromRight(78).withSizeKeepingCentre(78, 36));
     header.removeFromRight(4);
-    spectrumButton_.setBounds(header.removeFromRight(84).withSizeKeepingCentre(84, 28));
+    spectrumButton_.setBounds(header.removeFromRight(88).withSizeKeepingCentre(88, 36));
     header.removeFromRight(8);
-    inertia_.setBounds(header.removeFromRight(84));
+    inertia_.setBounds(header.removeFromRight(100));
     header.removeFromRight(8);
-    masterBypass_.setBounds(header.removeFromRight(76));
+    masterBypass_.setBounds(header.removeFromRight(86));
     header.removeFromRight(8);
-    advancedButton_.setBounds(header.removeFromRight(126).withSizeKeepingCentre(126, 28));
+    advancedButton_.setBounds(header.removeFromRight(192).withSizeKeepingCentre(192, 36));
 
     bounds.removeFromTop(4);
     response_.setBounds(bounds.removeFromTop(kResponseHeight));
