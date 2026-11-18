@@ -14,3 +14,12 @@ OEF_CAPTURE="$PWD/assets/native-ui.png" build/openedm_plugin_tests '[ui]'
 ```
 
 The capture test also exercises A/B/C/D button selection, host-driven selection, editing the selected slot, and changing slots during a knob drag without corrupting automation gestures. For the screenshot, it renders a multitone signal so the spectrum and level meters show live values.
+
+
+## OpenVST Manager preview
+
+OpenVST Manager shows `docs/screenshots/preview.png` from `main` (see `screenshotPath` in its catalog), and the GitHub release body and README hero point at the same file. This is the single image to keep current. Refresh it with the main editor capture whenever the UI changes, and commit it before tagging a release:
+
+```sh
+OEF_CAPTURE="$PWD/docs/screenshots/preview.png" build/openedm_plugin_tests '[ui]'
+```
