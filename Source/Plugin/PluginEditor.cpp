@@ -23,7 +23,7 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     : AudioProcessorEditor(processorToEdit),
       processor_(processorToEdit),
       masterBypass_(processorToEdit.parameters, openedm::params::kMasterBypass, "BYPASS", theme::kAccentOut),
-      inertia_(processorToEdit.parameters, openedm::params::kInertia, "INERTIA", theme::kText),
+      inertia_(processorToEdit.parameters, openedm::params::kInertia, "INERTIA", theme::kAccentA),
       response_(processorToEdit),
       sweep_(processorToEdit),
       bandA_(processorToEdit.parameters, 0),
@@ -35,7 +35,7 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     pulse_ = juce::Drawable::createFromImageData(BinaryData::filterpulse_svg, BinaryData::filterpulse_svgSize);
     const auto& presets = openedm::presets::factoryPresets();
     std::ranges::for_each(presets, [&, id = 1](const auto& preset) mutable { presetBox_.addItem(preset.name, id++); });
-    presetBox_.setColour(juce::ComboBox::outlineColourId, theme::kText);
+    presetBox_.setColour(juce::ComboBox::outlineColourId, theme::kPanelEdge);
     presetBox_.setSelectedId(processor_.getCurrentProgram() + 1, juce::dontSendNotification);
     presetBox_.onChange = [this] { processor_.setCurrentProgram(presetBox_.getSelectedId() - 1); };
 
@@ -68,6 +68,7 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     advancedButton_.onClick = [this] {
         if (!advancedControls_) {
             advancedControls_ = std::make_unique<juce::GenericAudioProcessorEditor>(processor_);
+            advancedControls_->setOpaque(true);
             addChildComponent(*advancedControls_);
         }
         const bool show = !advancedControls_->isVisible();
@@ -144,20 +145,20 @@ void OpenEdmFilterEditor::paint(juce::Graphics& g) {
 void OpenEdmFilterEditor::resized() {
     auto bounds = getLocalBounds().reduced(kMargin);
     auto header = bounds.removeFromTop(kHeaderHeight);
-    nextPresetBtn_.setBounds(header.removeFromRight(58).withSizeKeepingCentre(58, 36));
+    nextPresetBtn_.setBounds(header.removeFromRight(62).withSizeKeepingCentre(62, 36));
     header.removeFromRight(4);
-    presetBox_.setBounds(header.removeFromRight(240).withSizeKeepingCentre(240, 36));
+    presetBox_.setBounds(header.removeFromRight(236).withSizeKeepingCentre(236, 36));
     header.removeFromRight(4);
-    prevPresetBtn_.setBounds(header.removeFromRight(58).withSizeKeepingCentre(58, 36));
+    prevPresetBtn_.setBounds(header.removeFromRight(76).withSizeKeepingCentre(76, 36));
     header.removeFromRight(4);
-    freezeSpectrumButton_.setBounds(header.removeFromRight(78).withSizeKeepingCentre(78, 36));
+    freezeSpectrumButton_.setBounds(header.removeFromRight(76).withSizeKeepingCentre(76, 36));
     header.removeFromRight(4);
     spectrumButton_.setBounds(header.removeFromRight(88).withSizeKeepingCentre(88, 36));
-    header.removeFromRight(8);
-    inertia_.setBounds(header.removeFromRight(82));
-    header.removeFromRight(8);
+    header.removeFromRight(6);
+    inertia_.setBounds(header.removeFromRight(80));
+    header.removeFromRight(6);
     masterBypass_.setBounds(header.removeFromRight(72));
-    header.removeFromRight(8);
+    header.removeFromRight(6);
     advancedButton_.setBounds(header.removeFromRight(164).withSizeKeepingCentre(164, 36));
 
     bounds.removeFromTop(4);
@@ -174,7 +175,9 @@ void OpenEdmFilterEditor::resized() {
     if (advancedControls_) {
         const auto area = getLocalBounds().reduced(kMargin).withTrimmedTop(kHeaderHeight + 4);
         constexpr float scale = 1.8f; // JUCE's parameter menu uses a 20-pixel control.
-        advancedControls_->setBounds(0, 0, juce::roundToInt(area.getWidth() / scale), juce::roundToInt(area.getHeight() / scale));
+        const int scaledW = juce::roundToInt(area.getWidth() / scale);
+        const int scaledH = (juce::roundToInt(area.getHeight() / scale) / 40) * 40;
+        advancedControls_->setBounds(0, 0, scaledW, scaledH);
         advancedControls_->setTransform(juce::AffineTransform::scale(scale).translated(float(area.getX()), float(area.getY())));
     }
 }

@@ -44,7 +44,8 @@ OpenEdmFilterProcessor::OpenEdmFilterProcessor()
               raw(params::kOutput), raw(params::kLimiter), raw(params::kCeiling), raw(params::kInertia),
               raw(params::kMasterBypass), raw(params::kClockSync), raw(params::kTempoBpm), raw(params::kTimeSignature),
               raw(params::kSweepEnabled), raw(params::kSweepBypass), raw(params::kSweepSlot),
-              { sweepValues(0), sweepValues(1), sweepValues(2), sweepValues(3) }, raw(params::kInputGain)
+              { sweepValues(0), sweepValues(1), sweepValues(2), sweepValues(3) }, raw(params::kInputGain),
+              raw(params::kSubPreserve), raw(params::kAnalogDrift), raw(params::kStereoSpread)
           };
       }()) {
     routing_ = parameters.getRawParameterValue("routing");
@@ -307,6 +308,9 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
         isOn(values_.masterBypass)
     };
     settings.inputGain = juce::Decibels::decibelsToGain(values_.inputGain->load());
+    settings.subPreserveHz = values_.subPreserve->load();
+    settings.analogDrift = values_.analogDrift->load();
+    settings.stereoSpread = values_.stereoSpread->load();
     updateInputAnalysis(buffer, settings.bypassed ? 1.0f : settings.inputGain);
 
     settings.parallel = isOn(routing_);

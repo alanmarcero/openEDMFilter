@@ -148,7 +148,7 @@ void drawPanel(juce::Graphics& g, juce::Rectangle<int> area, const juce::String&
     g.setColour(accent);
     g.fillRoundedRectangle(bounds.getX() + 12.0f, bounds.getY() + 11.0f, 3.0f, 14.0f, 1.5f);
     g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
-    g.drawText(title.toUpperCase(), area.getX() + 22, area.getY() + 8, 200, 20, juce::Justification::centredLeft);
+    g.drawText(title.toUpperCase(), area.getX() + 22, area.getY() + 8, std::max(80, area.getWidth() - 32), 20, juce::Justification::centredLeft);
 }
 
 void drawCaption(juce::Graphics& g, juce::Rectangle<int> area, const juce::String& text) {

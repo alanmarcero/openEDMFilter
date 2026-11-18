@@ -63,6 +63,9 @@ struct EngineSettings {
     ModTarget fmTarget = ModTarget::Both;
     StereoMode stereoMode = StereoMode::Linked;
     float inputGain = 1.0f;
+    float subPreserveHz = 20.0f;
+    float analogDrift = 0.0f;
+    float stereoSpread = 0.0f;
 };
 
 struct Transport {
@@ -130,6 +133,8 @@ private:
     float mix_ = 1.0f;
     float outputGain_ = 1.0f;
     float inputGain_ = 1.0f;
+    double driftPhase_ = 0.0;
+    std::array<float, 2> subPreserveLp_{};
     float parameterSmoothing_ = 0.0f;
     bool needsSnap_ = true;
 };

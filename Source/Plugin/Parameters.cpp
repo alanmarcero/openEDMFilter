@@ -196,6 +196,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     for (int band = 0; band < 2; ++band)
         addChoice(layout, bandId(band, kExtendedType), band == 0 ? "A Response" : "B Response",
                   { "Original Type", "All Pass", "Low Shelf", "High Shelf", "Bell Cut" }, 0, 5);
+    addFloat(layout, kSubPreserve, "Sub Preserve", skewedRange(20.0f, 250.0f, 80.0f), 20.0f, kFormatHz, 6);
+    addFloat(layout, kAnalogDrift, "Analog Drift", { 0.0f, 1.0f }, 0.0f, kFormatPercent, 6);
+    addFloat(layout, kStereoSpread, "Stereo Spread", { -1.0f, 1.0f }, 0.0f, kFormatBipolar, 6);
     return layout;
 }
 
