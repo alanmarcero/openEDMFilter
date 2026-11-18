@@ -15,6 +15,6 @@ inline const juce::Colour kAccentA{ 0xff48f0c8 };
 inline const juce::Colour kAccentB{ 0xffffbe3b };
 inline const juce::Colour kAccentFx{ 0xff48f0c8 };
 inline const juce::Colour kAccentOut{ 0xffffbe3b };
-inline const juce::Colour kAccentSpectrum{ 0xffb798ff };
+inline const juce::Colour kAccentSpectrum{ 0xff5ce1ff };
 
 } // namespace openedm::theme

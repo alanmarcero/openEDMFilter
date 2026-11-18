@@ -53,6 +53,8 @@ void FilterEngine::reset() noexcept {
     crushMix_ = 0.0f;
     glitchMix_ = 0.0f;
     inputGain_ = 1.0f;
+    driftPhase_ = 0.0;
+    subPreserveLp_ = {};
     oversampler_.reset();
     limiter_.reset();
     needsSnap_ = true;
@@ -179,8 +181,12 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
             const auto ringCarrier = static_cast<float>(std::sin(kTwoPi * ringPhase_));
             const double nextFmPhase = fmPhase_ + settings.fmRateHz / sampleRate_;
             const double nextRingPhase = ringPhase_ + settings.ringFrequencyHz / sampleRate_;
+            const double nextDriftPhase = driftPhase_ + 0.37 / sampleRate_;
             fmPhase_ = nextFmPhase - std::floor(nextFmPhase);
             ringPhase_ = nextRingPhase - std::floor(nextRingPhase);
+            driftPhase_ = nextDriftPhase - std::floor(nextDriftPhase);
+            const float driftOct = settings.analogDrift * 0.14f * static_cast<float>(std::sin(kTwoPi * driftPhase_) + 0.35 * std::cos(kTwoPi * driftPhase_ * 2.31));
+            const float spreadOct = settings.stereoSpread * 1.25f;
             const double sweepPhase = sweep_.nextPhase(sweepIncrement);
             const float progress = AutoSweep::progressAt(settings.sweep.mode, settings.sweep.bars, sweepPhase);
             const float autoCrush = settings.sweep.enabled ? AutoSweep::envelopeAt(settings.sweep.crush, progress) : 0.0f;
@@ -232,7 +238,8 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
                     || (settings.fmTarget == ModTarget::BandA && band == 0)
                     || (settings.fmTarget == ModTarget::BandB && band == 1);
                 const float bandFm = fmApplies ? fmOctaves : 0.0f;
-                const float targetLog = logCutoffs_[band] + bandFm;
+                const float bandSign = band == 0 ? 1.0f : -1.0f;
+                const float targetLog = logCutoffs_[band] + bandFm + driftOct * bandSign - spreadOct * 0.5f * bandSign;
                 // FM skips smoothing to retain audio-rate modulation.
                 slots[active][0].update(shapes[active], std::exp2(targetLog), sampleRate_);
                 if (fadeRemaining_[band] > 0)
@@ -248,7 +255,7 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
                     ? std::log2(sweepValue.cutoffHz) + octaves
                     : std::log2(sweepValue.cutoffHz) + lane2Octaves + bandSettings.lane2Offset;
                 lane2LogCutoffs_[band] = lane2Target + cutoffSmoothing[band] * (lane2LogCutoffs_[band] - lane2Target);
-                const float lane2Hz = std::exp2(lane2LogCutoffs_[band] + bandFm);
+                const float lane2Hz = std::exp2(lane2LogCutoffs_[band] + bandFm - driftOct * bandSign + spreadOct * 0.5f * bandSign);
                 displayedCutoffs_[0][band] = std::exp2(targetLog);
                 displayedCutoffs_[1][band] = lane2Hz;
                 slots[active][1].update(shapes[active], lane2Hz, sampleRate_);
@@ -313,12 +320,19 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
             const std::array<float, 2> decoded{
                 cosine * filtered[0] - sine * filtered[1], sine * filtered[0] + cosine * filtered[1]
             };
+            const float subAlpha = settings.subPreserveHz > 20.5f
+                ? static_cast<float>(1.0 - std::exp(-kTwoPi * std::clamp(settings.subPreserveHz, 20.0f, 250.0f) / sampleRate_))
+                : 0.0f;
             std::ranges::for_each(channelIndices, [&](int channel) {
                 const float dry = upsampled[channel][phase];
+                subPreserveLp_[channel] += subAlpha * (dry - subPreserveLp_[channel]);
                 const float postColoured = colour(channel, decoded[channel], Placement::PostFilter);
                 const float ringModulated = postColoured + settings.ringMix * (postColoured * ringCarrier - postColoured);
                 const float repeated = stutter_.process(channel, ringModulated, glitchBeatPhase_, transport.bpm, sampleRate_);
-                const float glitched = ringModulated + glitchMix_ * (repeated - ringModulated);
+                float glitched = ringModulated + glitchMix_ * (repeated - ringModulated);
+                if (settings.subPreserveHz > 20.5f) {
+                    glitched += subPreserveLp_[channel] * 0.75f;
+                }
                 upsampled[channel][phase] = (dry + mix_ * (glitched - dry)) * outputGain_;
             });
             glitchBeatPhase_ += glitchBeatIncrement;

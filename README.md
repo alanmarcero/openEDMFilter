@@ -1,8 +1,8 @@
-# openEDMFilter v1.10.0
+# openEDMFilter v1.11.0
 
 A dual filter effect for shaping transitions, resonant builds, and moving sounds. Combine two filters, tempo-synced sweeps, and modulation.
 
-[Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest) · [Download v1.10.0](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.10.0)
+[Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest) · [Download v1.11.0](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.11.0)
 
 ![openEDMFilter editor](assets/native-ui.png)
 
@@ -33,7 +33,7 @@ The original four positions on the **A Type** and **B Type** automation lanes ke
 
 ## Install and compatibility
 
-The v1.10.0 release includes VST3, AU, LV2, and standalone packages for macOS, Windows, and Linux. The macOS package supports Apple Silicon and Intel. The Windows and Linux packages are x64.
+The v1.11.0 release includes VST3, AU, LV2, and standalone packages for macOS, Windows, and Linux. The macOS package supports Apple Silicon and Intel. The Windows and Linux packages are x64.
 
 | Platform | Formats |
 | --- | --- |
@@ -41,7 +41,7 @@ The v1.10.0 release includes VST3, AU, LV2, and standalone packages for macOS, W
 | Windows, x64 | VST3, LV2, Standalone |
 | Linux, x64 | VST3, LV2, Standalone |
 
-OpenVST Manager installs VST3 and AU. Install LV2 and the standalone app from the [release packages](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.10.0). Rescan your host after installation. Some hosts may ask you to select the plugin again in older AU sessions. The macOS AU now accepts MIDI.
+OpenVST Manager installs VST3 and AU. Install LV2 and the standalone app from the [release packages](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.11.0). Rescan your host after installation. Some hosts may ask you to select the plugin again in older AU sessions. The macOS AU now accepts MIDI.
 
 ## License
 

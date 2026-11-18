@@ -153,8 +153,10 @@ private:
 
     OpenEdmFilterProcessor& processor_;
     Knob inputGain_;
+    Knob subPreserve_;
     Knob drive_;
     Choice drivePosition_;
+    Knob analogDrift_;
     Knob crushRate_;
     Knob crushBits_;
     Knob crushMix_;
@@ -164,6 +166,7 @@ private:
     Knob ringMix_;
     Knob fmRate_;
     Knob fmDepth_;
+    Knob stereoSpread_;
     Knob mix_;
     Knob output_;
     Knob ceiling_;

@@ -768,8 +768,10 @@ void BandPanel::resized() {
 EffectsPanel::EffectsPanel(OpenEdmFilterProcessor& processor)
     : processor_(processor),
       inputGain_(processor.parameters, params::kInputGain, "Gain", theme::kAccentOut),
+      subPreserve_(processor.parameters, params::kSubPreserve, "Sub Keep", theme::kAccentOut),
       drive_(processor.parameters, params::kDrive, "Amount", theme::kAccentFx),
       drivePosition_(processor.parameters, params::kDrivePosition, "Position", theme::kAccentFx),
+      analogDrift_(processor.parameters, params::kAnalogDrift, "Drift", theme::kAccentFx),
       crushRate_(processor.parameters, params::kCrushRate, "Rate", theme::kAccentFx),
       crushBits_(processor.parameters, params::kCrushBits, "Bits", theme::kAccentFx),
       crushMix_(processor.parameters, params::kCrushMix, "Mix", theme::kAccentFx),
@@ -779,23 +781,24 @@ EffectsPanel::EffectsPanel(OpenEdmFilterProcessor& processor)
       ringMix_(processor.parameters, params::kRingMix, "Mix", theme::kAccentFx),
       fmRate_(processor.parameters, params::kFmRate, "Rate", theme::kAccentFx),
       fmDepth_(processor.parameters, params::kFmDepth, "Depth", theme::kAccentFx),
+      stereoSpread_(processor.parameters, params::kStereoSpread, "Spread", theme::kAccentFx),
       mix_(processor.parameters, params::kMix, "Dry/Wet", theme::kAccentOut),
       output_(processor.parameters, params::kOutput, "Gain", theme::kAccentOut),
       ceiling_(processor.parameters, params::kCeiling, "Ceiling", theme::kAccentOut),
       limiter_(processor.parameters, params::kLimiter, "LIMIT", theme::kAccentOut),
       sections_{ { { "Input", theme::kAccentOut, 2, {} },
-                   { "Drive", theme::kAccentFx, 2, {} },
+                   { "Drive", theme::kAccentFx, 3, {} },
                    { "Crush", theme::kAccentFx, 5, {} },
                    { "Ring Mod", theme::kAccentFx, 2, {} },
-                   { "Cutoff FM", theme::kAccentFx, 2, {} },
-                   { "Output", theme::kAccentOut, 5, {} } } } {
+                   { "FM & Spread", theme::kAccentFx, 3, {} },
+                   { "Output", theme::kAccentOut, 4, {} } } } {
     crushLink_.setTooltip("Make the crush rate follow Filter A's cutoff modulation.");
     limiter_.setTooltip("Limit output peaks to the selected ceiling.");
     startTimerHz(kRefreshHz);
     std::ranges::for_each(std::initializer_list<juce::Component*>{
-                              &inputGain_, &drive_, &drivePosition_, &crushRate_, &crushBits_, &crushPosition_,
+                              &inputGain_, &subPreserve_, &drive_, &drivePosition_, &analogDrift_, &crushRate_, &crushBits_, &crushPosition_,
                               &crushMix_,
-                              &crushLink_, &ringFrequency_, &ringMix_, &fmRate_, &fmDepth_, &mix_, &output_,
+                              &crushLink_, &ringFrequency_, &ringMix_, &fmRate_, &fmDepth_, &stereoSpread_, &mix_, &output_,
                               &ceiling_, &limiter_ },
                           [this](juce::Component* control) { addAndMakeVisible(control); });
 }
@@ -824,11 +827,11 @@ void EffectsPanel::resized() {
     sections_.back().area = sections_.back().area.withRight(getWidth());
 
     const auto content = [&](size_t section) { return sections_[section].area.reduced(10, 0).withTrimmedTop(34).withTrimmedBottom(8); };
-    inputGain_.setBounds(content(0).withTrimmedBottom(24));
-    layoutRow(content(1), { &drive_, &drivePosition_ });
+    layoutRow(content(0).withTrimmedBottom(24), { &inputGain_, &subPreserve_ });
+    layoutRow(content(1), { &drive_, &drivePosition_, &analogDrift_ });
     layoutRow(content(2), { &crushRate_, &crushBits_, &crushMix_, &crushPosition_, &crushLink_ });
     layoutRow(content(3), { &ringFrequency_, &ringMix_ });
-    layoutRow(content(4), { &fmRate_, &fmDepth_ });
+    layoutRow(content(4), { &fmRate_, &fmDepth_, &stereoSpread_ });
     layoutRow(content(5).withTrimmedBottom(24), { &mix_, &output_, &ceiling_, &limiter_ });
 }
 

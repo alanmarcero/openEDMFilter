@@ -23,8 +23,8 @@ private:
     juce::TextButton spectrumButton_{"SPECTRUM"};
     juce::TextButton freezeSpectrumButton_{"FREEZE"};
     std::unique_ptr<juce::GenericAudioProcessorEditor> advancedControls_;
-    juce::TextButton prevPresetBtn_{"PREV"};
-    juce::TextButton nextPresetBtn_{"NEXT"};
+    juce::TextButton prevPresetBtn_{"Previous"};
+    juce::TextButton nextPresetBtn_{"Next"};
     openedm::ui::Toggle masterBypass_;
     openedm::ui::Toggle inertia_;
     openedm::ui::ResponseView response_;

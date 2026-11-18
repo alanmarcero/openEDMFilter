@@ -119,6 +119,9 @@ private:
         std::atomic<float>* sweepSlot;
         std::array<SweepParameters, 4> sweeps;
         std::atomic<float>* inputGain;
+        std::atomic<float>* subPreserve;
+        std::atomic<float>* analogDrift;
+        std::atomic<float>* stereoSpread;
     };
 
     struct ModulationParameters {
