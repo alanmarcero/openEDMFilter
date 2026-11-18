@@ -4,7 +4,7 @@ A dual filter effect for shaping transitions, resonant builds, and moving sounds
 
 [Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest) · [Download v1.12.0](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.12.0)
 
-![openEDMFilter editor](assets/native-ui.png)
+![openEDMFilter editor](docs/screenshots/preview.png)
 
 *Native editor capture. [See capture details](docs/SCREENSHOTS.md).*
 
