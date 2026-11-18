@@ -143,7 +143,7 @@ public:
     void resized() override;
 
 private:
-    void timerCallback() override { repaint(); }
+    void timerCallback() override;
     struct Section {
         juce::String title;
         juce::Colour accent;
@@ -172,6 +172,8 @@ private:
     Knob ceiling_;
     Toggle limiter_;
     std::array<Section, 6> sections_;
+    float lastInputPeak_ = -1.0f;
+    float lastOutputPeak_ = -1.0f;
 };
 
 } // namespace openedm::ui

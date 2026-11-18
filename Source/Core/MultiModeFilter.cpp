@@ -75,10 +75,6 @@ void MultiModeFilter::reset() noexcept {
 }
 
 void MultiModeFilter::update(const FilterShape& shape, double cutoffHz, double sampleRate) noexcept {
-    const StageDesign design = designStages(shape);
-    const double safeCutoff = std::clamp(cutoffHz, kMinCutoffHz, sampleRate * kMaxCutoffRatio);
-    const float g = static_cast<float>(std::tan(std::numbers::pi * safeCutoff / sampleRate));
-
     const float targetMix = shape.enabled ? 1.0f : 0.0f;
     const auto mixStep = static_cast<float>(1.0 / (kBypassFadeSeconds * sampleRate));
     if (activeMix_ < 0.0f) {
@@ -88,18 +84,43 @@ void MultiModeFilter::update(const FilterShape& shape, double cutoffHz, double s
         reset();
     }
     activeMix_ = std::clamp(targetMix, activeMix_ - mixStep, activeMix_ + mixStep);
-    if (design.count > numStages_) {
-        std::ranges::for_each(stages_, [&](auto& channelStages) {
-            std::fill(channelStages.begin() + numStages_, channelStages.end(), SvfState{});
-        });
+    if (activeMix_ <= 0.0f) {
+        return;
     }
 
-    stageMix_ = design.mix;
-    numStages_ = design.count;
-    peakGain_ = design.peakGain;
-    peakCoefficients_ = makeSvfCoefficients(g, design.peakQ);
-    std::ranges::transform(design.qs.begin(), design.qs.begin() + design.count, stageCoefficients_.begin(),
-        [g](float q) { return makeSvfCoefficients(g, q); });
+    const double safeCutoff = std::clamp(cutoffHz, kMinCutoffHz, sampleRate * kMaxCutoffRatio);
+    const bool shapeSame = hasCached_
+        && cachedShape_.type == shape.type
+        && cachedShape_.slope == shape.slope
+        && std::abs(cachedShape_.resonance - shape.resonance) < 1.0e-6f
+        && std::abs(cachedShape_.width - shape.width) < 1.0e-6f;
+    if (shapeSame && std::abs(cachedCutoffHz_ - safeCutoff) < 1.0e-4 && cachedSampleRate_ == sampleRate) {
+        return;
+    }
+
+    if (!shapeSame) {
+        const StageDesign design = designStages(shape);
+        if (design.count > numStages_) {
+            std::ranges::for_each(stages_, [&](auto& channelStages) {
+                std::fill(channelStages.begin() + numStages_, channelStages.end(), SvfState{});
+            });
+        }
+        stageMix_ = design.mix;
+        numStages_ = design.count;
+        peakGain_ = design.peakGain;
+        cachedQs_ = design.qs;
+        cachedPeakQ_ = design.peakQ;
+        cachedShape_ = shape;
+    }
+
+    const float g = static_cast<float>(std::tan(std::numbers::pi * safeCutoff / sampleRate));
+    peakCoefficients_ = makeSvfCoefficients(g, cachedPeakQ_);
+    for (int stage = 0; stage < numStages_; ++stage) {
+        stageCoefficients_[static_cast<size_t>(stage)] = makeSvfCoefficients(g, cachedQs_[static_cast<size_t>(stage)]);
+    }
+    cachedCutoffHz_ = safeCutoff;
+    cachedSampleRate_ = sampleRate;
+    hasCached_ = true;
 }
 
 float MultiModeFilter::process(int channel, float input) noexcept {

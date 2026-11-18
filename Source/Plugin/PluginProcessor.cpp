@@ -146,11 +146,8 @@ void OpenEdmFilterProcessor::updateInputAnalysis(const juce::AudioBuffer<float>&
     }
     updatePeakMeter(displayInputPeak, peak, buffer.getNumSamples());
 
-    if (spectrumFft_ == nullptr || !spectrumVisible.load(std::memory_order_relaxed)) {
-        spectrumWriteIndex_ = 0;
-        return;
-    }
-    if (spectrumFrozen.load(std::memory_order_relaxed)) {
+    if (spectrumFft_ == nullptr || !spectrumVisible.load(std::memory_order_relaxed)
+        || spectrumFrozen.load(std::memory_order_relaxed)) {
         spectrumWriteIndex_ = 0;
         return;
     }
@@ -251,6 +248,7 @@ void OpenEdmFilterProcessor::handleMidi(const juce::MidiMessage& message) noexce
             const float value = static_cast<float>(message.getControllerValue()) / 127.0f;
             controllers_[channel][controller] = { value, ++controllerOrder_ };
             engine_.setMidiValue(core::MidiSource::CC, value, static_cast<int>(controller));
+            return;
         }
     }
     float velocity = 0.0f, pressure = 0.0f;
