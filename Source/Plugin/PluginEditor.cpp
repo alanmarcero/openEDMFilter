@@ -33,8 +33,8 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     faceplate_ = juce::ImageCache::getFromMemory(BinaryData::analogcyberfaceplate_png, BinaryData::analogcyberfaceplate_pngSize);
 
     pulse_ = juce::Drawable::createFromImageData(BinaryData::filterpulse_svg, BinaryData::filterpulse_svgSize);
-    const auto& presets = openedm::presets::factoryPresets();
-    std::ranges::for_each(presets, [&, id = 1](const auto& preset) mutable { presetBox_.addItem(preset.name, id++); });
+    openedm::presets::populateComboMenu(presetBox_, openedm::presets::factoryPresets());
+    presetBox_.setComponentID("factoryPreset");
     presetBox_.setColour(juce::ComboBox::outlineColourId, theme::kPanelEdge);
     presetBox_.setSelectedId(processor_.getCurrentProgram() + 1, juce::dontSendNotification);
     presetBox_.onChange = [this] { processor_.setCurrentProgram(presetBox_.getSelectedId() - 1); };
@@ -147,7 +147,7 @@ void OpenEdmFilterEditor::resized() {
     auto header = bounds.removeFromTop(kHeaderHeight);
     nextPresetBtn_.setBounds(header.removeFromRight(62).withSizeKeepingCentre(62, 36));
     header.removeFromRight(4);
-    presetBox_.setBounds(header.removeFromRight(236).withSizeKeepingCentre(236, 36));
+    presetBox_.setBounds(header.removeFromRight(256).withSizeKeepingCentre(256, 36));
     header.removeFromRight(4);
     prevPresetBtn_.setBounds(header.removeFromRight(76).withSizeKeepingCentre(76, 36));
     header.removeFromRight(4);

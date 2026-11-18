@@ -437,6 +437,7 @@ const juce::String OpenEdmFilterProcessor::getProgramName(int index) {
 void OpenEdmFilterProcessor::getStateInformation(juce::MemoryBlock& destData) {
     auto state = parameters.copyState();
     state.setProperty("program", currentProgram_.load(), nullptr);
+    state.setProperty("preset_catalog_version", 2, nullptr);
     state.setProperty("barsLayout", params::kSweepBarsLayout, nullptr);
     const auto xml = state.createXml();
     copyXmlToBinary(*xml, destData);
@@ -458,7 +459,9 @@ void OpenEdmFilterProcessor::setStateInformation(const void* data, int sizeInByt
             state.appendChild(value, nullptr);
         }
     }
-    currentProgram_ = static_cast<int>(state.getProperty("program", 0));
+    const int catalogVersion = static_cast<int>(state.getProperty("preset_catalog_version", 1));
+    const int savedProgram = static_cast<int>(state.getProperty("program", 0));
+    currentProgram_ = catalogVersion < 2 ? 0 : juce::jlimit(0, std::max(0, getNumPrograms() - 1), savedProgram);
     parameters.replaceState(state);
 }
 

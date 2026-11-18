@@ -595,11 +595,9 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
     barsLabel_.setFont(juce::FontOptions(11.0f, juce::Font::bold));
     barsLabel_.setColour(juce::Label::textColourId, theme::kTextDim);
     barsLabel_.setJustificationType(juce::Justification::centredRight);
+    slopePresetBox_.setComponentID("sweepPreset");
     slopePresetBox_.setTextWhenNothingSelected("Sweep Preset...");
-    const auto& slopePresets = openedm::presets::sweepSlopePresets();
-    std::ranges::for_each(slopePresets, [&, id = 1](const auto& preset) mutable {
-        slopePresetBox_.addItem(preset.name, id++);
-    });
+    openedm::presets::populateComboMenu(slopePresetBox_, openedm::presets::sweepSlopePresets(), false);
     slopePresetBox_.setColour(juce::ComboBox::outlineColourId, theme::kAccentA);
     slopePresetBox_.onChange = [this] {
         const int idx = slopePresetBox_.getSelectedId() - 1;
