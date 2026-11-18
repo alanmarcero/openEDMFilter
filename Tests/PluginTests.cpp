@@ -277,6 +277,12 @@ TEST_CASE("Editor slot buttons and host automation rebind the visible sweep knob
     REQUIRE(panel != nullptr);
     REQUIRE(spectrumButton != nullptr);
     REQUIRE(freezeButton != nullptr);
+    auto* factoryMenu = dynamic_cast<juce::ComboBox*>(editor->findChildWithID("factoryPreset"));
+    auto* sweepMenu = dynamic_cast<juce::ComboBox*>(panel->findChildWithID("sweepPreset"));
+    REQUIRE(factoryMenu != nullptr);
+    REQUIRE(sweepMenu != nullptr);
+    REQUIRE(factoryMenu->getRootMenu()->getNumItems() == 7);
+    REQUIRE(sweepMenu->getRootMenu()->getNumItems() == 7);
     int bands = 0;
     for (auto* child : editor->getChildren()) {
         auto* band = dynamic_cast<openedm::ui::BandPanel*>(child);
@@ -476,9 +482,9 @@ TEST_CASE("Legacy sweep bar indices still mean 4, 8, 16, 32 and 64 bars", "[plug
 TEST_CASE("Named factory presets keep their bar lengths", "[plugin]") {
     OpenEdmFilterProcessor processor;
     const std::array<std::pair<const char*, int>, 6> named{{
-        { "EDM HP Drop Down (4 Bar)", 4 }, { "EDM Acid Bar Pump (4 Bar)", 4 },
-        { "EDM LP Sweep Up (8 Bar)", 8 }, { "EDM HP Riser Up (16 Bar)", 16 },
-        { "EDM Big Room Build (32 Bar)", 32 }, { "EDM Trance Odyssey (64 Bar)", 64 }
+        { "Tech / HP Drop Down (4 Bar)", 4 }, { "Rolling / Acid Bar Pump (4 Bar)", 4 },
+        { "Progressive / LP Sweep Up (8 Bar)", 8 }, { "Uplifting / Air HP Riser (16 Bar)", 16 },
+        { "Tech / Big Room Build (32 Bar)", 32 }, { "Uplifting / Odyssey (64 Bar)", 64 }
     }};
     const auto& presets = openedm::presets::factoryPresets();
     for (const auto& [name, bars] : named) {
@@ -602,50 +608,48 @@ TEST_CASE("The bars selector lists 1, 2 and 4 bars and edits the active slot", "
     REQUIRE(processor.currentSweepSettings().bars == 4);
 }
 
-TEST_CASE("All 70 factory presets load and report valid program names", "[plugin]") {
+TEST_CASE("All 96 factory presets load and report valid program names", "[plugin]") {
     OpenEdmFilterProcessor processor;
     const auto& presets = openedm::presets::factoryPresets();
-    REQUIRE(presets.size() == 70);
-    REQUIRE(processor.getNumPrograms() == 70);
+    REQUIRE(presets.size() == 96);
+    REQUIRE(processor.getNumPrograms() == 96);
 
-    for (int i = 0; i < 70; ++i) {
+    for (int i = 0; i < 96; ++i) {
         REQUIRE(processor.getProgramName(i).isNotEmpty());
         processor.setCurrentProgram(i);
         REQUIRE(processor.getCurrentProgram() == i);
     }
 
-    // Spot-check key trance presets
-    const std::array<const char*, 5> trancePresets{{
-        "Trance 138 Euphoria Build (16 Bar)",
-        "Trance 138 Epic Ascent (32 Bar)",
-        "Psytrance 140 Rolling Bass Squelch",
-        "Epic 64-Bar Breakdown Odyssey",
-        "Trance Climax Static Burst (16 Bar)"
-    }};
-    for (const auto* name : trancePresets) {
-        const auto it = std::ranges::find_if(presets, [&](const auto& p) { return std::string(p.name) == name; });
-        REQUIRE(it != presets.end());
-    }
+    const auto upliftingCount = std::ranges::count_if(presets, [](const auto& p) {
+        return juce::String(p.name).startsWith("Uplifting / ");
+    });
+    REQUIRE(upliftingCount == 24);
 
-    // Spot-check key EDM presets
-    constexpr std::array<const char*, 5> edmPresets{{
-        "Festival Mainstage Sub & Top (32 Bar)",
-        "Tech House Acid Acid Acid",
-        "Future Rave Laser Sweep (8 Bar)",
-        "Bass House Wobble Stomp",
-        "Electro Dirty Bit-Filter"
+    // Spot-check key genre presets
+    const std::array<const char*, 7> genrePresets{{
+        "Uplifting / Euphoria Build (16 Bar)",
+        "Rolling / Acid Bar Pump (4 Bar)",
+        "Progressive / Warm Sweep (16 Bar)",
+        "Psy / 140 Rolling Squelch",
+        "Tech / House Acid",
+        "Bass & Breaks / Dubstep Wobble",
+        "Classic / Phaser Notch"
     }};
-    std::ranges::for_each(edmPresets, [&](const char* name) {
+    std::ranges::for_each(genrePresets, [&](const char* name) {
         const auto it = std::ranges::find_if(presets, [&](const auto& p) { return std::string(p.name) == name; });
         REQUIRE(it != presets.end());
     });
 
     const auto& sweepPresets = openedm::presets::sweepSlopePresets();
-    REQUIRE(sweepPresets.size() == 24);
+    REQUIRE(sweepPresets.size() == 32);
+    const auto upliftingSweeps = std::ranges::count_if(sweepPresets, [](const auto& p) {
+        return juce::String(p.name).startsWith("Uplifting / ");
+    });
+    REQUIRE(upliftingSweeps == 8);
     const std::array<const char*, 3> autoPresets{{
-        "Trance 138 Climax Riser (16 Bar)",
-        "Psytrance Acid Laser (4 Bar)",
-        "Sub Bass Drop Reset (1 Bar)"
+        "Uplifting / 138 Climax (16 Bar)",
+        "Psy / Acid Laser (4 Bar)",
+        "Bass & Breaks / Sub Reset (1 Bar)"
     }};
     std::ranges::for_each(autoPresets, [&](const char* name) {
         const auto it = std::ranges::find_if(sweepPresets, [&](const auto& p) { return std::string(p.name) == name; });
