@@ -155,6 +155,15 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
     const float targetMix = settings.bypassed ? 0.0f : settings.mix;
     const float targetOutputGain = settings.bypassed ? 1.0f : settings.outputGain;
     const float targetInputGain = settings.bypassed ? 1.0f : settings.inputGain;
+    const bool hasSubPreserve = settings.subPreserveHz > 20.5f;
+    const float subAlpha = hasSubPreserve
+        ? static_cast<float>(1.0 - std::exp(-kTwoPi * std::clamp(settings.subPreserveHz, 20.0f, 250.0f) / sampleRate_))
+        : 0.0f;
+    const bool hasRingMod = settings.ringMix > 1.0e-5f;
+    const bool hasDrift = settings.analogDrift > 1.0e-5f;
+    const double fmInc = settings.fmRateHz / sampleRate_;
+    const double ringInc = settings.ringFrequencyHz / sampleRate_;
+    const double driftInc = 0.37 / sampleRate_;
 
     std::ranges::for_each(std::views::iota(0, numSamples), [&](int sample) {
         inputGain_ = targetInputGain + parameterSmoothing_ * (inputGain_ - targetInputGain);
@@ -167,8 +176,9 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
             const float targetAngle = settings.stereoMode == StereoMode::MidSide && channelCount == 2
                 ? std::numbers::pi_v<float> * 0.25f : 0.0f;
             stereoAngle_ = targetAngle + parameterSmoothing_ * (stereoAngle_ - targetAngle);
-            const float cosine = std::cos(stereoAngle_);
-            const float sine = std::sin(stereoAngle_);
+            const bool activeStereo = stereoAngle_ > 1.0e-6f;
+            const float cosine = activeStereo ? std::cos(stereoAngle_) : 1.0f;
+            const float sine = activeStereo ? std::sin(stereoAngle_) : 0.0f;
             const float rightInput = channelCount == 2 ? upsampled[1][phase] : 0.0f;
             const std::array<float, 2> envelopeInputs{
                 cosine * upsampled[0][phase] + sine * rightInput,
@@ -177,15 +187,19 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
             const float monoInput = std::accumulate(channelIndices.begin(), channelIndices.end(), 0.0f,
                 [&](float sum, int channel) { return sum + upsampled[channel][phase]; }) / static_cast<float>(channelCount);
 
-            const float fmOctaves = settings.fmDepth * kFmOctaves * Lfo::valueAt(settings.fmShape, fmPhase_);
-            const auto ringCarrier = static_cast<float>(std::sin(kTwoPi * ringPhase_));
-            const double nextFmPhase = fmPhase_ + settings.fmRateHz / sampleRate_;
-            const double nextRingPhase = ringPhase_ + settings.ringFrequencyHz / sampleRate_;
-            const double nextDriftPhase = driftPhase_ + 0.37 / sampleRate_;
+            const float fmOctaves = settings.fmDepth > 1.0e-5f
+                ? settings.fmDepth * kFmOctaves * Lfo::valueAt(settings.fmShape, fmPhase_)
+                : 0.0f;
+            const float ringCarrier = hasRingMod ? static_cast<float>(std::sin(kTwoPi * ringPhase_)) : 0.0f;
+            const double nextFmPhase = fmPhase_ + fmInc;
+            const double nextRingPhase = ringPhase_ + ringInc;
+            const double nextDriftPhase = driftPhase_ + driftInc;
             fmPhase_ = nextFmPhase - std::floor(nextFmPhase);
             ringPhase_ = nextRingPhase - std::floor(nextRingPhase);
             driftPhase_ = nextDriftPhase - std::floor(nextDriftPhase);
-            const float driftOct = settings.analogDrift * 0.14f * static_cast<float>(std::sin(kTwoPi * driftPhase_) + 0.35 * std::cos(kTwoPi * driftPhase_ * 2.31));
+            const float driftOct = hasDrift
+                ? settings.analogDrift * 0.14f * static_cast<float>(std::sin(kTwoPi * driftPhase_) + 0.35 * std::cos(kTwoPi * driftPhase_ * 2.31))
+                : 0.0f;
             const float spreadOct = settings.stereoSpread * 1.25f;
             const double sweepPhase = sweep_.nextPhase(sweepIncrement);
             const float progress = AutoSweep::progressAt(settings.sweep.mode, settings.sweep.bars, sweepPhase);
@@ -206,8 +220,13 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
 
                 const double lfoPhase = lfos_[band].phase();
                 const float lfoValue = lfos_[band].next(bandSettings.lfoShape, lfoIncrements[band]);
-                const float envelopeValue = envelopes_[band][0].process(settings.stereoMode == StereoMode::Linked ? monoInput : envelopeInputs[0]);
-                const float lane2Envelope = envelopes_[band][1].process(settings.stereoMode == StereoMode::Linked ? monoInput : envelopeInputs[1]);
+                const bool hasEnv = std::abs(bandSettings.envDepth) > 1.0e-5f;
+                const float envelopeValue = hasEnv
+                    ? envelopes_[band][0].process(settings.stereoMode == StereoMode::Linked ? monoInput : envelopeInputs[0])
+                    : 0.0f;
+                const float lane2Envelope = hasEnv
+                    ? envelopes_[band][1].process(settings.stereoMode == StereoMode::Linked ? monoInput : envelopeInputs[1])
+                    : 0.0f;
                 const float midiValue = bandSettings.midiSource == MidiSource::CC
                     ? midiCCs_[static_cast<size_t>(std::clamp(bandSettings.midiCC, 0, 127))]
                     : midiValues_[static_cast<size_t>(bandSettings.midiSource)];
@@ -240,10 +259,11 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
                 const float bandFm = fmApplies ? fmOctaves : 0.0f;
                 const float bandSign = band == 0 ? 1.0f : -1.0f;
                 const float targetLog = logCutoffs_[band] + bandFm + driftOct * bandSign - spreadOct * 0.5f * bandSign;
+                const float lane0Hz = std::exp2(targetLog);
                 // FM skips smoothing to retain audio-rate modulation.
-                slots[active][0].update(shapes[active], std::exp2(targetLog), sampleRate_);
+                slots[active][0].update(shapes[active], lane0Hz, sampleRate_);
                 if (fadeRemaining_[band] > 0)
-                    slots[1 - active][0].update(shapes[1 - active], std::exp2(targetLog), sampleRate_);
+                    slots[1 - active][0].update(shapes[1 - active], lane0Hz, sampleRate_);
 
                 const double shiftedLfo = lfoPhase + bandSettings.lane2Phase;
                 const float lane2Lfo = Lfo::valueAt(bandSettings.lfoShape, shiftedLfo - std::floor(shiftedLfo));
@@ -256,18 +276,18 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
                     : std::log2(sweepValue.cutoffHz) + lane2Octaves + bandSettings.lane2Offset;
                 lane2LogCutoffs_[band] = lane2Target + cutoffSmoothing[band] * (lane2LogCutoffs_[band] - lane2Target);
                 const float lane2Hz = std::exp2(lane2LogCutoffs_[band] + bandFm - driftOct * bandSign + spreadOct * 0.5f * bandSign);
-                displayedCutoffs_[0][band] = std::exp2(targetLog);
+                displayedCutoffs_[0][band] = lane0Hz;
                 displayedCutoffs_[1][band] = lane2Hz;
                 slots[active][1].update(shapes[active], lane2Hz, sampleRate_);
                 if (fadeRemaining_[band] > 0)
                     slots[1 - active][1].update(shapes[1 - active], lane2Hz, sampleRate_);
-                if (band == 1) {
-                    std::ranges::for_each(std::views::iota(0, 2), [&](int lane) {
-                        const double hz = lane == 0 ? std::exp2(targetLog) : lane2Hz;
-                        parallelB_[active][lane].update(shapes[active], hz, sampleRate_);
-                        if (fadeRemaining_[band] > 0)
-                            parallelB_[1 - active][lane].update(shapes[1 - active], hz, sampleRate_);
-                    });
+                if (band == 1 && (settings.parallel || routingMix_ > 1.0e-5f)) {
+                    parallelB_[active][0].update(shapes[active], lane0Hz, sampleRate_);
+                    parallelB_[active][1].update(shapes[active], lane2Hz, sampleRate_);
+                    if (fadeRemaining_[band] > 0) {
+                        parallelB_[1 - active][0].update(shapes[1 - active], lane0Hz, sampleRate_);
+                        parallelB_[1 - active][1].update(shapes[1 - active], lane2Hz, sampleRate_);
+                    }
                 }
                 const double increment = advanceClock ? transport.bpm / 60.0 / sampleRate_
                     / (std::max(0.03125, bandSettings.step.beatsPerStep) * std::clamp(bandSettings.step.length, 1, 16)) : 0.0;
@@ -301,6 +321,8 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
             const std::array<float, 2> lanes{
                 cosine * pre[0] + sine * pre[1], -sine * pre[0] + cosine * pre[1]
             };
+            const bool needSerial = routingMix_ < 1.0f - 1.0e-5f || !settings.parallel;
+            const bool needParallel = routingMix_ > 1.0e-5f || settings.parallel;
             std::ranges::for_each(channelIndices, [&](int channel) {
                 const auto filterBand = [&](int band, float input, bool parallelB = false) {
                     auto& slots = parallelB ? parallelB_ : filters_[band];
@@ -312,25 +334,28 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
                     return outgoing + fade * (incoming - outgoing);
                 };
                 const float a = filterBand(0, lanes[channel]);
-                const float serial = filterBand(1, a);
-                const float b = filterBand(1, lanes[channel], true);
-                const float parallel = a + parallelBlend_ * (b - a);
+                const float serial = needSerial ? filterBand(1, a) : a;
+                const float parallel = needParallel ? (a + parallelBlend_ * (filterBand(1, lanes[channel], true) - a)) : serial;
                 filtered[channel] = serial + routingMix_ * (parallel - serial);
             });
             const std::array<float, 2> decoded{
                 cosine * filtered[0] - sine * filtered[1], sine * filtered[0] + cosine * filtered[1]
             };
-            const float subAlpha = settings.subPreserveHz > 20.5f
-                ? static_cast<float>(1.0 - std::exp(-kTwoPi * std::clamp(settings.subPreserveHz, 20.0f, 250.0f) / sampleRate_))
-                : 0.0f;
             std::ranges::for_each(channelIndices, [&](int channel) {
                 const float dry = upsampled[channel][phase];
-                subPreserveLp_[channel] += subAlpha * (dry - subPreserveLp_[channel]);
+                if (hasSubPreserve) {
+                    subPreserveLp_[channel] += subAlpha * (dry - subPreserveLp_[channel]);
+                }
                 const float postColoured = colour(channel, decoded[channel], Placement::PostFilter);
-                const float ringModulated = postColoured + settings.ringMix * (postColoured * ringCarrier - postColoured);
-                const float repeated = stutter_.process(channel, ringModulated, glitchBeatPhase_, transport.bpm, sampleRate_);
-                float glitched = ringModulated + glitchMix_ * (repeated - ringModulated);
-                if (settings.subPreserveHz > 20.5f) {
+                const float ringModulated = hasRingMod
+                    ? postColoured + settings.ringMix * (postColoured * ringCarrier - postColoured)
+                    : postColoured;
+                float glitched = ringModulated;
+                if (glitchMix_ > 1.0e-5f || settings.sweep.enabled) {
+                    const float repeated = stutter_.process(channel, ringModulated, glitchBeatPhase_, transport.bpm, sampleRate_);
+                    glitched = ringModulated + glitchMix_ * (repeated - ringModulated);
+                }
+                if (hasSubPreserve) {
                     glitched += subPreserveLp_[channel] * 0.75f;
                 }
                 upsampled[channel][phase] = (dry + mix_ * (glitched - dry)) * outputGain_;

@@ -56,6 +56,12 @@ private:
     SvfCoefficients peakCoefficients_{};
     std::array<std::array<SvfState, kMaxStages>, kMaxChannels> stages_{};
     std::array<SvfState, kMaxChannels> peaks_{};
+    bool hasCached_ = false;
+    FilterShape cachedShape_{};
+    double cachedCutoffHz_ = -1.0;
+    double cachedSampleRate_ = -1.0;
+    std::array<float, kMaxStages> cachedQs_{};
+    float cachedPeakQ_ = 0.0f;
 };
 
 } // namespace openedm::core

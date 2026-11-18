@@ -803,6 +803,19 @@ EffectsPanel::EffectsPanel(OpenEdmFilterProcessor& processor)
                           [this](juce::Component* control) { addAndMakeVisible(control); });
 }
 
+void EffectsPanel::timerCallback() {
+    const float inPeak = processor_.displayInputPeak.load(std::memory_order_relaxed);
+    const float outPeak = processor_.displayOutputPeak.load(std::memory_order_relaxed);
+    if (std::abs(inPeak - lastInputPeak_) > 0.002f) {
+        lastInputPeak_ = inPeak;
+        repaint(sections_[0].area);
+    }
+    if (std::abs(outPeak - lastOutputPeak_) > 0.002f) {
+        lastOutputPeak_ = outPeak;
+        repaint(sections_[5].area);
+    }
+}
+
 void EffectsPanel::paint(juce::Graphics& g) {
     std::ranges::for_each(sections_, [&](const Section& section) {
         drawPanel(g, section.area, section.title, section.accent);

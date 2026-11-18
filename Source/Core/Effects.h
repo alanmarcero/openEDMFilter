@@ -48,6 +48,7 @@ public:
 private:
     float releaseCoefficient_ = 0.0f;
     float releasedGain_ = 1.0f;
+    float releasedSum_ = static_cast<float>(kLookahead);
     int position_ = 0;
     std::array<float, kLookahead> requiredGains_{};
     std::array<float, kLookahead> releasedGains_{};
