@@ -74,6 +74,25 @@ jobs:
       - name: Unit tests
         run: ctest --test-dir build -C Release --output-on-failure
 
+      - name: Capture preview screenshot
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path build -Recurse -Filter openedm_plugin_tests.exe | Select-Object -First 1
+          if (-not $exe) { throw "openedm_plugin_tests.exe was not built" }
+          $env:OEF_PREVIEW = Join-Path (Get-Location) "docs/screenshots/preview.png"
+          & $exe.FullName "[ui]"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload preview screenshot
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-screenshot
+          path: docs/screenshots/preview.png
+          if-no-files-found: ignore
+
       - name: Validate with pluginval
         run: |
           Invoke-WebRequest -Uri https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_Windows.zip -OutFile pluginval.zip
@@ -157,3 +176,48 @@ jobs:
           files: openEDMFilter-*.zip
           body_path: ${{ runner.temp }}/release-body.md
           generate_release_notes: true
+
+  update-preview:
+    # Commits docs/screenshots/preview.png from the Windows editor capture when UI
+    # files change on main. The macOS and Linux package jobs stay disabled; this
+    # job only needs the Windows build, which is the one that still runs.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.windows.result == 'success' }}
+    needs: windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: preview-screenshot
+          path: preview
+
+      - name: Commit refreshed preview if changed
+        run: |
+          if [ ! -f preview/preview.png ]; then
+            echo "No preview artifact; leaving the screenshot unchanged."
+            exit 0
+          fi
+          before="${{ github.event.before }}"
+          if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ]; then
+            echo "Push has no parent to compare; leaving the screenshot unchanged."
+            exit 0
+          fi
+          git diff --name-only "$before" "${{ github.sha }}" | grep -qE '^(Source|assets|Tools|tools|Tests)/' || { echo "No UI changes; keeping preview."; exit 0; }
+          mkdir -p docs/screenshots
+          cp preview/preview.png docs/screenshots/preview.png
+          if git diff --quiet -- docs/screenshots/preview.png; then
+            echo "Preview unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots/preview.png
+          git commit -m "docs: refresh preview screenshot [skip ci]"
+          git pull --rebase origin main
+          git push

@@ -346,6 +346,25 @@ TEST_CASE("Editor slot buttons and host automation rebind the visible sweep knob
     REQUIRE(gestureB.ends == 0);
     REQUIRE_THAT(processor.currentSweepSettings().cutoffStartHz, WithinAbs(2345.0f, 0.1f));
     REQUIRE_THAT((*dragging)->getValue(), WithinAbs(2345.0, 0.1));
+    if (const char* preview = std::getenv("OEF_PREVIEW")) {
+        // Factory defaults at the editor's default size. Hold the title pulse so the
+        // file does not change just because the capture time moved.
+        OpenEdmFilterProcessor fresh;
+        fresh.displayBeatPhase.store(0.0f);
+        std::unique_ptr<juce::AudioProcessorEditor> shot(fresh.createEditor());
+        shot->setSize(OpenEdmFilterProcessor::kDefaultEditorWidth, OpenEdmFilterProcessor::kDefaultEditorHeight);
+        REQUIRE(fresh.getCurrentProgram() == 0);
+        REQUIRE(shot->getWidth() == OpenEdmFilterProcessor::kDefaultEditorWidth);
+        REQUIRE(shot->getHeight() == OpenEdmFilterProcessor::kDefaultEditorHeight);
+        const auto snapshot = shot->createComponentSnapshot(shot->getLocalBounds(), true, 1.0f);
+        REQUIRE(snapshot.getWidth() == shot->getWidth());
+        REQUIRE(snapshot.getHeight() == shot->getHeight());
+        juce::FileOutputStream stream{ juce::File(preview) };
+        REQUIRE(stream.openedOk());
+        REQUIRE(stream.setPosition(0));
+        REQUIRE(stream.truncate().wasOk());
+        REQUIRE(juce::PNGImageFormat().writeImageToStream(snapshot, stream));
+    }
     if (const char* capture = std::getenv("OEF_CAPTURE")) {
         processor.setCurrentProgram(31);
         set(processor, "sweep_slot", 3.0f);
