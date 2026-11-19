@@ -17,6 +17,7 @@ enum class Placement {
 enum class ModTarget { Both, BandA, BandB };
 enum class MidiSource { Off, Velocity, Aftertouch, CC };
 enum class StereoMode { Linked, LeftRight, MidSide };
+enum class EnvelopeListen { Main, Sidechain };
 
 struct BandSettings {
     FilterShape shape{};
@@ -28,6 +29,7 @@ struct BandSettings {
     float envAttackMs = 5.0f;
     float envReleaseMs = 150.0f;
     float envDepth = 0.0f; // -1..1
+    EnvelopeListen envListen = EnvelopeListen::Main;
     MidiSource midiSource = MidiSource::Off;
     int midiCC = 1;
     float midiDepth = 0.0f;
@@ -86,8 +88,10 @@ public:
 
     void prepare(double sampleRate) noexcept;
     void reset() noexcept;
+    // sidechain may be null. A band set to Sidechain then follows the main input instead.
     void process(const EngineSettings& settings, const Transport& transport,
-                 float* const* channels, int numChannels, int numSamples) noexcept;
+                 float* const* channels, int numChannels, int numSamples,
+                 float* const* sidechain = nullptr, int sidechainChannels = 0) noexcept;
 
     // Modulated cutoff and resonance of each band at the end of the last block.
     [[nodiscard]] std::array<float, kNumBands> currentCutoffs() const noexcept;
@@ -111,6 +115,7 @@ private:
     std::array<Lfo, kNumBands> lfos_{};
     AutoSweep sweep_{};
     std::array<std::array<EnvelopeFollower, 2>, kNumBands> envelopes_{};
+    std::array<std::array<EnvelopeFollower, 2>, kNumBands> sidechainEnvelopes_{};
     std::array<float, kNumBands> logCutoffs_{}; // smoothed, in log2 Hz
     std::array<float, kNumBands> lane2LogCutoffs_{};
     std::array<std::array<float, kNumBands>, 2> displayedCutoffs_{}; // actual lane cutoff in Hz, including FM

@@ -41,6 +41,7 @@ void FilterEngine::reset() noexcept {
     fadeRemaining_ = {};
     sweep_.reset();
     envelopes_ = {};
+    sidechainEnvelopes_ = {};
     parallelB_ = {};
     lfos_ = {};
     stepPhases_ = {};
@@ -83,7 +84,8 @@ std::array<float, FilterEngine::kNumBands> FilterEngine::currentLaneCutoffs(int 
 }
 
 void FilterEngine::process(const EngineSettings& settings, const Transport& transport,
-                           float* const* channels, int numChannels, int numSamples) noexcept {
+                           float* const* channels, int numChannels, int numSamples,
+                           float* const* sidechain, int sidechainChannels) noexcept {
     const int channelCount = std::min(numChannels, MultiModeFilter::kMaxChannels);
     if (channelCount <= 0) {
         return;
@@ -144,6 +146,10 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
         std::ranges::for_each(envelopes_[band], [&](auto& envelope) {
             envelope.configure(bandSettings.envSourceHz, bandSettings.envAttackMs, bandSettings.envReleaseMs, sampleRate_);
         });
+        const double hostRate = sampleRate_ / static_cast<double>(Oversampler::kFactor);
+        std::ranges::for_each(sidechainEnvelopes_[static_cast<size_t>(band)], [&](auto& envelope) {
+            envelope.configure(bandSettings.envSourceHz, bandSettings.envAttackMs, bandSettings.envReleaseMs, hostRate);
+        });
         if (hostTimeline) {
             lfos_[band].syncToTransport(*transport.ppqPosition, effectiveLfoBeats);
             const double cycles = *transport.ppqPosition / (std::max(0.03125, bandSettings.step.beatsPerStep)
@@ -171,6 +177,27 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
         std::ranges::for_each(channelIndices, [&](int channel) {
             upsampled[channel] = oversampler_.upsample(channel, channels[channel][sample] * inputGain_);
         });
+
+        std::array<std::array<float, 2>, kNumBands> sidechainLevel{};
+        const bool sidechainAvailable = sidechain != nullptr && sidechainChannels > 0 && sidechain[0] != nullptr;
+        if (sidechainAvailable) {
+            const float left = sidechain[0][sample];
+            const float right = sidechainChannels > 1 && sidechain[1] != nullptr ? sidechain[1][sample] : left;
+            const bool midSide = settings.stereoMode == StereoMode::MidSide && sidechainChannels > 1;
+            constexpr float halfRoot = 0.70710678118f;
+            const float decodedLeft = midSide ? halfRoot * (left + right) : left;
+            const float decodedRight = midSide ? halfRoot * (right - left) : right;
+            std::ranges::for_each(bandIndices, [&](int band) {
+                const auto& bandSettings = settings.bands[static_cast<size_t>(band)];
+                if (bandSettings.envListen != EnvelopeListen::Sidechain || std::abs(bandSettings.envDepth) <= 1.0e-5f)
+                    return;
+                const float mono = 0.5f * (decodedLeft + decodedRight);
+                const float lane0 = settings.stereoMode == StereoMode::Linked ? mono : decodedLeft;
+                const float lane1 = settings.stereoMode == StereoMode::Linked ? mono : decodedRight;
+                sidechainLevel[static_cast<size_t>(band)][0] = sidechainEnvelopes_[static_cast<size_t>(band)][0].process(lane0);
+                sidechainLevel[static_cast<size_t>(band)][1] = sidechainEnvelopes_[static_cast<size_t>(band)][1].process(lane1);
+            });
+        }
 
         std::ranges::for_each(std::views::iota(0, Oversampler::kFactor), [&](int phase) {
             const float targetAngle = settings.stereoMode == StereoMode::MidSide && channelCount == 2
@@ -221,12 +248,13 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
                 const double lfoPhase = lfos_[band].phase();
                 const float lfoValue = lfos_[band].next(bandSettings.lfoShape, lfoIncrements[band]);
                 const bool hasEnv = std::abs(bandSettings.envDepth) > 1.0e-5f;
-                const float envelopeValue = hasEnv
-                    ? envelopes_[band][0].process(settings.stereoMode == StereoMode::Linked ? monoInput : envelopeInputs[0])
-                    : 0.0f;
-                const float lane2Envelope = hasEnv
-                    ? envelopes_[band][1].process(settings.stereoMode == StereoMode::Linked ? monoInput : envelopeInputs[1])
-                    : 0.0f;
+                const bool useSidechain = hasEnv && bandSettings.envListen == EnvelopeListen::Sidechain && sidechainAvailable;
+                const float envelopeValue = !hasEnv ? 0.0f
+                    : useSidechain ? sidechainLevel[static_cast<size_t>(band)][0]
+                    : envelopes_[band][0].process(settings.stereoMode == StereoMode::Linked ? monoInput : envelopeInputs[0]);
+                const float lane2Envelope = !hasEnv ? 0.0f
+                    : useSidechain ? sidechainLevel[static_cast<size_t>(band)][1]
+                    : envelopes_[band][1].process(settings.stereoMode == StereoMode::Linked ? monoInput : envelopeInputs[1]);
                 const float midiValue = bandSettings.midiSource == MidiSource::CC
                     ? midiCCs_[static_cast<size_t>(std::clamp(bandSettings.midiCC, 0, 127))]
                     : midiValues_[static_cast<size_t>(bandSettings.midiSource)];

@@ -25,6 +25,7 @@ inline constexpr const char* kEnvSource = "env_source";
 inline constexpr const char* kEnvAttack = "env_attack";
 inline constexpr const char* kEnvRelease = "env_release";
 inline constexpr const char* kEnvDepth = "env_depth";
+inline constexpr const char* kEnvInput = "env_input";
 
 inline constexpr const char* kFmRate = "fm_rate";
 inline constexpr const char* kFmDepth = "fm_depth";

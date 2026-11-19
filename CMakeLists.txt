@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(OpenEDMFilter VERSION 1.12.0 LANGUAGES C CXX)
+project(OpenEDMFilter VERSION 1.13.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -49,7 +49,7 @@ if(OEF_BUILD_PLUGIN)
         NEEDS_MIDI_INPUT TRUE
         NEEDS_MIDI_OUTPUT FALSE
         IS_MIDI_EFFECT FALSE
-        EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+        EDITOR_WANTS_KEYBOARD_FOCUS TRUE
         COPY_PLUGIN_AFTER_BUILD FALSE)
 
     target_sources(OpenEDMFilter PRIVATE
@@ -61,9 +61,24 @@ if(OEF_BUILD_PLUGIN)
         Source/Plugin/PluginProcessor.cpp
         Source/Plugin/PluginEditor.cpp)
 
+    add_library(openedm_suite STATIC
+        Source/suite/ParameterUndo.cpp
+        Source/suite/ABCompare.cpp
+        Source/suite/PresetStore.cpp
+        Source/suite/PresetBrowser.cpp
+        Source/suite/SuiteBar.cpp)
+    target_include_directories(openedm_suite PUBLIC Source/suite)
+    target_compile_definitions(openedm_suite PUBLIC
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_VST3_CAN_REPLACE_VST2=0)
+    target_link_libraries(openedm_suite PUBLIC juce::juce_audio_processors juce::juce_gui_basics)
+    set_target_properties(openedm_suite PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
     target_include_directories(OpenEDMFilter PRIVATE
         Source/Core
-        Source/Plugin)
+        Source/Plugin
+        Source/suite)
 
     target_compile_definitions(OpenEDMFilter PUBLIC
         JUCE_WEB_BROWSER=0
@@ -78,6 +93,7 @@ if(OEF_BUILD_PLUGIN)
             juce::juce_audio_utils
             juce::juce_dsp
             juce::juce_gui_basics
+            openedm_suite
         PUBLIC
             juce::juce_recommended_config_flags
             juce::juce_recommended_lto_flags
@@ -106,8 +122,8 @@ if(OEF_BUILD_TESTS)
     catch_discover_tests(openedm_tests)
 
     if(OEF_BUILD_PLUGIN)
-        add_executable(openedm_plugin_tests Tests/PluginTests.cpp)
-        target_include_directories(openedm_plugin_tests PRIVATE Source/Plugin Source/Core)
+        add_executable(openedm_plugin_tests Tests/PluginTests.cpp Tests/SuiteTests.cpp)
+        target_include_directories(openedm_plugin_tests PRIVATE Source/Plugin Source/Core Source/suite)
         target_compile_definitions(openedm_plugin_tests PRIVATE $<TARGET_PROPERTY:OpenEDMFilter,COMPILE_DEFINITIONS>)
         target_link_libraries(openedm_plugin_tests PRIVATE OpenEDMFilter juce::juce_audio_utils Catch2::Catch2WithMain)
         catch_discover_tests(openedm_plugin_tests)

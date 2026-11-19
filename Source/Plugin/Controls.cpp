@@ -76,6 +76,10 @@ void Choice::bind(Apvts& state, const juce::String& parameterId) {
     attachment_ = std::make_unique<Apvts::ComboBoxAttachment>(state, parameterId, box_);
 }
 
+void Choice::setTooltip(const juce::String& text) {
+    box_.setTooltip(text);
+}
+
 void Choice::resized() {
     auto bounds = getLocalBounds();
     if (title_.isVisible()) {

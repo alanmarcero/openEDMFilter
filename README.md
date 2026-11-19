@@ -1,8 +1,8 @@
-# openEDMFilter v1.12.0
+# openEDMFilter v1.13.0
 
 A dual filter effect for shaping transitions, resonant builds, and moving sounds. Combine two filters, tempo-synced sweeps, and modulation.
 
-[Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest) · [Download v1.12.0](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.12.0)
+[Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest) · [Download v1.13.0](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.13.0)
 
 ![openEDMFilter editor](docs/screenshots/preview.png)
 
@@ -19,7 +19,10 @@ A dual filter effect for shaping transitions, resonant builds, and moving sounds
 - **Sweep curves:** Shape cutoff and resonance with the graph or Start, End, and Slope controls. Set Start, End, Slope, and Onset for the bitcrush and glitch effects. Choose when each effect enters the sweep. Sweep bypass turns off automatic bitcrush and glitch sweeps. Manual Crush remains available.
 - **Other effects:** Add Drive, Crush, and ring modulation before or after the filters. Set the ring modulator frequency and mix. Link Crush rate to Filter A modulation. Set input gain from −24 to +24 dB, dry/wet mix, output gain, and a stereo-linked peak limiter with an adjustable ceiling.
 - **Meters and display:** View input and output peaks, filter response curves, and a live spectrum. Freeze or hide the spectrum. Drag the response marker to adjust cutoff and resonance.
-- **Presets and sessions:** Choose from 96 factory presets and 32 sweep-curve presets organized across seven dance styles (24 Uplifting + 12 each in Rolling, Progressive, Psy, Tech, Bass & Breaks, and Classic; 8 Uplifting + 4 per style for sweep curves). Controls support host automation and session recall.
+- **Presets and sessions:** Choose from 96 factory presets and 32 sweep-curve presets organized across seven dance styles (24 Uplifting + 12 each in Rolling, Progressive, Psy, Tech, Bass & Breaks, and Classic; 8 Uplifting + 4 per style for sweep curves). Controls support host automation and session recall. Save, rename, and delete your own presets in Documents/Alan Marcero/openEDMFilter/Presets. The preset list searches factory and user presets and can mark favorites. Factory presets stay read-only.
+- **Undo and A/B:** Undo and redo control edits with the header buttons or Ctrl/Cmd+Z and Shift+Ctrl/Cmd+Z. Slots A and B keep two full settings, and either slot can be copied onto the other.
+- **Sidechain envelopes:** Each filter's envelope can listen to the main input or a sidechain from another track. If no sidechain is connected, that envelope keeps following the main input.
+- **Resizable window:** Drag the editor to fit the screen. It stays readable below 800 pixels tall, the proportions are not locked, and the size is saved with the session.
 
 HOST SYNC follows host tempo and time signature. The internal clock supports 40–240 BPM. Select 2/4, 3/4, 4/4, 5/4, 6/4, 6/8, 7/8, 9/8, or 12/8. The standalone app accepts MIDI and uses the internal clock. The plugin reports 110 samples of latency.
 
@@ -33,7 +36,7 @@ The original four positions on the **A Type** and **B Type** automation lanes ke
 
 ## Install and compatibility
 
-The v1.12.0 release includes VST3, AU, LV2, and standalone packages for macOS, Windows, and Linux. The macOS package supports Apple Silicon and Intel. The Windows and Linux packages are x64.
+The v1.13.0 release includes VST3, AU, LV2, and standalone packages for macOS, Windows, and Linux. The macOS package supports Apple Silicon and Intel. The Windows and Linux packages are x64.
 
 | Platform | Formats |
 | --- | --- |
@@ -41,7 +44,7 @@ The v1.12.0 release includes VST3, AU, LV2, and standalone packages for macOS, W
 | Windows, x64 | VST3, LV2, Standalone |
 | Linux, x64 | VST3, LV2, Standalone |
 
-OpenVST Manager installs VST3 and AU. Install LV2 and the standalone app from the [release packages](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.12.0). Rescan your host after installation. Some hosts may ask you to select the plugin again in older AU sessions. The macOS AU now accepts MIDI.
+OpenVST Manager installs VST3 and AU. Install LV2 and the standalone app from the [release packages](https://github.com/alanmarcero/openEDMFilter/releases/tag/v1.13.0). Rescan your host after installation. Some hosts may ask you to select the plugin again in older AU sessions. The macOS AU now accepts MIDI. Route a sidechain in the host when an envelope should follow another track.
 
 ## License
 
