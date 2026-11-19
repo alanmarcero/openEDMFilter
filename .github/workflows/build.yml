@@ -138,6 +138,16 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Write release notes
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_REPO: ${{ github.repository }}
+        run: python3 scripts/release_notes.py --tag "$RELEASE_TAG" --repo "$RELEASE_REPO" --output "$RUNNER_TEMP/release-body.md"
+
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
@@ -145,5 +155,5 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: openEDMFilter-*.zip
-          body: '![openEDMFilter native editor](https://raw.githubusercontent.com/alanmarcero/openEDMFilter/${{ github.ref_name }}/docs/screenshots/preview.png)'
+          body_path: ${{ runner.temp }}/release-body.md
           generate_release_notes: true
