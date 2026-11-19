@@ -493,3 +493,45 @@ TEST_CASE("Routing and stereo automation stay finite under combined modulation",
         }
     }
 }
+
+TEST_CASE("Sidechain envelope follows the sidechain and falls back when it is absent", "[engine]") {
+    auto settings = transparentSettings();
+    settings.bands[0].cutoffHz = 1000.0f;
+    settings.bands[0].envDepth = 0.2f;
+    settings.bands[0].envListen = EnvelopeListen::Sidechain;
+    constexpr int length = 12000;
+
+    auto silent = std::vector<float>(static_cast<size_t>(length), 0.0f);
+    auto loud = sine(1000.0, length);
+    float* loudSide[] { loud.data() };
+    float* silentSide[] { silent.data() };
+
+    FilterEngine fromSidechain;
+    fromSidechain.prepare(kSampleRate);
+    auto main = silent;
+    float* mainChannels[] { main.data() };
+    fromSidechain.process(settings, {}, mainChannels, 1, length, loudSide, 1);
+    REQUIRE(fromSidechain.currentCutoffs()[0] > 1100.0f);
+
+    FilterEngine fallback;
+    fallback.prepare(kSampleRate);
+    auto fallbackMain = loud;
+    float* fallbackChannels[] { fallbackMain.data() };
+    fallback.process(settings, {}, fallbackChannels, 1, length, nullptr, 0);
+    REQUIRE(fallback.currentCutoffs()[0] > 1100.0f);
+
+    FilterEngine connectedSilence;
+    connectedSilence.prepare(kSampleRate);
+    auto loudMain = loud;
+    float* loudMainChannels[] { loudMain.data() };
+    connectedSilence.process(settings, {}, loudMainChannels, 1, length, silentSide, 1);
+    REQUIRE_THAT(connectedSilence.currentCutoffs()[0], WithinAbs(1000.0f, 0.5f));
+
+    settings.bands[0].envListen = EnvelopeListen::Main;
+    FilterEngine mainOnly;
+    mainOnly.prepare(kSampleRate);
+    auto quiet = silent;
+    float* quietChannels[] { quiet.data() };
+    mainOnly.process(settings, {}, quietChannels, 1, length, loudSide, 1);
+    REQUIRE_THAT(mainOnly.currentCutoffs()[0], WithinAbs(1000.0f, 0.5f));
+}

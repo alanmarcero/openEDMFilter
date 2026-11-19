@@ -1,9 +1,12 @@
 #pragma once
 
 #include "FilterEngine.h"
+#include "ABCompare.h"
+#include "ParameterUndo.h"
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
@@ -11,6 +14,13 @@
 class OpenEdmFilterProcessor : public juce::AudioProcessor {
 public:
     static constexpr size_t kSpectrumDisplayBins = 128;
+
+    static constexpr int kDefaultEditorWidth = 1180;
+    static constexpr int kDefaultEditorHeight = 700;
+    static constexpr int kMinEditorWidth = 1100;
+    static constexpr int kMinEditorHeight = 640;
+    static constexpr int kMaxEditorWidth = 1800;
+    static constexpr int kMaxEditorHeight = 1200;
 
     OpenEdmFilterProcessor();
 
@@ -40,6 +50,22 @@ public:
 
     [[nodiscard]] openedm::core::AutoSweepSettings currentSweepSettings() const noexcept;
     [[nodiscard]] int currentSweepSlot() const noexcept;
+
+    void undoEdit() { editHistory_.undo(); }
+    void redoEdit() { editHistory_.redo(); }
+    [[nodiscard]] bool canUndoEdit() const { return editHistory_.canUndo(); }
+    [[nodiscard]] bool canRedoEdit() const { return editHistory_.canRedo(); }
+    void flushEdits() { editHistory_.flush(); }
+    void editParameters(const std::function<void()>& edit, const juce::String& name) { editHistory_.performEdit(edit, name); }
+    void toggleAB();
+    void copyBetweenSlots(int from, int to);
+    [[nodiscard]] int abSlot() const noexcept { return ab_.active(); }
+    void setEditorSize(int width, int height) noexcept;
+    [[nodiscard]] int editorWidth() const noexcept { return editorWidth_.load(); }
+    [[nodiscard]] int editorHeight() const noexcept { return editorHeight_.load(); }
+    [[nodiscard]] bool isSidechainConnected() const noexcept;
+    [[nodiscard]] juce::ValueTree parameterSnapshot() const { return editHistory_.captureParameters(); }
+    void applyParameterSnapshot(const juce::ValueTree& snapshot, const juce::String& name);
 
     juce::AudioProcessorValueTreeState parameters;
 
@@ -76,6 +102,7 @@ private:
         std::atomic<float>* envAttack;
         std::atomic<float>* envRelease;
         std::atomic<float>* envDepth;
+        std::atomic<float>* envInput;
     };
 
     struct SweepParameters {
@@ -140,6 +167,10 @@ private:
         std::array<std::atomic<float>*, 16> steps{};
     };
 
+    suite::ABCompare ab_;
+    suite::ParameterUndo editHistory_;
+    std::atomic<int> editorWidth_ { kDefaultEditorWidth };
+    std::atomic<int> editorHeight_ { kDefaultEditorHeight };
     ParameterValues values_;
     std::array<ModulationParameters, 2> modulation_{};
     std::atomic<float>* routing_{};

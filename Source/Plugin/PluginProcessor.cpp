@@ -13,8 +13,10 @@ namespace params = openedm::params;
 OpenEdmFilterProcessor::OpenEdmFilterProcessor()
     : AudioProcessor(BusesProperties()
                          .withInput("Input", juce::AudioChannelSet::stereo(), true)
+                         .withInput("Sidechain", juce::AudioChannelSet::stereo(), false)
                          .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       parameters(*this, nullptr, "openEDMFilter", params::createParameterLayout()),
+      editHistory_(*this),
       values_([this] {
           const auto raw = [this](const juce::String& id) { return parameters.getRawParameterValue(id); };
           const auto bandValues = [&](int band) {
@@ -23,7 +25,8 @@ OpenEdmFilterProcessor::OpenEdmFilterProcessor()
                   bandRaw(params::kBypass), bandRaw(params::kType), bandRaw(params::kExtendedType), bandRaw(params::kSlope), bandRaw(params::kCutoff),
                   bandRaw(params::kResonance), bandRaw(params::kWidth), bandRaw(params::kLfoShape),
                   bandRaw(params::kLfoRate), bandRaw(params::kLfoDepth), bandRaw(params::kEnvSource),
-                  bandRaw(params::kEnvAttack), bandRaw(params::kEnvRelease), bandRaw(params::kEnvDepth)
+                  bandRaw(params::kEnvAttack), bandRaw(params::kEnvRelease), bandRaw(params::kEnvDepth),
+                  bandRaw(params::kEnvInput)
               };
           };
           const auto sweepValues = [&](int slot) {
@@ -65,6 +68,14 @@ OpenEdmFilterProcessor::OpenEdmFilterProcessor()
     });
     setLatencySamples(core::FilterEngine::kLatencySamples);
     parameters.state.setProperty("barsLayout", params::kSweepBarsLayout, nullptr);
+    editHistory_.setHooks(
+        [this] { return currentProgram_.load(); },
+        [this](int program) { currentProgram_ = program; },
+        [this] { return ab_.active(); },
+        [this](int slot) { ab_.setActive(slot); },
+        [this] { return ab_.toValueTree(); },
+        [this](const juce::ValueTree& tree) { ab_.fromValueTree(tree, editHistory_.captureParameters()); });
+    ab_.reset(editHistory_.captureParameters());
 }
 
 void OpenEdmFilterProcessor::prepareToPlay(double sampleRate, int) {
@@ -91,9 +102,54 @@ void OpenEdmFilterProcessor::prepareToPlay(double sampleRate, int) {
 }
 
 bool OpenEdmFilterProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const {
-    const auto output = layouts.getMainOutputChannelSet();
-    const bool isMonoOrStereo = output == juce::AudioChannelSet::mono() || output == juce::AudioChannelSet::stereo();
-    return isMonoOrStereo && layouts.getMainInputChannelSet() == output;
+    const auto mainOut = layouts.getMainOutputChannelSet();
+    const auto mainIn = layouts.getMainInputChannelSet();
+    const bool mainOk = (mainOut == juce::AudioChannelSet::mono() || mainOut == juce::AudioChannelSet::stereo())
+        && mainIn == mainOut;
+    if (!mainOk)
+        return false;
+    if (layouts.inputBuses.size() < 2)
+        return true;
+    const auto sidechain = layouts.getChannelSet(true, 1);
+    return sidechain.isDisabled()
+        || sidechain == juce::AudioChannelSet::mono()
+        || sidechain == juce::AudioChannelSet::stereo();
+}
+
+bool OpenEdmFilterProcessor::isSidechainConnected() const noexcept {
+    if (getBusCount(true) < 2)
+        return false;
+    const auto* bus = getBus(true, 1);
+    return bus != nullptr && bus->isEnabled() && bus->getNumberOfChannels() > 0;
+}
+
+void OpenEdmFilterProcessor::setEditorSize(int width, int height) noexcept {
+    editorWidth_ = juce::jlimit(kMinEditorWidth, kMaxEditorWidth, width);
+    editorHeight_ = juce::jlimit(kMinEditorHeight, kMaxEditorHeight, height);
+}
+
+void OpenEdmFilterProcessor::toggleAB() {
+    editHistory_.performEdit([&] {
+        ab_.remember(editHistory_.captureParameters(), ab_.active());
+        ab_.setActive(1 - ab_.active());
+        editHistory_.restore(ab_.slot(ab_.active()));
+    }, "A/B");
+}
+
+void OpenEdmFilterProcessor::copyBetweenSlots(int from, int to) {
+    from = juce::jlimit(0, 1, from);
+    to = juce::jlimit(0, 1, to);
+    editHistory_.performEdit([&] {
+        ab_.remember(editHistory_.captureParameters(), ab_.active());
+        const auto source = ab_.slot(from);
+        ab_.remember(source, to);
+        if (ab_.active() == to)
+            editHistory_.restore(source);
+    }, "Copy");
+}
+
+void OpenEdmFilterProcessor::applyParameterSnapshot(const juce::ValueTree& snapshot, const juce::String& name) {
+    editHistory_.performEdit([&] { editHistory_.restore(snapshot); }, name);
 }
 
 int OpenEdmFilterProcessor::currentSweepSlot() const noexcept {
@@ -269,7 +325,7 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
     const auto choice = [](const std::atomic<float>* value) { return static_cast<int>(value->load()); };
 
     const auto bandSettings = [&](const BandParameters& band) {
-        return core::BandSettings{
+        core::BandSettings settings{
             core::FilterShape{ !isOn(band.bypass), static_cast<core::FilterType>(params::effectiveType(choice(band.type), choice(band.extendedType))),
                                static_cast<core::FilterSlope>(choice(band.slope)), band.resonance->load(),
                                band.width->load() },
@@ -282,6 +338,8 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
             band.envRelease->load(),
             band.envDepth->load()
         };
+        settings.envListen = static_cast<core::EnvelopeListen>(choice(band.envInput));
+        return settings;
     };
 
     core::EngineSettings settings{
@@ -309,7 +367,24 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
     settings.subPreserveHz = values_.subPreserve->load();
     settings.analogDrift = values_.analogDrift->load();
     settings.stereoSpread = values_.stereoSpread->load();
-    updateInputAnalysis(buffer, settings.bypassed ? 1.0f : settings.inputGain);
+
+    const int layoutChannels = getTotalNumInputChannels();
+    const bool bufferMatchesLayout = layoutChannels > 0 && buffer.getNumChannels() >= layoutChannels;
+    juce::AudioBuffer<float> mainBuffer;
+    if (bufferMatchesLayout)
+        mainBuffer = getBusBuffer(buffer, true, 0);
+    else
+        mainBuffer = juce::AudioBuffer<float>(buffer.getArrayOfWritePointers(),
+                                              juce::jmin(2, buffer.getNumChannels()), buffer.getNumSamples());
+    float* sidechainBase[2] {};
+    int sidechainChannels = 0;
+    if (bufferMatchesLayout && isSidechainConnected()) {
+        auto sidechainBuffer = getBusBuffer(buffer, true, 1);
+        sidechainChannels = juce::jmin(2, sidechainBuffer.getNumChannels());
+        for (int channel = 0; channel < sidechainChannels; ++channel)
+            sidechainBase[channel] = sidechainBuffer.getWritePointer(channel);
+    }
+    updateInputAnalysis(mainBuffer, settings.bypassed ? 1.0f : settings.inputGain);
 
     settings.parallel = isOn(routing_);
     settings.parallelBlend = parallelBlend_->load();
@@ -372,14 +447,18 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
     const auto renderUntil = [&](int end) {
         if (end <= rendered) return;
         std::array<float*, 2> channels{};
-        const int count = std::min(2, buffer.getNumChannels());
+        const int count = std::min(2, mainBuffer.getNumChannels());
         std::ranges::for_each(std::views::iota(0, count), [&](int channel) {
-            channels[static_cast<size_t>(channel)] = buffer.getWritePointer(channel) + rendered;
+            channels[static_cast<size_t>(channel)] = mainBuffer.getWritePointer(channel) + rendered;
         });
+        float* sidechainPtrs[2] {};
+        for (int channel = 0; channel < sidechainChannels; ++channel)
+            sidechainPtrs[channel] = sidechainBase[channel] + rendered;
         auto segmentTransport = transport;
         if (segmentTransport.ppqPosition.has_value() && transport.playing)
             *segmentTransport.ppqPosition += rendered / processingSampleRate_ * transport.bpm / 60.0;
-        engine_.process(settings, segmentTransport, channels.data(), count, end - rendered);
+        engine_.process(settings, segmentTransport, channels.data(), count, end - rendered,
+                        sidechainChannels > 0 ? sidechainPtrs : nullptr, sidechainChannels);
         rendered = end;
     };
     std::ranges::for_each(midi, [&](const auto metadata) {
@@ -388,7 +467,7 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
     });
     renderUntil(buffer.getNumSamples());
     midi.clear();
-    updateOutputMeter(buffer);
+    updateOutputMeter(mainBuffer);
 
     const auto cutoffs = engine_.currentCutoffs();
     const auto resonances = engine_.currentResonances();
@@ -422,8 +501,10 @@ void OpenEdmFilterProcessor::setCurrentProgram(int index) {
     if (index < 0 || index >= static_cast<int>(presets.size())) {
         return;
     }
-    currentProgram_ = index;
-    openedm::presets::apply(presets[static_cast<size_t>(index)], parameters);
+    editHistory_.performEdit([&] {
+        currentProgram_ = index;
+        openedm::presets::apply(presets[static_cast<size_t>(index)], parameters);
+    }, "Preset");
 }
 
 const juce::String OpenEdmFilterProcessor::getProgramName(int index) {
@@ -435,10 +516,16 @@ const juce::String OpenEdmFilterProcessor::getProgramName(int index) {
 }
 
 void OpenEdmFilterProcessor::getStateInformation(juce::MemoryBlock& destData) {
+    ab_.remember(editHistory_.captureParameters(), ab_.active());
     auto state = parameters.copyState();
     state.setProperty("program", currentProgram_.load(), nullptr);
     state.setProperty("preset_catalog_version", 2, nullptr);
     state.setProperty("barsLayout", params::kSweepBarsLayout, nullptr);
+    state.setProperty("editorWidth", editorWidth_.load(), nullptr);
+    state.setProperty("editorHeight", editorHeight_.load(), nullptr);
+    if (auto existing = state.getChildWithName("AB"); existing.isValid())
+        state.removeChild(existing, nullptr);
+    state.appendChild(ab_.toValueTree(), nullptr);
     const auto xml = state.createXml();
     copyXmlToBinary(*xml, destData);
 }
@@ -463,6 +550,18 @@ void OpenEdmFilterProcessor::setStateInformation(const void* data, int sizeInByt
     const int savedProgram = static_cast<int>(state.getProperty("program", 0));
     currentProgram_ = catalogVersion < 2 ? 0 : juce::jlimit(0, std::max(0, getNumPrograms() - 1), savedProgram);
     parameters.replaceState(state);
+    const int width = static_cast<int>(state.getProperty("editorWidth", 0));
+    const int height = static_cast<int>(state.getProperty("editorHeight", 0));
+    if (width >= kMinEditorWidth && width <= kMaxEditorWidth)
+        editorWidth_ = width;
+    if (height >= kMinEditorHeight && height <= kMaxEditorHeight)
+        editorHeight_ = height;
+    const auto fallback = editHistory_.captureParameters();
+    if (auto ab = state.getChildWithName("AB"); ab.isValid())
+        ab_.fromValueTree(ab, fallback);
+    else
+        ab_.reset(fallback);
+    editHistory_.clear();
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() {

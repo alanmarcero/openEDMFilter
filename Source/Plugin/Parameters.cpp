@@ -199,6 +199,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     addFloat(layout, kSubPreserve, "Sub Preserve", skewedRange(20.0f, 250.0f, 80.0f), 20.0f, kFormatHz, 6);
     addFloat(layout, kAnalogDrift, "Analog Drift", { 0.0f, 1.0f }, 0.0f, kFormatPercent, 6);
     addFloat(layout, kStereoSpread, "Stereo Spread", { -1.0f, 1.0f }, 0.0f, kFormatBipolar, 6);
+    for (int band = 0; band < 2; ++band)
+        addChoice(layout, bandId(band, kEnvInput), band == 0 ? "A Env Input" : "B Env Input",
+                  { "Main", "Sidechain" }, 0, 7);
     return layout;
 }
 

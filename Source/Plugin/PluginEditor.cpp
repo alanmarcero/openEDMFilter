@@ -3,25 +3,22 @@
 #include "Presets.h"
 #include "Theme.h"
 #include "BinaryData.h"
+#include <vector>
 
 namespace {
 
 namespace theme = openedm::theme;
 
-constexpr int kEditorWidth = 1200;
-constexpr int kEditorHeight = 1000;
-constexpr int kMargin = 12;
-const juce::Rectangle<int> pulseArea{ 170, 13, 79, 37 };
-constexpr int kHeaderHeight = 40;
-constexpr int kResponseHeight = 140;
-constexpr int kSweepHeight = 320;
-constexpr int kBandHeight = 248;
+suite::Colours suiteColours() {
+    return { theme::kBackground, theme::kPanel, theme::kPanelEdge, theme::kText, theme::kTextDim, theme::kAccentA };
+}
 
 } // namespace
 
 OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit)
     : AudioProcessorEditor(processorToEdit),
       processor_(processorToEdit),
+      presetStore_(suite::PresetStore::defaultDirectory("openEDMFilter")),
       masterBypass_(processorToEdit.parameters, openedm::params::kMasterBypass, "BYPASS", theme::kAccentOut),
       inertia_(processorToEdit.parameters, openedm::params::kInertia, "INERTIA", theme::kAccentA),
       response_(processorToEdit),
@@ -31,8 +28,29 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
       effects_(processorToEdit) {
     setLookAndFeel(&lookAndFeel_);
     faceplate_ = juce::ImageCache::getFromMemory(BinaryData::analogcyberfaceplate_png, BinaryData::analogcyberfaceplate_pngSize);
-
     pulse_ = juce::Drawable::createFromImageData(BinaryData::filterpulse_svg, BinaryData::filterpulse_svgSize);
+
+    std::vector<juce::String> factoryNames;
+    for (const auto& preset : openedm::presets::factoryPresets())
+        factoryNames.emplace_back(preset.name);
+    presetBrowser_ = std::make_unique<suite::PresetBrowser>(presetStore_, std::move(factoryNames), suiteColours());
+    presetBrowser_->captureState = [this] { return processor_.parameterSnapshot(); };
+    presetBrowser_->onFactoryPreset = [this](int index) { processor_.setCurrentProgram(index); };
+    presetBrowser_->onUserPreset = [this](const juce::ValueTree& snapshot) { processor_.applyParameterSnapshot(snapshot, "User preset"); };
+    addChildComponent(*presetBrowser_);
+
+    suiteBar_.onUndo = [this] { processor_.undoEdit(); };
+    suiteBar_.onRedo = [this] { processor_.redoEdit(); };
+    suiteBar_.onShowA = [this] { if (processor_.abSlot() != 0) processor_.toggleAB(); };
+    suiteBar_.onShowB = [this] { if (processor_.abSlot() != 1) processor_.toggleAB(); };
+    suiteBar_.onCopyAToB = [this] { processor_.copyBetweenSlots(0, 1); };
+    suiteBar_.onCopyBToA = [this] { processor_.copyBetweenSlots(1, 0); };
+    suiteBar_.onPresets = [this] {
+        presetBrowserVisible_ = !presetBrowserVisible_;
+        resized();
+    };
+    suiteBar_.setActiveSlot(processor_.abSlot());
+
     openedm::presets::populateComboMenu(presetBox_, openedm::presets::factoryPresets());
     presetBox_.setComponentID("factoryPreset");
     presetBox_.setColour(juce::ComboBox::outlineColourId, theme::kPanelEdge);
@@ -87,6 +105,8 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     freezeSpectrumButton_.setTooltip("Hold the current spectrum trace");
     freezeSpectrumButton_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentB);
     freezeSpectrumButton_.onClick = [this] { processor_.spectrumFrozen.store(freezeSpectrumButton_.getToggleState()); };
+
+    addAndMakeVisible(suiteBar_);
     addAndMakeVisible(advancedButton_);
     addAndMakeVisible(spectrumButton_);
     addAndMakeVisible(freezeSpectrumButton_);
@@ -100,19 +120,53 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     addAndMakeVisible(bandA_);
     addAndMakeVisible(bandB_);
     addAndMakeVisible(effects_);
-    setSize(kEditorWidth, kEditorHeight);
+
+    setWantsKeyboardFocus(true);
+    addKeyListener(this);
+    setResizeLimits(OpenEdmFilterProcessor::kMinEditorWidth, OpenEdmFilterProcessor::kMinEditorHeight,
+                    OpenEdmFilterProcessor::kMaxEditorWidth, OpenEdmFilterProcessor::kMaxEditorHeight);
+    setResizable(true, true);
+    setSize(processor_.editorWidth(), processor_.editorHeight());
     startTimerHz(30);
 }
 
 OpenEdmFilterEditor::~OpenEdmFilterEditor() {
     stopTimer();
+    removeKeyListener(this);
     setLookAndFeel(nullptr);
+}
+
+bool OpenEdmFilterEditor::keyPressed(const juce::KeyPress& key) {
+    const auto code = key.getKeyCode();
+    const bool isZ = code == 'z' || code == 'Z';
+    if (!key.getModifiers().isCommandDown() || !isZ)
+        return false;
+    if (key.getModifiers().isShiftDown())
+        processor_.redoEdit();
+    else
+        processor_.undoEdit();
+    return true;
+}
+
+bool OpenEdmFilterEditor::keyPressed(const juce::KeyPress& key, juce::Component* originating) {
+    if (dynamic_cast<juce::TextEditor*>(originating) != nullptr)
+        return false;
+    return keyPressed(key);
 }
 
 void OpenEdmFilterEditor::timerCallback() {
     const auto id = processor_.getCurrentProgram() + 1;
-    if (presetBox_.getSelectedId() != id) presetBox_.setSelectedId(id, juce::dontSendNotification);
-    repaint(pulseArea);
+    if (presetBox_.getSelectedId() != id)
+        presetBox_.setSelectedId(id, juce::dontSendNotification);
+    suiteBar_.setHistoryEnabled(processor_.canUndoEdit(), processor_.canRedoEdit());
+    suiteBar_.setActiveSlot(processor_.abSlot());
+    if (!applyingStateSize_
+        && (getWidth() != processor_.editorWidth() || getHeight() != processor_.editorHeight())) {
+        applyingStateSize_ = true;
+        setSize(processor_.editorWidth(), processor_.editorHeight());
+        applyingStateSize_ = false;
+    }
+    repaint(pulseArea_);
 }
 
 void OpenEdmFilterEditor::paint(juce::Graphics& g) {
@@ -123,61 +177,99 @@ void OpenEdmFilterEditor::paint(juce::Graphics& g) {
     g.setColour(theme::kPanelEdge);
     g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(4), 5, 1);
 
-    if (pulse_ && g.clipRegionIntersects(pulseArea)) {
+    if (pulse_ && !pulseArea_.isEmpty() && g.clipRegionIntersects(pulseArea_)) {
         const float beat = processor_.animationBeatPhase(juce::Time::getMillisecondCounterHiRes() * 0.001);
         const float motion = std::exp(-5.0f * beat);
-        auto frame = pulseArea.toFloat().reduced(3, 2);
+        auto frame = pulseArea_.toFloat().reduced(3, 2);
         frame = frame.withSizeKeepingCentre(frame.getWidth(), frame.getHeight() * (0.78f + 0.22f * motion));
         pulse_->drawWithin(g, frame, juce::RectanglePlacement::stretchToFit, 0.72f + 0.28f * motion);
     }
-    const auto header = getLocalBounds().reduced(kMargin, 0).removeFromTop(kHeaderHeight + kMargin).withTrimmedTop(kMargin);
-    g.setFont(juce::FontOptions(24.0f, juce::Font::bold));
+    auto title = titleArea_;
+    g.setFont(juce::FontOptions(22.0f, juce::Font::bold));
     g.setColour(theme::kText);
-    g.drawText("open", header, juce::Justification::centredLeft);
+    g.drawText("open", title, juce::Justification::centredLeft);
     const int openWidth = juce::GlyphArrangement::getStringWidthInt(g.getCurrentFont(), "open");
     g.setColour(theme::kAccentA);
-    g.drawText("EDM", header.withTrimmedLeft(openWidth), juce::Justification::centredLeft);
+    g.drawText("EDM", title.withTrimmedLeft(openWidth), juce::Justification::centredLeft);
     const int edmWidth = juce::GlyphArrangement::getStringWidthInt(g.getCurrentFont(), "EDM");
     g.setColour(theme::kAccentB);
-    g.drawText("Filter", header.withTrimmedLeft(openWidth + edmWidth), juce::Justification::centredLeft);
+    g.drawText("Filter", title.withTrimmedLeft(openWidth + edmWidth), juce::Justification::centredLeft);
 }
 
 void OpenEdmFilterEditor::resized() {
-    auto bounds = getLocalBounds().reduced(kMargin);
-    auto header = bounds.removeFromTop(kHeaderHeight);
-    nextPresetBtn_.setBounds(header.removeFromRight(62).withSizeKeepingCentre(62, 36));
-    header.removeFromRight(4);
-    presetBox_.setBounds(header.removeFromRight(256).withSizeKeepingCentre(256, 36));
-    header.removeFromRight(4);
-    prevPresetBtn_.setBounds(header.removeFromRight(76).withSizeKeepingCentre(76, 36));
-    header.removeFromRight(4);
-    freezeSpectrumButton_.setBounds(header.removeFromRight(76).withSizeKeepingCentre(76, 36));
-    header.removeFromRight(4);
-    spectrumButton_.setBounds(header.removeFromRight(88).withSizeKeepingCentre(88, 36));
-    header.removeFromRight(6);
-    inertia_.setBounds(header.removeFromRight(80));
-    header.removeFromRight(6);
-    masterBypass_.setBounds(header.removeFromRight(72));
-    header.removeFromRight(6);
-    advancedButton_.setBounds(header.removeFromRight(164).withSizeKeepingCentre(164, 36));
+    if (!applyingStateSize_)
+        processor_.setEditorSize(getWidth(), getHeight());
+
+    const int margin = getWidth() < 1100 ? 8 : 12;
+    auto bounds = getLocalBounds().reduced(margin);
+    headerHeight_ = 76;
+    auto header = bounds.removeFromTop(headerHeight_);
+    auto row1 = header.removeFromTop(36);
+    header.removeFromTop(4);
+    auto row2 = header.removeFromTop(36);
+
+    const int titleText = juce::GlyphArrangement::getStringWidthInt(juce::Font(juce::FontOptions(22.0f, juce::Font::bold)), "openEDMFilter");
+    titleArea_ = row1.removeFromLeft(juce::jlimit(160, 210, titleText + 4));
+    pulseArea_ = row1.removeFromLeft(56);
+    row1.removeFromLeft(4);
+
+    suiteBar_.setBounds(row1.removeFromRight(juce::jmin(suiteBar_.preferredWidth(), row1.getWidth())));
+    row1.removeFromRight(4);
+    nextPresetBtn_.setBounds(row1.removeFromRight(52));
+    row1.removeFromRight(4);
+    prevPresetBtn_.setBounds(row1.removeFromLeft(76));
+    row1.removeFromLeft(4);
+    presetBox_.setBounds(row1);
+
+    auto place = [](juce::Rectangle<int>& row, juce::Component& control, int width) {
+        auto cell = row.removeFromRight(width);
+        row.removeFromRight(4);
+        control.setBounds(cell.withSizeKeepingCentre(cell.getWidth(), 36));
+    };
+    place(row2, freezeSpectrumButton_, 72);
+    place(row2, spectrumButton_, 84);
+    place(row2, inertia_, 76);
+    place(row2, masterBypass_, 72);
+    place(row2, advancedButton_, juce::jmin(168, juce::jmax(120, row2.getWidth())));
 
     bounds.removeFromTop(4);
-    response_.setBounds(bounds.removeFromTop(kResponseHeight));
-    bounds.removeFromTop(10);
-    sweep_.setBounds(bounds.removeFromTop(kSweepHeight));
-    bounds.removeFromTop(10);
-    auto bands = bounds.removeFromTop(kBandHeight);
-    bandA_.setBounds(bands.removeFromLeft((bands.getWidth() - kMargin) / 2));
-    bands.removeFromLeft(kMargin);
+    const int gap = 4;
+    const int available = bounds.getHeight() - gap * 3;
+    const int responseMin = 64;
+    const int sweepMin = 190;
+    const int bandMin = 180;
+    const int effectsMin = 84;
+    const int extra = juce::jmax(0, available - (responseMin + sweepMin + bandMin + effectsMin));
+    const int responseH = responseMin + extra * 15 / 100;
+    const int sweepH = sweepMin + extra * 40 / 100;
+    const int bandH = bandMin + extra * 30 / 100;
+    response_.setBounds(bounds.removeFromTop(responseH));
+    bounds.removeFromTop(gap);
+    sweep_.setBounds(bounds.removeFromTop(sweepH));
+    bounds.removeFromTop(gap);
+    auto bands = bounds.removeFromTop(bandH);
+    bandA_.setBounds(bands.removeFromLeft((bands.getWidth() - gap) / 2));
+    bands.removeFromLeft(gap);
     bandB_.setBounds(bands);
-    bounds.removeFromTop(10);
+    bounds.removeFromTop(gap);
     effects_.setBounds(bounds);
+
+    if (presetBrowser_ != nullptr) {
+        const int width = juce::jmin(380, getWidth() - margin * 2);
+        const int height = juce::jlimit(280, 480, getHeight() - headerHeight_ - margin * 2);
+        presetBrowser_->setBounds(getWidth() - width - margin, headerHeight_ + margin, width, height);
+        presetBrowser_->setVisible(presetBrowserVisible_);
+        if (presetBrowserVisible_)
+            presetBrowser_->toFront(false);
+    }
     if (advancedControls_) {
-        const auto area = getLocalBounds().reduced(kMargin).withTrimmedTop(kHeaderHeight + 4);
-        constexpr float scale = 1.8f; // JUCE's parameter menu uses a 20-pixel control.
-        const int scaledW = juce::roundToInt(area.getWidth() / scale);
-        const int scaledH = (juce::roundToInt(area.getHeight() / scale) / 40) * 40;
-        advancedControls_->setBounds(0, 0, scaledW, scaledH);
-        advancedControls_->setTransform(juce::AffineTransform::scale(scale).translated(float(area.getX()), float(area.getY())));
+        const auto overlay = getLocalBounds().reduced(margin).withTrimmedTop(headerHeight_ + 4);
+        constexpr float scale = 1.8f;
+        const int scaledW = juce::roundToInt(overlay.getWidth() / scale);
+        const int scaledH = (juce::roundToInt(overlay.getHeight() / scale) / 40) * 40;
+        advancedControls_->setBounds(0, 0, juce::jmax(40, scaledW), juce::jmax(40, scaledH));
+        advancedControls_->setTransform(juce::AffineTransform::scale(scale).translated(float(overlay.getX()), float(overlay.getY())));
+        if (advancedControls_->isVisible())
+            advancedControls_->toFront(false);
     }
 }

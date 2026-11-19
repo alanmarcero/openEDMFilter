@@ -130,6 +130,7 @@ private:
     Knob envAttack_;
     Knob envRelease_;
     Knob envDepth_;
+    Choice envListen_;
     juce::Rectangle<int> filterArea_;
     juce::Rectangle<int> lfoArea_;
     juce::Rectangle<int> envelopeArea_;

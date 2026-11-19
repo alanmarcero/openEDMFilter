@@ -603,7 +603,9 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
         const int idx = slopePresetBox_.getSelectedId() - 1;
         const auto& presets = openedm::presets::sweepSlopePresets();
         if (idx >= 0 && idx < static_cast<int>(presets.size())) {
-            openedm::presets::applyPartial(presets[static_cast<size_t>(idx)], processor_.parameters);
+            processor_.editParameters([&] {
+                openedm::presets::applyPartial(presets[static_cast<size_t>(idx)], processor_.parameters);
+            }, "Sweep preset");
         }
     };
 
@@ -715,6 +717,7 @@ BandPanel::BandPanel(Apvts& state, int band)
       envAttack_(state, params::bandId(band, params::kEnvAttack), "Attack", accent_),
       envRelease_(state, params::bandId(band, params::kEnvRelease), "Release", accent_),
       envDepth_(state, params::bandId(band, params::kEnvDepth), "Depth", accent_),
+      envListen_(state, params::bandId(band, params::kEnvInput), "Listen", accent_),
       bypassWatcher_(*state.getParameter(params::bandId(band, params::kBypass)), [this](float isBypassed) {
           const float alpha = isBypassed > 0.5f ? 0.72f : 1.0f;
           std::ranges::for_each(getChildren(), [&](juce::Component* control) {
@@ -725,8 +728,9 @@ BandPanel::BandPanel(Apvts& state, int band)
       }) {
     std::ranges::for_each(std::initializer_list<juce::Component*>{
                               &bypass_, &type_, &slope_, &cutoff_, &resonance_, &width_, &lfoShape_, &lfoRate_,
-                              &lfoDepth_, &envSource_, &envAttack_, &envRelease_, &envDepth_ },
+                              &lfoDepth_, &envSource_, &envAttack_, &envRelease_, &envDepth_, &envListen_ },
                           [this](juce::Component* control) { addAndMakeVisible(control); });
+    envListen_.setTooltip("Envelope input. Main follows this track. Sidechain follows the other track, or this track when no sidechain is connected.");
     bypassWatcher_.sendInitialUpdate();
 }
 
@@ -738,20 +742,21 @@ void BandPanel::paint(juce::Graphics& g) {
 }
 
 void BandPanel::resized() {
-    auto bounds = getLocalBounds().reduced(12, 6);
-    auto header = bounds.removeFromTop(42);
+    const bool compact = getHeight() < 220;
+    auto bounds = getLocalBounds().reduced(compact ? 8 : 12, compact ? 4 : 6);
+    auto header = bounds.removeFromTop(compact ? 36 : 42);
     slope_.setBounds(header.removeFromRight(76));
     header.removeFromRight(6);
     type_.setBounds(header.removeFromRight(132).withSizeKeepingCentre(132, 36));
     header.removeFromRight(6);
     bypass_.setBounds(header.removeFromRight(68));
 
-    bounds.removeFromTop(6);
+    bounds.removeFromTop(compact ? 2 : 6);
     auto topRow = bounds.removeFromTop(bounds.getHeight() / 2);
     filterArea_ = topRow.removeFromLeft(topRow.getWidth() * 3 / 5);
     topRow.removeFromLeft(kSectionGap);
     lfoArea_ = topRow;
-    envelopeArea_ = bounds.withTrimmedTop(4);
+    envelopeArea_ = compact ? bounds : bounds.withTrimmedTop(4);
 
     layoutRow(filterArea_.withTrimmedTop(kCaptionHeight), { &cutoff_, &resonance_, &width_ });
     auto lfoControls = lfoArea_.withTrimmedTop(kCaptionHeight);
@@ -760,7 +765,7 @@ void BandPanel::resized() {
     lfoRate_.setBounds(lfoControls.removeFromLeft(66));
     lfoControls.removeFromLeft(3);
     lfoDepth_.setBounds(lfoControls);
-    layoutRow(envelopeArea_.withTrimmedTop(kCaptionHeight), { &envSource_, &envAttack_, &envRelease_, &envDepth_ });
+    layoutRow(envelopeArea_.withTrimmedTop(kCaptionHeight), { &envListen_, &envSource_, &envAttack_, &envRelease_, &envDepth_ });
 }
 
 EffectsPanel::EffectsPanel(OpenEdmFilterProcessor& processor)
@@ -818,8 +823,10 @@ void EffectsPanel::paint(juce::Graphics& g) {
     std::ranges::for_each(sections_, [&](const Section& section) {
         drawPanel(g, section.area, section.title, section.accent);
     });
-    drawLevelMeter(g, sections_[0].area, processor_.displayInputPeak.load(), theme::kAccentOut);
-    drawLevelMeter(g, sections_[5].area, processor_.displayOutputPeak.load(), theme::kAccentOut);
+    if (getHeight() >= 120) {
+        drawLevelMeter(g, sections_[0].area, processor_.displayInputPeak.load(), theme::kAccentOut);
+        drawLevelMeter(g, sections_[5].area, processor_.displayOutputPeak.load(), theme::kAccentOut);
+    }
     g.setFont(juce::FontOptions(10.0f));
     g.setColour(theme::kTextDim);
     g.drawText("v" JucePlugin_VersionString, getLocalBounds().reduced(8, 2).removeFromTop(14), juce::Justification::topRight);
@@ -837,13 +844,17 @@ void EffectsPanel::resized() {
     });
     sections_.back().area = sections_.back().area.withRight(getWidth());
 
-    const auto content = [&](size_t section) { return sections_[section].area.reduced(10, 0).withTrimmedTop(34).withTrimmedBottom(8); };
-    layoutRow(content(0).withTrimmedBottom(24), { &inputGain_, &subPreserve_ });
+    const bool roomForMeter = getHeight() >= 120;
+    const auto content = [&](size_t section) {
+        auto area = sections_[section].area.reduced(8, 0).withTrimmedTop(juce::jmin(34, juce::jmax(18, sections_[section].area.getHeight() / 4)));
+        return area.withTrimmedBottom(4);
+    };
+    layoutRow(roomForMeter ? content(0).withTrimmedBottom(20) : content(0), { &inputGain_, &subPreserve_ });
     layoutRow(content(1), { &drive_, &drivePosition_, &analogDrift_ });
     layoutRow(content(2), { &crushRate_, &crushBits_, &crushMix_, &crushPosition_, &crushLink_ });
     layoutRow(content(3), { &ringFrequency_, &ringMix_ });
     layoutRow(content(4), { &fmRate_, &fmDepth_, &stereoSpread_ });
-    layoutRow(content(5).withTrimmedBottom(24), { &mix_, &output_, &ceiling_, &limiter_ });
+    layoutRow(roomForMeter ? content(5).withTrimmedBottom(20) : content(5), { &mix_, &output_, &ceiling_, &limiter_ });
 }
 
 } // namespace openedm::ui
