@@ -49,6 +49,16 @@ void Knob::bind(Apvts& state, const juce::String& parameterId) {
     attachment_ = std::make_unique<Apvts::SliderAttachment>(state, parameterId, slider_);
 }
 
+void Knob::setTooltip(const juce::String& text) {
+    slider_.setTooltip(text);
+    title_.setTooltip(text);
+    // The slider copies its tooltip to the value box only when it makes the box.
+    std::ranges::for_each(slider_.getChildren(), [&](juce::Component* part) {
+        if (auto* valueBox = dynamic_cast<juce::Label*>(part))
+            valueBox->setTooltip(text);
+    });
+}
+
 void Knob::resized() {
     auto bounds = getLocalBounds();
     title_.setBounds(bounds.removeFromTop(kTitleHeight));

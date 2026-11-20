@@ -25,6 +25,7 @@ private:
 
     OpenEdmFilterProcessor& processor_;
     openedm::ui::EdmLookAndFeel lookAndFeel_;
+    juce::TooltipWindow tooltips_{ this, 500 };
     juce::Image faceplate_;
     std::unique_ptr<juce::Drawable> pulse_;
     suite::PresetStore presetStore_;

@@ -7,6 +7,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <numbers>
 #include <cmath>
+#include <map>
 #include <string>
 
 using Catch::Matchers::WithinAbs;
@@ -897,4 +898,38 @@ TEST_CASE("Extended types recall on both lanes and survive stereo routing and mo
     processor.setPlayHead(nullptr);
     processor.processBlock(buffer, midi);
     CHECK(processor.animationBeatPhase(0) < 1);
+}
+
+TEST_CASE("The editor owns a tooltip window and the listed controls have tooltips", "[plugin][ui]") {
+#if JUCE_LINUX
+    if (std::getenv("DISPLAY") == nullptr) SKIP("Native editor requires a display");
+#endif
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenEdmFilterProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    std::map<juce::String, int> labelsWithTips;
+    const auto collect = [&](auto&& self, juce::Component& parent) -> void {
+        std::ranges::for_each(parent.getChildren(), [&](juce::Component* child) {
+            self(self, *child);
+            if (auto* button = dynamic_cast<juce::TextButton*>(child); button != nullptr && button->getTooltip().isNotEmpty())
+                ++labelsWithTips[button->getButtonText()];
+            if (dynamic_cast<openedm::ui::Knob*>(child) == nullptr)
+                return;
+            auto* slider = dynamic_cast<juce::Slider*>(child->getChildComponent(0));
+            auto* title = dynamic_cast<juce::Label*>(child->getChildComponent(1));
+            if (slider->getTooltip().isNotEmpty())
+                ++labelsWithTips[title->getText()];
+        });
+    };
+    collect(collect, *editor);
+
+    REQUIRE(std::ranges::any_of(editor->getChildren(), [](auto* child) { return dynamic_cast<juce::TooltipWindow*>(child) != nullptr; }));
+    CHECK(labelsWithTips["INERTIA"] == 1);
+    CHECK(labelsWithTips["BYPASS"] == 1);
+    CHECK(labelsWithTips["HOST SYNC"] == 1);
+    CHECK(labelsWithTips["SOURCE"] == 2);
+    CHECK(labelsWithTips["ONSET"] == 2);
+    CHECK(labelsWithTips["DRIFT"] == 1);
+    CHECK(labelsWithTips["SUB KEEP"] == 1);
+    CHECK(labelsWithTips["SPREAD"] == 1);
 }

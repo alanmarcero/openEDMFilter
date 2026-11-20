@@ -27,7 +27,9 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
       bandB_(processorToEdit.parameters, 1),
       effects_(processorToEdit) {
     setLookAndFeel(&lookAndFeel_);
-    faceplate_ = juce::ImageCache::getFromMemory(BinaryData::analogcyberfaceplate_png, BinaryData::analogcyberfaceplate_pngSize);
+    inertia_.setTooltip("Slows cutoff moves on the 48 and 96 dB slopes to stop clicks. Turn off for fast gates.");
+    masterBypass_.setTooltip("Bypasses the whole plugin. The host bypass uses this switch.");
+    faceplate_ =juce::ImageCache::getFromMemory(BinaryData::analogcyberfaceplate_png, BinaryData::analogcyberfaceplate_pngSize);
     pulse_ = juce::Drawable::createFromImageData(BinaryData::filterpulse_svg, BinaryData::filterpulse_svgSize);
 
     std::vector<juce::String> factoryNames;

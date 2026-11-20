@@ -12,6 +12,7 @@ public:
     Knob(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent);
     void resized() override;
     void bind(Apvts& state, const juce::String& parameterId);
+    void setTooltip(const juce::String& text);
 
 private:
     juce::Slider slider_;

@@ -584,6 +584,9 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
         effectKnobs_[i] = std::make_unique<Knob>(processor.parameters, params::kSweepEffectIds[i], effectTitles[i % 4], colour);
         addAndMakeVisible(*effectKnobs_[i]);
     }
+    effectKnobs_[3]->setTooltip("Sweep position where the bitcrush starts to move from Start to End.");
+    effectKnobs_[7]->setTooltip("Sweep position where the glitch starts to move from Start to End.");
+    clockSync_.setTooltip("Follows the host tempo and time signature. Turn off to use TEMPO and the signature menu.");
     for (size_t i = 0; i < slotButtons_.size(); ++i) {
         auto& button = slotButtons_[i];
         button.setButtonText("SLOT " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + i)));
@@ -731,6 +734,7 @@ BandPanel::BandPanel(Apvts& state, int band)
                               &lfoDepth_, &envSource_, &envAttack_, &envRelease_, &envDepth_, &envListen_ },
                           [this](juce::Component* control) { addAndMakeVisible(control); });
     envListen_.setTooltip("Envelope input. Main follows this track. Sidechain follows the other track, or this track when no sidechain is connected.");
+    envSource_.setTooltip("The envelope follows the input level around this frequency.");
     bypassWatcher_.sendInitialUpdate();
 }
 
@@ -797,6 +801,9 @@ EffectsPanel::EffectsPanel(OpenEdmFilterProcessor& processor)
                    { "Output", theme::kAccentOut, 4, {} } } } {
     crushLink_.setTooltip("Make the crush rate follow Filter A's cutoff modulation.");
     limiter_.setTooltip("Limit output peaks to the selected ceiling.");
+    analogDrift_.setTooltip("Slowly moves both cutoffs up to 0.14 octave, like analog parts.");
+    subPreserve_.setTooltip("Keeps the low end below this frequency dry. 20 Hz turns it off.");
+    stereoSpread_.setTooltip("Moves the cutoffs of the two channels up to 1.25 octaves apart.");
     startTimerHz(kRefreshHz);
     std::ranges::for_each(std::initializer_list<juce::Component*>{
                               &inputGain_, &subPreserve_, &drive_, &drivePosition_, &analogDrift_, &crushRate_, &crushBits_, &crushPosition_,

@@ -38,6 +38,9 @@ EdmLookAndFeel::EdmLookAndFeel() {
     setColour(juce::Slider::trackColourId, theme::kAccentA);
     setColour(juce::Slider::thumbColourId, theme::kText);
     setColour(juce::Slider::backgroundColourId, theme::kKnobBody);
+    setColour(juce::TooltipWindow::backgroundColourId, theme::kPanel);
+    setColour(juce::TooltipWindow::textColourId, theme::kText);
+    setColour(juce::TooltipWindow::outlineColourId, theme::kPanelEdge);
 }
 
 void EdmLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height, float sliderPos,
