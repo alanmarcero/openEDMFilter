@@ -31,7 +31,8 @@ void FilterEngine::prepare(double sampleRate) noexcept {
     sampleRate_ = sampleRate * Oversampler::kFactor;
     parameterSmoothing_ = onePoleCoefficient(kParameterSmoothingSeconds, sampleRate_);
     fadeSamples_ = std::max(1, static_cast<int>(kTopologyFadeSeconds * sampleRate_));
-    limiter_.prepare(sampleRate);
+    oversampledLimiter_.prepare(sampleRate_);
+    truePeakGuard_.prepare(sampleRate);
     stutter_.prepare(sampleRate_);
     reset();
 }
@@ -39,6 +40,7 @@ void FilterEngine::prepare(double sampleRate) noexcept {
 void FilterEngine::reset() noexcept {
     std::ranges::for_each(filters_, [](auto& slots) { slots = {}; });
     fadeRemaining_ = {};
+    warmRemaining_ = {};
     sweep_.reset();
     envelopes_ = {};
     sidechainEnvelopes_ = {};
@@ -49,15 +51,20 @@ void FilterEngine::reset() noexcept {
     ringPhase_ = 0.0;
     clearMidi();
     crusher_.reset();
+    std::ranges::for_each(saturators_, [](auto& saturator) { saturator.reset(); });
+    ringMod_.reset();
     stutter_.reset();
     glitchBeatPhase_ = 0.0;
     crushMix_ = 0.0f;
     glitchMix_ = 0.0f;
     inputGain_ = 1.0f;
     driftPhase_ = 0.0;
-    subPreserveLp_ = {};
+    subLpStates_ = {};
+    subHpStates_ = {};
+    routingAllpass_ = {};
     oversampler_.reset();
-    limiter_.reset();
+    oversampledLimiter_.reset();
+    truePeakGuard_.reset();
     needsSnap_ = true;
 }
 
@@ -146,9 +153,8 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
         std::ranges::for_each(envelopes_[band], [&](auto& envelope) {
             envelope.configure(bandSettings.envSourceHz, bandSettings.envAttackMs, bandSettings.envReleaseMs, sampleRate_);
         });
-        const double hostRate = sampleRate_ / static_cast<double>(Oversampler::kFactor);
         std::ranges::for_each(sidechainEnvelopes_[static_cast<size_t>(band)], [&](auto& envelope) {
-            envelope.configure(bandSettings.envSourceHz, bandSettings.envAttackMs, bandSettings.envReleaseMs, hostRate);
+            envelope.configure(bandSettings.envSourceHz, bandSettings.envAttackMs, bandSettings.envReleaseMs, sampleRate_);
         });
         if (hostTimeline) {
             lfos_[band].syncToTransport(*transport.ppqPosition, effectiveLfoBeats);
@@ -162,9 +168,16 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
     const float targetOutputGain = settings.bypassed ? 1.0f : settings.outputGain;
     const float targetInputGain = settings.bypassed ? 1.0f : settings.inputGain;
     const bool hasSubPreserve = settings.subPreserveHz > 20.5f;
-    const float subAlpha = hasSubPreserve
-        ? static_cast<float>(1.0 - std::exp(-kTwoPi * std::clamp(settings.subPreserveHz, 20.0f, 250.0f) / sampleRate_))
-        : 0.0f;
+    std::array<SvfCoefficients, 2> subCoeffs{};
+    if (hasSubPreserve) {
+        const float g = static_cast<float>(std::tan(std::numbers::pi
+            * std::clamp(settings.subPreserveHz, 20.0f, 250.0f) / sampleRate_));
+        subCoeffs = { makeSvfCoefficientsDamped(g, 1.847759065f), makeSvfCoefficientsDamped(g, 0.7653668647f) };
+    }
+    // With the limiter off or engine bypassed, both limiters still run with no ceiling, so latency does not change.
+    const float ceiling = (settings.limiterEnabled && !settings.bypassed)
+        ? settings.ceiling
+        : std::numeric_limits<float>::infinity();
     const bool hasRingMod = settings.ringMix > 1.0e-5f;
     const bool hasDrift = settings.analogDrift > 1.0e-5f;
     const double fmInc = settings.fmRateHz / sampleRate_;
@@ -178,25 +191,15 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
             upsampled[channel] = oversampler_.upsample(channel, channels[channel][sample] * inputGain_);
         });
 
-        std::array<std::array<float, 2>, kNumBands> sidechainLevel{};
+        std::array<float, 2> sidechainLanes{};
         const bool sidechainAvailable = sidechain != nullptr && sidechainChannels > 0 && sidechain[0] != nullptr;
         if (sidechainAvailable) {
             const float left = sidechain[0][sample];
             const float right = sidechainChannels > 1 && sidechain[1] != nullptr ? sidechain[1][sample] : left;
             const bool midSide = settings.stereoMode == StereoMode::MidSide && sidechainChannels > 1;
             constexpr float halfRoot = 0.70710678118f;
-            const float decodedLeft = midSide ? halfRoot * (left + right) : left;
-            const float decodedRight = midSide ? halfRoot * (right - left) : right;
-            std::ranges::for_each(bandIndices, [&](int band) {
-                const auto& bandSettings = settings.bands[static_cast<size_t>(band)];
-                if (bandSettings.envListen != EnvelopeListen::Sidechain || std::abs(bandSettings.envDepth) <= 1.0e-5f)
-                    return;
-                const float mono = 0.5f * (decodedLeft + decodedRight);
-                const float lane0 = settings.stereoMode == StereoMode::Linked ? mono : decodedLeft;
-                const float lane1 = settings.stereoMode == StereoMode::Linked ? mono : decodedRight;
-                sidechainLevel[static_cast<size_t>(band)][0] = sidechainEnvelopes_[static_cast<size_t>(band)][0].process(lane0);
-                sidechainLevel[static_cast<size_t>(band)][1] = sidechainEnvelopes_[static_cast<size_t>(band)][1].process(lane1);
-            });
+            sidechainLanes = { midSide ? halfRoot * (left + right) : left,
+                               midSide ? halfRoot * (right - left) : right };
         }
 
         std::ranges::for_each(std::views::iota(0, Oversampler::kFactor), [&](int phase) {
@@ -217,7 +220,6 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
             const float fmOctaves = settings.fmDepth > 1.0e-5f
                 ? settings.fmDepth * kFmOctaves * Lfo::valueAt(settings.fmShape, fmPhase_)
                 : 0.0f;
-            const float ringCarrier = hasRingMod ? static_cast<float>(std::sin(kTwoPi * ringPhase_)) : 0.0f;
             const double nextFmPhase = fmPhase_ + fmInc;
             const double nextRingPhase = ringPhase_ + ringInc;
             const double nextDriftPhase = driftPhase_ + driftInc;
@@ -235,6 +237,21 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
             const float targetGlitch = settings.sweep.enabled ? AutoSweep::envelopeAt(settings.sweep.glitch, progress) : 0.0f;
             crushMix_ = targetCrush + parameterSmoothing_ * (crushMix_ - targetCrush);
             glitchMix_ = targetGlitch + parameterSmoothing_ * (glitchMix_ - targetGlitch);
+
+            // Sidechain envelopes run in the oversampled loop, matching their sampleRate_ configuration.
+            std::array<std::array<float, 2>, kNumBands> sidechainLevel{};
+            if (sidechainAvailable) {
+                const float mono = 0.5f * (sidechainLanes[0] + sidechainLanes[1]);
+                const float lane0 = settings.stereoMode == StereoMode::Linked ? mono : sidechainLanes[0];
+                const float lane1 = settings.stereoMode == StereoMode::Linked ? mono : sidechainLanes[1];
+                std::ranges::for_each(bandIndices, [&](int band) {
+                    const auto& bandSettings = settings.bands[static_cast<size_t>(band)];
+                    if (bandSettings.envListen != EnvelopeListen::Sidechain || std::abs(bandSettings.envDepth) <= 1.0e-5f)
+                        return;
+                    sidechainLevel[static_cast<size_t>(band)][0] = sidechainEnvelopes_[static_cast<size_t>(band)][0].process(lane0);
+                    sidechainLevel[static_cast<size_t>(band)][1] = sidechainEnvelopes_[static_cast<size_t>(band)][1].process(lane1);
+                });
+            }
 
             std::array<float, kNumBands> modulationOctaves{};
             std::ranges::transform(bandIndices, modulationOctaves.begin(), [&](int band) {
@@ -270,12 +287,12 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
                     bandSettings.shape.enabled, bandSettings.shape.type, bandSettings.shape.slope,
                     resonances_[band], bandSettings.shape.width
                 };
-                if (fadeRemaining_[band] == 0 && topologyDiffers(shapes[activeSlot_[band]], live)) {
-                    activeSlot_[band] = 1 - activeSlot_[band];
-                    slots[activeSlot_[band]] = {};
-                    if (band == 1) parallelB_[activeSlot_[band]] = {};
-                    shapes[activeSlot_[band]] = live;
-                    fadeRemaining_[band] = fadeSamples_;
+                if (fadeRemaining_[band] == 0 && warmRemaining_[band] == 0 && topologyDiffers(shapes[activeSlot_[band]], live)) {
+                    const int incoming = 1 - activeSlot_[band];
+                    slots[incoming] = {};
+                    if (band == 1) parallelB_[incoming] = {};
+                    shapes[incoming] = live;
+                    warmRemaining_[band] = 64; // incoming slot warms silently before the equal-power crossfade
                 }
                 // A topology change during a fade waits for the fade to end. The other settings follow at once.
                 const int active = activeSlot_[band];
@@ -288,10 +305,11 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
                 const float bandSign = band == 0 ? 1.0f : -1.0f;
                 const float targetLog = logCutoffs_[band] + bandFm + driftOct * bandSign - spreadOct * 0.5f * bandSign;
                 const float lane0Hz = std::exp2(targetLog);
-                // FM skips smoothing to retain audio-rate modulation.
-                slots[active][0].update(shapes[active], lane0Hz, sampleRate_);
-                if (fadeRemaining_[band] > 0)
-                    slots[1 - active][0].update(shapes[1 - active], lane0Hz, sampleRate_);
+                const float lane0BaseHz = std::exp2(targetLog - bandFm);
+                // FM takes the zero-delay path in MultiModeFilter, skipping the coefficient smoothing.
+                slots[active][0].update(shapes[active], lane0BaseHz, sampleRate_, bandFm);
+                if (fadeRemaining_[band] > 0 || warmRemaining_[band] > 0)
+                    slots[1 - active][0].update(shapes[1 - active], lane0BaseHz, sampleRate_, bandFm);
 
                 const double shiftedLfo = lfoPhase + bandSettings.lane2Phase;
                 const float lane2Lfo = Lfo::valueAt(bandSettings.lfoShape, shiftedLfo - std::floor(shiftedLfo));
@@ -304,17 +322,18 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
                     : std::log2(sweepValue.cutoffHz) + lane2Octaves + bandSettings.lane2Offset;
                 lane2LogCutoffs_[band] = lane2Target + cutoffSmoothing[band] * (lane2LogCutoffs_[band] - lane2Target);
                 const float lane2Hz = std::exp2(lane2LogCutoffs_[band] + bandFm - driftOct * bandSign + spreadOct * 0.5f * bandSign);
+                const float lane2BaseHz = std::exp2(lane2LogCutoffs_[band] - driftOct * bandSign + spreadOct * 0.5f * bandSign);
                 displayedCutoffs_[0][band] = lane0Hz;
                 displayedCutoffs_[1][band] = lane2Hz;
-                slots[active][1].update(shapes[active], lane2Hz, sampleRate_);
-                if (fadeRemaining_[band] > 0)
-                    slots[1 - active][1].update(shapes[1 - active], lane2Hz, sampleRate_);
+                slots[active][1].update(shapes[active], lane2BaseHz, sampleRate_, bandFm);
+                if (fadeRemaining_[band] > 0 || warmRemaining_[band] > 0)
+                    slots[1 - active][1].update(shapes[1 - active], lane2BaseHz, sampleRate_, bandFm);
                 if (band == 1 && (settings.parallel || routingMix_ > 1.0e-5f)) {
-                    parallelB_[active][0].update(shapes[active], lane0Hz, sampleRate_);
-                    parallelB_[active][1].update(shapes[active], lane2Hz, sampleRate_);
-                    if (fadeRemaining_[band] > 0) {
-                        parallelB_[1 - active][0].update(shapes[1 - active], lane0Hz, sampleRate_);
-                        parallelB_[1 - active][1].update(shapes[1 - active], lane2Hz, sampleRate_);
+                    parallelB_[active][0].update(shapes[active], lane0BaseHz, sampleRate_, bandFm);
+                    parallelB_[active][1].update(shapes[active], lane2BaseHz, sampleRate_, bandFm);
+                    if (fadeRemaining_[band] > 0 || warmRemaining_[band] > 0) {
+                        parallelB_[1 - active][0].update(shapes[1 - active], lane0BaseHz, sampleRate_, bandFm);
+                        parallelB_[1 - active][1].update(shapes[1 - active], lane2BaseHz, sampleRate_, bandFm);
                     }
                 }
                 const double increment = advanceClock ? transport.bpm / 60.0 / sampleRate_
@@ -337,7 +356,7 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
             parallelBlend_ = settings.parallelBlend + parameterSmoothing_ * (parallelBlend_ - settings.parallelBlend);
             const auto colour = [&](int channel, float signal, Placement placement) {
                 const float drive = settings.drivePlacement == placement ? settings.drive : 0.0f;
-                const float driven = saturate(signal, drive);
+                const float driven = saturators_[static_cast<size_t>(channel)].process(channel, signal, drive);
                 if (settings.crushPlacement != placement || crushMix_ <= 0.0f) return driven;
                 const float crushed = crusher_.process(channel, driven, crushRateHz, settings.crushBits, sampleRate_);
                 return driven + crushMix_ * (crushed - driven);
@@ -355,54 +374,105 @@ void FilterEngine::process(const EngineSettings& settings, const Transport& tran
                 const auto filterBand = [&](int band, float input, bool parallelB = false) {
                     auto& slots = parallelB ? parallelB_ : filters_[band];
                     const int active = activeSlot_[band];
-                    const float incoming = slots[active][channel].process(0, input);
-                    if (fadeRemaining_[band] == 0) return incoming;
-                    const float outgoing = slots[1 - active][channel].process(0, input);
-                    const float fade = 1.0f - static_cast<float>(fadeRemaining_[band]) / static_cast<float>(fadeSamples_);
-                    return outgoing + fade * (incoming - outgoing);
+                    const float activeOut = slots[active][channel].process(0, input);
+                    if (warmRemaining_[band] > 0) {
+                        (void)slots[1 - active][channel].process(0, input); // warmed silently, discarded
+                        return activeOut;
+                    }
+                    if (fadeRemaining_[band] == 0) return activeOut;
+                    const float oldOut = slots[1 - active][channel].process(0, input);
+                    const float progress = 1.0f - static_cast<float>(fadeRemaining_[band]) / static_cast<float>(fadeSamples_);
+                    const float angle = progress * std::numbers::pi_v<float> * 0.5f;
+                    return std::cos(angle) * oldOut + std::sin(angle) * activeOut;
                 };
                 const float a = filterBand(0, lanes[channel]);
                 const float serial = needSerial ? filterBand(1, a) : a;
-                const float parallel = needParallel ? (a + parallelBlend_ * (filterBand(1, lanes[channel], true) - a)) : serial;
-                filtered[channel] = serial + routingMix_ * (parallel - serial);
+                float parallel = serial;
+                if (needParallel) {
+                    parallel = a + parallelBlend_ * (filterBand(1, lanes[channel], true) - a);
+                    if (routingMix_ > 1.0e-3f && routingMix_ < 1.0f - 1.0e-3f) {
+                        // Delay the parallel path by one allpass at band B's cutoff to match the serial path's extra lag.
+                        const double apCutoff = std::clamp(static_cast<double>(displayedCutoffs_[0][1]), 20.0, sampleRate_ * 0.45);
+                        const float g = static_cast<float>(std::tan(std::numbers::pi * apCutoff / sampleRate_));
+                        const SvfCoefficients apCoeffs = makeSvfCoefficientsDamped(g, std::numbers::sqrt2_v<float>);
+                        const SvfOutput ap = routingAllpass_[static_cast<size_t>(channel)].process(parallel, apCoeffs);
+                        parallel = parallel - 2.0f * (apCoeffs.k * ap.band);
+                    }
+                }
+                const float morphAngle = routingMix_ * std::numbers::pi_v<float> * 0.5f;
+                filtered[channel] = std::cos(morphAngle) * serial + std::sin(morphAngle) * parallel;
             });
             const std::array<float, 2> decoded{
                 cosine * filtered[0] - sine * filtered[1], sine * filtered[0] + cosine * filtered[1]
             };
             std::ranges::for_each(channelIndices, [&](int channel) {
                 const float dry = upsampled[channel][phase];
+                float subLow = 0.0f;
                 if (hasSubPreserve) {
-                    subPreserveLp_[channel] += subAlpha * (dry - subPreserveLp_[channel]);
+                    subLow = subLpStates_[static_cast<size_t>(channel)][0].process(dry, subCoeffs[0]).low;
+                    subLow = subLpStates_[static_cast<size_t>(channel)][1].process(subLow, subCoeffs[1]).low;
                 }
                 const float postColoured = colour(channel, decoded[channel], Placement::PostFilter);
-                const float ringModulated = hasRingMod
-                    ? postColoured + settings.ringMix * (postColoured * ringCarrier - postColoured)
-                    : postColoured;
+                float ringModulated = postColoured;
+                if (hasRingMod) {
+                    const double hostRate = sampleRate_ / static_cast<double>(Oversampler::kFactor);
+                    const float modulated = ringMod_.process(channel, postColoured, ringPhase_,
+                                                             settings.ringFrequencyHz, sampleRate_, hostRate,
+                                                             RingMode::BandLimited);
+                    ringModulated = postColoured + settings.ringMix * (modulated - postColoured);
+                }
                 float glitched = ringModulated;
                 if (glitchMix_ > 1.0e-5f || settings.sweep.enabled) {
                     const float repeated = stutter_.process(channel, ringModulated, glitchBeatPhase_, transport.bpm, sampleRate_);
                     glitched = ringModulated + glitchMix_ * (repeated - ringModulated);
                 }
                 if (hasSubPreserve) {
-                    glitched += subPreserveLp_[channel] * 0.75f;
+                    // LR4-complementary split: dry lows plus high-passed wet sum without a phase notch.
+                    float wetHigh = subHpStates_[static_cast<size_t>(channel)][0].process(glitched, subCoeffs[0]).high;
+                    wetHigh = subHpStates_[static_cast<size_t>(channel)][1].process(wetHigh, subCoeffs[1]).high;
+                    glitched = subLow + wetHigh;
                 }
                 upsampled[channel][phase] = (dry + mix_ * (glitched - dry)) * outputGain_;
             });
+
+            // Primary limiting inside the oversampled domain, before the decimator can ring past the ceiling.
+            std::array<float, MultiModeFilter::kMaxChannels> limitedFrame{};
+            std::ranges::for_each(channelIndices, [&](int channel) {
+                limitedFrame[static_cast<size_t>(channel)] = upsampled[channel][phase];
+            });
+            oversampledLimiter_.processFrame(limitedFrame, channelCount, ceiling, true);
+            std::ranges::for_each(channelIndices, [&](int channel) {
+                upsampled[channel][phase] = limitedFrame[static_cast<size_t>(channel)];
+            });
+
             glitchBeatPhase_ += glitchBeatIncrement;
             glitchBeatPhase_ -= std::floor(glitchBeatPhase_);
-            std::ranges::for_each(fadeRemaining_, [](int& remaining) { remaining = std::max(0, remaining - 1); });
+            std::ranges::for_each(bandIndices, [&](int band) {
+                if (warmRemaining_[band] > 0) {
+                    if (--warmRemaining_[band] == 0) {
+                        activeSlot_[band] = 1 - activeSlot_[band];
+                        fadeRemaining_[band] = fadeSamples_;
+                    }
+                    return;
+                }
+                fadeRemaining_[band] = std::max(0, fadeRemaining_[band] - 1);
+            });
         });
 
         std::ranges::for_each(channelIndices, [&](int channel) {
             channels[channel][sample] = oversampler_.downsample(channel, upsampled[channel]);
         });
-    });
 
-    // With the limiter off or engine bypassed, it still runs with no ceiling, so the latency does not change.
-    const float ceiling = (settings.limiterEnabled && !settings.bypassed)
-        ? settings.ceiling
-        : std::numeric_limits<float>::infinity();
-    limiter_.process(channels, channelCount, numSamples, ceiling);
+        // Post-decimation true-peak guard catches any remaining halfband Gibbs overshoot.
+        std::array<float, MultiModeFilter::kMaxChannels> guardFrame{};
+        std::ranges::for_each(channelIndices, [&](int channel) {
+            guardFrame[static_cast<size_t>(channel)] = channels[channel][sample];
+        });
+        truePeakGuard_.processFrame(guardFrame, channelCount, ceiling, true);
+        std::ranges::for_each(channelIndices, [&](int channel) {
+            channels[channel][sample] = guardFrame[static_cast<size_t>(channel)];
+        });
+    });
 }
 
 } // namespace openedm::core

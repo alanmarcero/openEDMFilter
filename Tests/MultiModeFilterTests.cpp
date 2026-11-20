@@ -162,3 +162,94 @@ TEST_CASE("New responses remain bounded at extreme rates cutoff width and resona
         }
     }
 }
+
+TEST_CASE("4-pole ZDF ladder self-oscillates musically at full resonance across LP BP and HP", "[filter][ladder]") {
+    const std::array<FilterType, 3> types{ FilterType::LowPass, FilterType::BandPass, FilterType::HighPass };
+    std::ranges::for_each(types, [](FilterType type) {
+        const FilterShape shape{ true, type, FilterSlope::Slope24dB, 1.0f, 0.2f };
+        std::vector<float> samples(kNumSamples, 0.0f);
+        samples[0] = 0.5f;
+        const auto output = runFilter(shape, 1000.0, samples);
+
+        const float rms = settledRms(output);
+        const float maxPeak = peak(output);
+        CAPTURE(static_cast<int>(type), rms, maxPeak);
+        REQUIRE(rms > 0.15f);
+        REQUIRE(maxPeak < 4.0f);
+        REQUIRE(toneLevel(output, 1000.0) > 0.15);
+    });
+}
+
+TEST_CASE("Per-sample log-frequency SVF smoothing prevents high-Q spikes while keeping zero-delay FM", "[filter][svf]") {
+    MultiModeFilter filter;
+    const FilterShape resonant{ true, FilterType::LowPass, FilterSlope::Slope24dB, 0.9f, 0.1f };
+    const auto input = sine(180.0, 4096, 0.25f);
+    float maxCurvature = 0.0f;
+    float prev1 = 0.0f;
+    float prev2 = 0.0f;
+    std::ranges::for_each(input, [&, index = 0](float sample) mutable {
+        const double targetCutoff = (index % 256 < 128) ? 250.0 : 4000.0;
+        filter.update(resonant, targetCutoff, kSampleRate);
+        const float out = filter.process(0, sample);
+        if (index > 32)
+            maxCurvature = std::max(maxCurvature, std::abs(out - 2.0f * prev1 + prev2));
+        prev2 = prev1;
+        prev1 = out;
+        ++index;
+    });
+    REQUIRE(maxCurvature < 0.05f);
+
+    // Zero-delay FM path tracks audio-rate modulation immediately and stays clamped near Nyquist.
+    MultiModeFilter fmFilter;
+    const FilterShape gentle{ true, FilterType::LowPass, FilterSlope::Slope12dB, 0.5f, 0.5f };
+    const auto carrier = sine(4000.0, 8192, 0.4f);
+    std::vector<float> unmodulated = carrier;
+    std::vector<float> modulated = carrier;
+    MultiModeFilter baseFilter;
+    std::ranges::for_each(modulated, [&, index = 0](float& modSample) mutable {
+        baseFilter.update(gentle, 1000.0, kSampleRate, 0.0f);
+        unmodulated[static_cast<size_t>(index)] = baseFilter.process(0, unmodulated[static_cast<size_t>(index)]);
+        const float fmOct = 4.5f * std::sin(2.0f * std::numbers::pi_v<float> * 1200.0f * static_cast<float>(index) / static_cast<float>(kSampleRate));
+        fmFilter.update(gentle, 1000.0, kSampleRate, fmOct);
+        modSample = fmFilter.process(0, modSample);
+        REQUIRE(std::isfinite(modSample));
+        ++index;
+    });
+    REQUIRE(settledRms(modulated) > settledRms(unmodulated) * 2.5f);
+}
+
+TEST_CASE("Pole-staggered Butterworth Q distribution keeps -3 dB cutoff and bandwidth across all slopes", "[filter][butterworth]") {
+    const std::array<FilterSlope, 4> slopes{
+        FilterSlope::Slope12dB, FilterSlope::Slope24dB, FilterSlope::Slope48dB, FilterSlope::Slope96dB
+    };
+    const double targetHalfPower = 1.0 / std::sqrt(2.0);
+
+    // LowPass and HighPass keep -3 dB right at cutoffHz across 12, 24, 48, and 96 dB/oct.
+    std::ranges::for_each(slopes, [&](FilterSlope slope) {
+        const FilterShape lp{ true, FilterType::LowPass, slope, 0.0f, 0.5f };
+        const FilterShape hp{ true, FilterType::HighPass, slope, 0.0f, 0.5f };
+        REQUIRE_THAT(MultiModeFilter::magnitudeAt(lp, 1000.0, 1000.0, kSampleRate), WithinRel(targetHalfPower, 1e-4));
+        REQUIRE_THAT(MultiModeFilter::magnitudeAt(hp, 1000.0, 1000.0, kSampleRate), WithinRel(targetHalfPower, 1e-4));
+    });
+
+    // BandPass and Notch keep the exact same -3 dB band-edge frequencies across 12, 24, 48, and 96 dB/oct.
+    const FilterShape bp12{ true, FilterType::BandPass, FilterSlope::Slope12dB, 0.0f, 0.5f };
+    double edgeHz = 1000.0;
+    double step = 500.0;
+    std::array<int, 32> binarySearchSteps{};
+    std::ranges::for_each(binarySearchSteps, [&](int) {
+        const double mag = MultiModeFilter::magnitudeAt(bp12, 1000.0, edgeHz + step, kSampleRate);
+        if (mag > targetHalfPower)
+            edgeHz += step;
+        step *= 0.5;
+    });
+    REQUIRE_THAT(MultiModeFilter::magnitudeAt(bp12, 1000.0, edgeHz, kSampleRate), WithinRel(targetHalfPower, 1e-3));
+
+    std::ranges::for_each(slopes, [&](FilterSlope slope) {
+        const FilterShape bp{ true, FilterType::BandPass, slope, 0.0f, 0.5f };
+        const FilterShape notch{ true, FilterType::Notch, slope, 0.0f, 0.5f };
+        CAPTURE(static_cast<int>(slope));
+        REQUIRE_THAT(MultiModeFilter::magnitudeAt(bp, 1000.0, edgeHz, kSampleRate), WithinRel(targetHalfPower, 0.01));
+        REQUIRE_THAT(MultiModeFilter::magnitudeAt(notch, 1000.0, edgeHz, kSampleRate), WithinRel(targetHalfPower, 0.01));
+    });
+}

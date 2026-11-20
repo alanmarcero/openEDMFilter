@@ -78,13 +78,15 @@ struct Transport {
 };
 
 // Full signal chain: drive/crush (pre or post), serial or parallel A/B, ring mod, dry/wet, output, limiter.
-// Everything before the limiter runs at twice the host rate, so drive, ring mod and FM alias less.
+// Everything including the primary limiter runs at twice the host rate; a host-rate true-peak guard follows decimation.
 class FilterEngine {
 public:
     static constexpr int kNumBands = 2;
     static constexpr float kModulationOctaves = 6.0f;
     static constexpr float kFmOctaves = 3.0f;
-    static constexpr int kLatencySamples = Oversampler::kLatency + PeakLimiter::kLatency;
+    using OversampledLimiter = LookaheadLimiter<127>; // 126 oversampled samples of latency = 63 host samples
+    static constexpr int kLatencySamples = Oversampler::kLatency
+        + OversampledLimiter::kLatency / Oversampler::kFactor + PeakLimiter::kLatency;
 
     void prepare(double sampleRate) noexcept;
     void reset() noexcept;
@@ -111,6 +113,7 @@ private:
     std::array<std::array<FilterShape, 2>, kNumBands> slotShapes_{};
     std::array<int, kNumBands> activeSlot_{};
     std::array<int, kNumBands> fadeRemaining_{};
+    std::array<int, kNumBands> warmRemaining_{};
     int fadeSamples_ = 1;
     std::array<Lfo, kNumBands> lfos_{};
     AutoSweep sweep_{};
@@ -121,12 +124,15 @@ private:
     std::array<std::array<float, kNumBands>, 2> displayedCutoffs_{}; // actual lane cutoff in Hz, including FM
     std::array<float, kNumBands> resonances_{}; // smoothed, 0..1
     BitCrusher crusher_{};
+    std::array<AdaaSaturator, 2> saturators_{};
+    HilbertRingModulator ringMod_{};
     BeatStutter stutter_{};
     double glitchBeatPhase_ = 0.0;
     float crushMix_ = 0.0f;
     float glitchMix_ = 0.0f;
     Oversampler oversampler_{};
-    PeakLimiter limiter_{};
+    OversampledLimiter oversampledLimiter_{};
+    PeakLimiter truePeakGuard_{};
     double fmPhase_ = 0.0;
     std::array<double, kNumBands> stepPhases_{};
     std::array<float, 4> midiValues_{};
@@ -139,7 +145,9 @@ private:
     float outputGain_ = 1.0f;
     float inputGain_ = 1.0f;
     double driftPhase_ = 0.0;
-    std::array<float, 2> subPreserveLp_{};
+    std::array<std::array<SvfState, 2>, 2> subLpStates_{};
+    std::array<std::array<SvfState, 2>, 2> subHpStates_{};
+    std::array<SvfState, 2> routingAllpass_{};
     float parameterSmoothing_ = 0.0f;
     bool needsSnap_ = true;
 };

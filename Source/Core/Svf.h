@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 
 namespace openedm::core {
@@ -17,13 +18,17 @@ struct SvfOutput {
     float high;
 };
 
-// Trapezoidal (TPT) state variable filter. It stays stable when the cutoff changes every sample.
-// g is the prewarped cutoff, tan(pi * cutoff / sampleRate).
+// Trapezoidal (TPT) state variable filter with stability-clamped prewarped g and damping k.
+inline SvfCoefficients makeSvfCoefficientsDamped(float g, float k) noexcept {
+    const float safeG = std::clamp(g, 1.0e-5f, 11.43f);
+    const float safeK = std::clamp(k, 0.005f, 20.0f);
+    const float a1 = 1.0f / (1.0f + safeG * (safeG + safeK));
+    const float a2 = safeG * a1;
+    return { safeK, a1, a2, safeG * a2 };
+}
+
 inline SvfCoefficients makeSvfCoefficients(float g, float q) noexcept {
-    const float k = 1.0f / q;
-    const float a1 = 1.0f / (1.0f + g * (g + k));
-    const float a2 = g * a1;
-    return { k, a1, a2, g * a2 };
+    return makeSvfCoefficientsDamped(g, 1.0f / std::max(0.05f, q));
 }
 
 struct SvfState {
