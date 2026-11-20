@@ -1,5 +1,6 @@
 #include "Parameters.h"
 #include <algorithm>
+#include <cmath>
 #include <ranges>
 
 namespace openedm::params {
@@ -9,20 +10,43 @@ namespace {
 using Layout = juce::AudioProcessorValueTreeState::ParameterLayout;
 using Attributes = juce::AudioParameterFloatAttributes;
 using Formatter = std::function<juce::String(float, int)>;
+using Parser = std::function<float(const juce::String&)>;
+
+// Typed text goes through parse, so a value typed as the display shows it loads unchanged.
+struct ValueText {
+    Formatter format;
+    Parser parse;
+};
 
 constexpr int kVersion = 1;
 
-const Formatter kFormatHz = [](float hz, int) { return formatHz(hz); };
-const Formatter kFormatPercent = [](float value, int) { return juce::String(juce::roundToInt(value * 100.0f)) + "%"; };
-const Formatter kFormatBipolar = [](float value, int) {
+const Parser kParseNumber = [](const juce::String& text) { return text.getFloatValue(); };
+// "50" and "50%" both mean 50%.
+const Parser kParsePercent = [](const juce::String& text) { return text.getFloatValue() / 100.0f; };
+
+const ValueText kFormatHz{ [](float hz, int) { return formatHz(hz); },
+    [](const juce::String& text) { return text.getFloatValue() * (text.containsIgnoreCase("k") ? 1000.0f : 1.0f); } };
+const ValueText kFormatPercent{ [](float value, int) { return juce::String(juce::roundToInt(value * 100.0f)) + "%"; }, kParsePercent };
+const ValueText kFormatBipolar{ [](float value, int) {
     const int percent = juce::roundToInt(value * 100.0f);
     return (percent > 0 ? "+" : "") + juce::String(percent) + "%";
-};
-const Formatter kFormatMs = [](float ms, int) {
-    return (ms < 10.0f ? juce::String(ms, 1) : juce::String(juce::roundToInt(ms))) + " ms";
-};
-const Formatter kFormatDb = [](float db, int) { return juce::String(db, 1) + " dB"; };
-const Formatter kFormatBpm = [](float bpm, int) { return juce::String(bpm, 1) + " BPM"; };
+}, kParsePercent };
+const ValueText kFormatMs{ [](float ms, int) {
+    if (juce::roundToInt(ms) >= 1000)
+        return juce::String(ms / 1000.0f, 2) + " s";
+    const float tenths = std::round(ms * 10.0f) / 10.0f;
+    return (tenths < 10.0f ? juce::String(tenths, 1) : juce::String(juce::roundToInt(ms))) + " ms";
+}, [](const juce::String& text) {
+    const auto unit = text.trim();
+    const bool isSeconds = unit.endsWithIgnoreCase("s") && !unit.endsWithIgnoreCase("ms");
+    return text.getFloatValue() * (isSeconds ? 1000.0f : 1.0f);
+} };
+const ValueText kFormatDb{ [](float db, int) {
+    // Rounding first stops "-0.0 dB".
+    const float tenths = std::round(db * 10.0f) / 10.0f;
+    return (tenths > 0.0f ? "+" : "") + juce::String(tenths == 0.0f ? 0.0f : tenths, 1) + " dB";
+}, kParseNumber };
+const ValueText kFormatBpm{ [](float bpm, int) { return juce::String(bpm, 1) + " BPM"; }, kParseNumber };
 
 juce::NormalisableRange<float> skewedRange(float min, float max, float centre) {
     juce::NormalisableRange<float> range(min, max);
@@ -31,9 +55,9 @@ juce::NormalisableRange<float> skewedRange(float min, float max, float centre) {
 }
 
 void addFloat(Layout& layout, const juce::String& id, const juce::String& name,
-              juce::NormalisableRange<float> range, float defaultValue, const Formatter& formatter, int version = kVersion) {
-    layout.add(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ id, version }, name, range, defaultValue, Attributes().withStringFromValueFunction(formatter)));
+              juce::NormalisableRange<float> range, float defaultValue, const ValueText& text, int version = kVersion) {
+    layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID{ id, version }, name, range, defaultValue,
+        Attributes().withStringFromValueFunction(text.format).withValueFromStringFunction(text.parse)));
 }
 
 void addChoice(Layout& layout, const juce::String& id, const juce::String& name,
@@ -83,11 +107,13 @@ double beatsPerBarForSignature(int index) noexcept {
 }
 
 juce::String formatHz(float hz) {
-    if (hz >= 1000.0f) {
+    if (juce::roundToInt(hz) >= 1000) {
         return juce::String(hz / 1000.0f, 2) + " kHz";
     }
+    // Choosing the format from the rounded value keeps 99.97 Hz out of "100.0 Hz".
+    const float tenths = std::round(hz * 10.0f) / 10.0f;
     // juce::String(float, 0) prints every digit, so whole numbers go through roundToInt.
-    return (hz < 100.0f ? juce::String(hz, 1) : juce::String(juce::roundToInt(hz))) + " Hz";
+    return (tenths < 100.0f ? juce::String(tenths, 1) : juce::String(juce::roundToInt(hz))) + " Hz";
 }
 
 juce::String bandId(int band, const char* suffix) {
@@ -181,12 +207,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{ id("step_pulses"), 4 }, name + "Euclidean Pulses", 0, 16, 4));
         layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{ id("step_rotation"), 4 }, name + "Step Rotation", 0, 15, 0));
         addFloat(layout, id("step_beats"), name + "Beats per Step", { 0.0625f, 4.0f }, 0.25f,
-            [](float value, int) { return juce::String(value, 4) + " beats"; }, 4);
+            { [](float value, int) { return juce::String(value, 4) + " beats"; }, kParseNumber }, 4);
         addFloat(layout, id("step_depth"), name + "Step Depth", { -1.0f, 1.0f }, 0.0f, kFormatBipolar, 4);
         addFloat(layout, id("lane2_depth"), name + "R/S Mod Depth", { -1.0f, 1.0f }, 1.0f, kFormatBipolar, 4);
         addFloat(layout, id("lane2_phase"), name + "R/S Phase Offset", { 0.0f, 1.0f }, 0.0f, kFormatPercent, 4);
         addFloat(layout, id("lane2_offset"), name + "R/S Cutoff Offset", { -6.0f, 6.0f }, 0.0f,
-            [](float value, int) { return juce::String(value, 2) + " oct"; }, 4);
+            { [](float value, int) { return juce::String(value, 2) + " oct"; }, kParseNumber }, 4);
         std::ranges::for_each(std::views::iota(0, 16), [&](int step) {
             addFloat(layout, bandId(band, "step_") + juce::String(step + 1), name + "Step " + juce::String(step + 1),
                 { -1.0f, 1.0f }, 0.0f, kFormatBipolar, 4);

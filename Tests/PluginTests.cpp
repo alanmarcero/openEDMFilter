@@ -933,3 +933,53 @@ TEST_CASE("The editor owns a tooltip window and the listed controls have tooltip
     CHECK(labelsWithTips["SUB KEEP"] == 1);
     CHECK(labelsWithTips["SPREAD"] == 1);
 }
+
+TEST_CASE("Every float parameter reads back the text it displays", "[plugin][text]") {
+    OpenEdmFilterProcessor processor;
+    std::vector<juce::AudioProcessorParameter*> floats;
+    std::ranges::copy_if(processor.getParameters(), std::back_inserter(floats),
+        [](auto* parameter) { return dynamic_cast<juce::AudioParameterFloat*>(parameter) != nullptr; });
+    std::vector<std::string> mismatches;
+    std::ranges::for_each(floats, [&](juce::AudioProcessorParameter* parameter) {
+        std::ranges::for_each(std::array{ 0.0f, 0.03f, 0.1f, 0.25f, 0.5f, 0.75f, 0.97f, 1.0f, parameter->getDefaultValue() }, [&](float normalised) {
+            const auto shown = parameter->getText(normalised, 0);
+            const auto readBack = parameter->getText(parameter->getValueForText(shown), 0);
+            if (readBack != shown)
+                mismatches.push_back((parameter->getName(40) + ": " + shown + " -> " + readBack).toStdString());
+        });
+    });
+
+    REQUIRE(floats.size() > 100);
+    CHECK(mismatches.empty());
+}
+
+TEST_CASE("Typed percent, kHz, seconds and dB land on the value they name", "[plugin][text]") {
+    OpenEdmFilterProcessor processor;
+    const auto typed = [&](const char* id, const char* text) {
+        auto* parameter = processor.parameters.getParameter(id);
+        return parameter->convertFrom0to1(parameter->getValueForText(text));
+    };
+    const auto shown = [&](const char* id, float value) {
+        auto* parameter = processor.parameters.getParameter(id);
+        return parameter->getText(parameter->convertTo0to1(value), 0);
+    };
+
+    CHECK_THAT(typed("mix", "50%"), WithinAbs(0.5f, 1e-4f));
+    CHECK_THAT(typed("mix", "50"), WithinAbs(0.5f, 1e-4f));
+    CHECK_THAT(typed("a_reso", "40"), WithinAbs(0.4f, 1e-4f));
+    CHECK_THAT(typed("a_lfo_depth", "-25%"), WithinAbs(-0.25f, 1e-4f));
+    CHECK_THAT(typed("a_cutoff", "2k"), WithinAbs(2000.0f, 0.5f));
+    CHECK_THAT(typed("a_cutoff", "2 kHz"), WithinAbs(2000.0f, 0.5f));
+    CHECK_THAT(typed("a_cutoff", "850 Hz"), WithinAbs(850.0f, 0.5f));
+    CHECK_THAT(typed("a_env_release", "1.2 s"), WithinAbs(1200.0f, 0.5f));
+    CHECK_THAT(typed("a_env_release", "150 ms"), WithinAbs(150.0f, 0.5f));
+    CHECK_THAT(typed("output", "+3 dB"), WithinAbs(3.0f, 1e-3f));
+    CHECK(shown("output", 3.0f) == "+3.0 dB");
+    CHECK(shown("output", -0.04f) == "0.0 dB");
+    CHECK(shown("a_env_release", 1200.0f) == "1.20 s");
+    CHECK(shown("a_env_attack", 4.5f) == "4.5 ms");
+    CHECK(shown("a_env_release", 160.0f) == "160 ms");
+    CHECK(shown("a_cutoff", 850.0f) == "850 Hz");
+    CHECK(shown("a_cutoff", 6800.0f) == "6.80 kHz");
+    CHECK(shown("a_lfo_depth", 0.2f) == "+20%");
+}
