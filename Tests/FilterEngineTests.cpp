@@ -535,3 +535,121 @@ TEST_CASE("Sidechain envelope follows the sidechain and falls back when it is ab
     mainOnly.process(settings, {}, quietChannels, 1, length, loudSide, 1);
     REQUIRE_THAT(mainOnly.currentCutoffs()[0], WithinAbs(1000.0f, 0.5f));
 }
+
+TEST_CASE("Engine true-peak guard keeps inter-sample peaks under the ceiling after decimation", "[engine][limiter][dsp]") {
+    auto settings = transparentSettings();
+    settings.limiterEnabled = true;
+    settings.ceiling = 0.5f;
+    settings.outputGain = 4.0f;
+    const auto output = runEngine(settings, sine(7000.0, kNumSamples, 0.9f));
+    REQUIRE(peak(output) <= 0.5f);
+    // Cubic midpoint estimate between adjacent samples approximates the inter-sample true peak.
+    float maxMidpoint = 0.0f;
+    std::ranges::for_each(std::views::iota(size_t{ 2400 }, output.size() - 2), [&](size_t i) {
+        const float mid = std::abs(0.5625f * (output[i] + output[i + 1]) - 0.0625f * (output[i - 1] + output[i + 2]));
+        maxMidpoint = std::max(maxMidpoint, mid);
+    });
+    REQUIRE(maxMidpoint <= 0.52f);
+}
+
+TEST_CASE("Sub preserve LR4 crossover has no phase-cancellation notch in the crossover band", "[engine][sub]") {
+    auto settings = transparentSettings();
+    settings.bands[0].shape = FilterShape{ true, FilterType::LowPass, FilterSlope::Slope24dB, 0.0f, 0.5f };
+    settings.bands[0].cutoffHz = 900.0f;
+    settings.subPreserveHz = 120.0f;
+    const auto gainAtHz = [&](double hz) {
+        const auto input = sine(hz, kNumSamples);
+        return settledRms(runEngine(settings, input)) / settledRms(input);
+    };
+    REQUIRE(gainAtHz(60.0) > 0.85f);
+    REQUIRE(gainAtHz(120.0) > 0.8f);
+    REQUIRE(gainAtHz(180.0) > 0.7f);
+}
+
+TEST_CASE("Sidechain envelope attack and release match the main envelope timing", "[engine][sidechain]") {
+    const auto cutoffAfter = [](bool sidechainFeed) {
+        auto settings = transparentSettings();
+        settings.bands[0].cutoffHz = 1000.0f;
+        settings.bands[0].envDepth = 0.2f;
+        settings.bands[0].envAttackMs = 5.0f;
+        settings.bands[0].envReleaseMs = 150.0f;
+        settings.bands[0].envListen = sidechainFeed ? EnvelopeListen::Sidechain : EnvelopeListen::Main;
+        FilterEngine engine;
+        engine.prepare(kSampleRate);
+        auto loud = sine(1000.0, 480);
+        auto silent = std::vector<float>(480, 0.0f);
+        auto mainBuf = sidechainFeed ? silent : loud;
+        float* mainCh[] { mainBuf.data() };
+        float* sideCh[] { loud.data() };
+        engine.process(settings, {}, mainCh, 1, 480, sidechainFeed ? sideCh : nullptr, sidechainFeed ? 1 : 0);
+        auto decayMain = std::vector<float>(2400, 0.0f);
+        auto decaySide = sine(1000.0, 2400, 0.0f);
+        float* decayMainCh[] { decayMain.data() };
+        float* decaySideCh[] { decaySide.data() };
+        engine.process(settings, {}, decayMainCh, 1, 2400, sidechainFeed ? decaySideCh : nullptr, sidechainFeed ? 1 : 0);
+        return engine.currentCutoffs()[0];
+    };
+    const float mainCutoff = cutoffAfter(false);
+    const float sideCutoff = cutoffAfter(true);
+    REQUIRE_THAT(sideCutoff, WithinRel(mainCutoff, 0.05f));
+}
+
+TEST_CASE("Serial to parallel routing morph has no comb hollow at the crossover point", "[engine][routing]") {
+    auto settings = transparentSettings();
+    settings.bands[0].shape = FilterShape{ true, FilterType::LowPass, FilterSlope::Slope24dB, 0.2f, 0.5f };
+    settings.bands[0].cutoffHz = 1000.0f;
+    settings.bands[1].shape = FilterShape{ true, FilterType::HighPass, FilterSlope::Slope24dB, 0.2f, 0.5f };
+    settings.bands[1].cutoffHz = 1000.0f;
+    settings.parallelBlend = 0.5f;
+    auto samples = sine(1000.0, 48000, 0.4f);
+    FilterEngine engine;
+    engine.prepare(kSampleRate);
+    float* first[] { samples.data() };
+    engine.process(settings, {}, first, 1, 24000);
+    settings.parallel = true;
+    float* second[] { samples.data() + 24000 };
+    engine.process(settings, {}, second, 1, 24000);
+    // Minimum 480-sample window RMS during the morph, relative to the settled parallel RMS.
+    const auto windowRms = [&](size_t start) {
+        float sum = 0.0f;
+        std::ranges::for_each(std::views::iota(start, start + size_t{ 480 }), [&](size_t i) { sum += samples[i] * samples[i]; });
+        return std::sqrt(sum / 480.0f);
+    };
+    float minWindow = 1.0f;
+    std::ranges::for_each(std::views::iota(size_t{ 24000 }, size_t{ 28800 }), [&](size_t start) {
+        if (start % 240 == 0) minWindow = std::min(minWindow, windowRms(start));
+    });
+    const float settled = windowRms(47000);
+    REQUIRE(settled > 0.05f);
+    REQUIRE(minWindow > settled * 0.55f);
+}
+
+TEST_CASE("Topology change crossfade is equal-power and state-warmed with no loudness dip or thump", "[engine][fade]") {
+    auto settings = transparentSettings();
+    settings.bands[0].shape = FilterShape{ true, FilterType::LowPass, FilterSlope::Slope12dB, 0.0f, 0.5f };
+    settings.bands[0].cutoffHz = 200.0f;
+    auto samples = sine(100.0, 48000, 0.4f);
+    FilterEngine engine;
+    engine.prepare(kSampleRate);
+    float* first[] { samples.data() };
+    engine.process(settings, {}, first, 1, 24000);
+    settings.bands[0].shape.slope = FilterSlope::Slope96dB;
+    float* second[] { samples.data() + 24000 };
+    engine.process(settings, {}, second, 1, 24000);
+    const auto windowRms = [&](size_t start) {
+        float sum = 0.0f;
+        std::ranges::for_each(std::views::iota(start, start + size_t{ 480 }), [&](size_t i) { sum += samples[i] * samples[i]; });
+        return std::sqrt(sum / 480.0f);
+    };
+    const float steady = windowRms(20000);
+    float minWindow = steady;
+    std::ranges::for_each(std::views::iota(size_t{ 24000 }, size_t{ 26400 }), [&](size_t start) {
+        if (start % 120 == 0) minWindow = std::min(minWindow, windowRms(start));
+    });
+    REQUIRE(minWindow > steady * 0.7f);
+    float largestStep = 0.0f;
+    std::ranges::for_each(std::views::iota(size_t{ 24000 }, size_t{ 28800 }), [&](size_t i) {
+        largestStep = std::max(largestStep, std::abs(samples[i + 1] - samples[i]));
+    });
+    REQUIRE(largestStep < 0.01f);
+}
