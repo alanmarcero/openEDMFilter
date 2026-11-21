@@ -126,6 +126,35 @@ void ResponseView::mouseUp(const juce::MouseEvent&) {
     dragResonance_ = nullptr;
 }
 
+std::vector<float> ResponseView::labelledDecibels(juce::Rectangle<float> plot) {
+    std::vector<float> labelled;
+    std::vector<juce::Rectangle<float>> taken;
+    std::ranges::for_each(std::array{ 0.0f, 12.0f, -12.0f, -24.0f, -36.0f }, [&](float db) {
+        const float y = juce::jmap(db, kMaxDb, kMinDb, plot.getY(), plot.getBottom());
+        const juce::Rectangle<float> label{ plot.getX() + 3.0f, y + 1.0f, 50.0f, 12.0f };
+        const bool touches = std::ranges::any_of(taken, [&](const auto& other) { return other.expanded(0.0f, 2.0f).intersects(label); });
+        if (touches || label.getBottom() > plot.getBottom())
+            return;
+        taken.push_back(label);
+        labelled.push_back(db);
+    });
+    return labelled;
+}
+
+juce::Rectangle<float> ResponseView::readoutBounds(juce::Point<float> marker, float width, juce::Rectangle<float> plot,
+                                                   juce::Rectangle<float> other) {
+    constexpr float height = 16.0f;
+    constexpr float offset = 10.0f;
+    const bool fitsRight = marker.x + offset + width <= plot.getRight();
+    const float x = fitsRight ? marker.x + offset : marker.x - offset - width;
+    const juce::Rectangle<float> beside{ juce::jlimit(plot.getX(), plot.getRight() - width, x),
+                                         juce::jlimit(plot.getY(), plot.getBottom() - height, marker.y - height / 2.0f), width, height };
+    if (!beside.intersects(other))
+        return beside;
+    const float below = other.getBottom() + 2.0f;
+    return beside.withY(below + height <= plot.getBottom() ? below : other.getY() - height - 2.0f);
+}
+
 void ResponseView::paint(juce::Graphics& g) {
     const auto bounds = getLocalBounds().toFloat();
     g.setColour(theme::kPanel);
@@ -151,10 +180,13 @@ void ResponseView::paint(juce::Graphics& g) {
         g.drawText(line.second, juce::Rectangle<float>(x + 3.0f, plot.getBottom() - 13.0f, 40.0f, 12.0f),
                    juce::Justification::centredLeft);
     });
+    const auto labelled = labelledDecibels(plot);
     std::ranges::for_each(std::array{ 12.0f, 0.0f, -12.0f, -24.0f, -36.0f }, [&](float db) {
         const float y = yForMagnitude(juce::Decibels::decibelsToGain(static_cast<double>(db)));
         g.setColour(db == 0.0f ? theme::kTrack : theme::kPanelEdge);
         g.drawHorizontalLine(juce::roundToInt(y), plot.getX(), plot.getRight());
+        if (std::ranges::find(labelled, db) == labelled.end())
+            return;
         g.setColour(theme::kTextDim.withAlpha(0.6f));
         g.drawText((db > 0.0f ? "+" : "") + juce::String(juce::roundToInt(db)) + " dB",
                    juce::Rectangle<float>(plot.getX() + 3.0f, y + 1.0f, 50.0f, 12.0f), juce::Justification::centredLeft);
@@ -234,20 +266,27 @@ void ResponseView::paint(juce::Graphics& g) {
 
     g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
     const auto sweep = processor_.currentSweepSettings();
+    juce::Rectangle<float> previousReadout;
     std::ranges::for_each(std::views::iota(size_t{0}, size_t{2}), [&](size_t band) {
         const double cutoff = juce::jlimit(kMinHz, kMaxHz, displayCutoffs[band]);
         const juce::Point<float> marker{ xForHz(cutoff), yForMagnitude(combinedMagnitude(cutoff)) };
         const int resPercent = juce::roundToInt(shapes[band].resonance * 100.0f);
         const juce::String label = juce::String(band == 0 ? "A  " : "B  ")
             + params::formatHz(static_cast<float>(cutoff)) + "  (" + juce::String(resPercent) + "%)";
-        const auto justification = band == 0 ? juce::Justification::centredLeft : juce::Justification::centredRight;
-        g.setColour(accents[band].withAlpha(shapes[band].enabled ? 1.0f : 0.3f));
+        const auto colour = accents[band].withAlpha(shapes[band].enabled ? 1.0f : 0.3f);
+        g.setColour(colour);
         // A hollow marker shows a band that Auto Sweep drives. A drag does not move it.
         const auto dot = juce::Rectangle<float>(9.0f, 9.0f).withCentre(marker);
         g.drawEllipse(dot.reduced(0.75f), 1.5f);
         if (!core::AutoSweep::appliesToBand(sweep, static_cast<int>(band)))
             g.fillEllipse(dot);
-        g.drawText(label, plot.withHeight(16.0f).reduced(4.0f, 0.0f), justification);
+
+        const float width = juce::GlyphArrangement::getStringWidth(g.getCurrentFont(), label) + 8.0f;
+        previousReadout = readoutBounds(marker, width, plot, previousReadout);
+        g.setColour(theme::kPanel.withAlpha(0.85f));
+        g.fillRoundedRectangle(previousReadout, 3.0f);
+        g.setColour(colour);
+        g.drawText(label, previousReadout, juce::Justification::centred);
     });
 }
 

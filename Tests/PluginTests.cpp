@@ -1189,3 +1189,21 @@ TEST_CASE("TEMPO dims while the host tempo runs the clock", "[plugin][ui]") {
     CHECK_THAT(tempo->getAlpha(), WithinAbs(1.0f, 1e-6f));
     processor.setPlayHead(nullptr);
 }
+
+TEST_CASE("Response readouts sit beside their own markers and grid labels do not touch", "[plugin][ui]") {
+    using openedm::ui::ResponseView;
+    const juce::Rectangle<float> plot{ 14.0f, 12.0f, 900.0f, 92.0f };
+
+    const auto bandA = ResponseView::readoutBounds({ 914.0f, 40.0f }, 120.0f, plot, {});
+    const auto bandB = ResponseView::readoutBounds({ 14.0f, 40.0f }, 110.0f, plot, bandA);
+    const auto crowded = ResponseView::readoutBounds({ 905.0f, 41.0f }, 120.0f, plot, bandA);
+
+    CHECK(bandA.getRight() <= 914.0f);
+    CHECK(bandB.getX() >= 14.0f);
+    CHECK(bandB.getRight() < bandA.getX());
+    CHECK_FALSE(crowded.intersects(bandA));
+    CHECK(plot.contains(crowded));
+    CHECK(ResponseView::labelledDecibels(plot) == std::vector<float>{ 0.0f, 12.0f, -12.0f, -24.0f, -36.0f });
+    CHECK(ResponseView::labelledDecibels(plot.withHeight(49.0f)) == std::vector<float>{ 0.0f, -24.0f });
+    CHECK(ResponseView::labelledDecibels(plot.withHeight(32.0f)) == std::vector<float>{ 0.0f });
+}

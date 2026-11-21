@@ -3,6 +3,7 @@
 #include "Controls.h"
 #include "PluginProcessor.h"
 #include <array>
+#include <vector>
 
 namespace openedm::ui {
 
@@ -15,6 +16,12 @@ public:
     void mouseDown(const juce::MouseEvent& event) override;
     void mouseDrag(const juce::MouseEvent& event) override;
     void mouseUp(const juce::MouseEvent& event) override;
+
+    // The dB grid values whose labels fit the plot without touching, 0 dB first.
+    [[nodiscard]] static std::vector<float> labelledDecibels(juce::Rectangle<float> plot);
+    // A band readout beside its marker, inside the plot and clear of the other readout.
+    [[nodiscard]] static juce::Rectangle<float> readoutBounds(juce::Point<float> marker, float width,
+                                                             juce::Rectangle<float> plot, juce::Rectangle<float> other);
 
 private:
     void timerCallback() override { repaint(); }
