@@ -145,6 +145,7 @@ private:
     juce::Rectangle<int> lfoArea_;
     juce::Rectangle<int> envelopeArea_;
     const std::atomic<float>& bypassValue_;
+    const std::atomic<float>& masterBypassValue_;
 };
 
 // Sixteen bipolar step values for one filter. A drag across the bars draws them.
@@ -173,7 +174,7 @@ public:
     BandModulation(Apvts& state, int band);
     void paint(juce::Graphics& g) override;
     void resized() override;
-    void refresh(bool isLinked);
+    void refresh(bool isLinked, bool isAllBypassed);
 
 private:
     juce::String title_;
@@ -216,6 +217,7 @@ private:
     BandModulation bandB_;
     const std::atomic<float>& routingValue_;
     const std::atomic<float>& channelsValue_;
+    const std::atomic<float>& masterBypassValue_;
     juce::Rectangle<int> globalArea_;
 };
 

@@ -161,11 +161,6 @@ void OpenEdmFilterEditor::timerCallback() {
     if (modulationPage_.isVisible() != processor_.modulationPageVisible.load())
         resized();
 
-    // BYPASS ALL passes the dry signal, so every control panel dims with it.
-    const bool isBypassed = processor_.parameters.getRawParameterValue(openedm::params::kMasterBypass)->load() > 0.5f;
-    std::ranges::for_each(std::initializer_list<juce::Component*>{ &sweep_, &bandA_, &bandB_, &effects_, &modulationPage_ }, [&](juce::Component* panel) {
-        panel->setAlpha(isBypassed ? theme::kInactiveAlpha : 1.0f);
-    });
     if (!applyingStateSize_
         && (getWidth() != processor_.editorWidth() || getHeight() != processor_.editorHeight())) {
         applyingStateSize_ = true;

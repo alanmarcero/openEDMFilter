@@ -29,7 +29,10 @@ constexpr const char* kSweepTitle = "Auto Sweep & Tempo Sync";
 constexpr int kKnobHeight = 62;
 constexpr int kMeterWidth = 5;
 constexpr float kStepGridInset = 4.0f;
+constexpr const char* kAllBypassHint = "Turn off BYPASS ALL to use this control.";
 constexpr const char* kBandBypassHint = "Turn off BYPASS on this filter to use this control.";
+constexpr const char* kSweepOffHint = "Turn on AUTO SWEEP to use this control.";
+constexpr const char* kHostTempoHint = "HOST SYNC uses the host tempo. Turn off HOST SYNC to use TEMPO.";
 constexpr const char* kSweepDrivenHint
     = "Auto Sweep sets this value. To use this control, turn off AUTO SWEEP or set the sweep target to the other filter.";
 
@@ -676,17 +679,19 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
 void SweepPanel::refresh() {
     // A parameter attachment runs before the raw values update, so read the parameters themselves.
     const auto isOn = [this](const char* id) { return processor_.parameters.getParameter(id)->getValue() > 0.5f; };
+    const bool isAllBypassed = isOn(params::kMasterBypass);
     const bool isRunning = isOn(params::kSweepEnabled) && !isOn(params::kSweepBypass);
+    const bool isHostTempo = isOn(params::kClockSync) && processor_.displayHostTempo.load();
     enabled_.setToggleState(isRunning, juce::dontSendNotification);
     // The clock also sets the LFO and step rates. The slope editor dims its own curves.
-    const std::array<juce::Component*, 5> alwaysActive{ &enabled_, &clockSync_, &timeSig_, &tempo_, &slopeEditor_ };
+    const std::array<juce::Component*, 5> clockAndEditor{ &enabled_, &clockSync_, &timeSig_, &tempo_, &slopeEditor_ };
     std::ranges::for_each(getChildren(), [&](juce::Component* control) {
-        if (std::ranges::find(alwaysActive, control) == alwaysActive.end())
-            setInactive(*control, !isRunning, "Turn on AUTO SWEEP to use this control.");
+        const bool isTempoUnused = control == &tempo_ && isHostTempo;
+        const bool isSweepUnused = !isRunning && std::ranges::find(clockAndEditor, control) == clockAndEditor.end();
+        const auto* ownHint = isTempoUnused ? kHostTempoHint : kSweepOffHint;
+        setInactive(*control, isAllBypassed || isTempoUnused || isSweepUnused, isAllBypassed ? kAllBypassHint : ownHint);
     });
 
-    const bool isHostTempo = isOn(params::kClockSync) && processor_.displayHostTempo.load();
-    setInactive(tempo_, isHostTempo, "HOST SYNC uses the host tempo. Turn off HOST SYNC to use TEMPO.");
     const juce::String hostBpm(processor_.displayBpm.load(), 1);
     const auto caption = isHostTempo ? "Host " + hostBpm + " BPM" : juce::String("Clock");
     if (caption != clockCaption_) {
@@ -786,7 +791,8 @@ BandPanel::BandPanel(Apvts& state, int band)
       envRelease_(state, params::bandId(band, params::kEnvRelease), "Release", accent_),
       envDepth_(state, params::bandId(band, params::kEnvDepth), "Depth", accent_),
       envListen_(state, params::bandId(band, params::kEnvInput), "Listen", accent_),
-      bypassValue_(*state.getRawParameterValue(params::bandId(band, params::kBypass))) {
+      bypassValue_(*state.getRawParameterValue(params::bandId(band, params::kBypass))),
+      masterBypassValue_(*state.getRawParameterValue(params::kMasterBypass)) {
     std::ranges::for_each(std::initializer_list<juce::Component*>{
                               &bypass_, &type_, &slope_, &cutoff_, &resonance_, &width_, &lfoShape_, &lfoRate_,
                               &lfoDepth_, &envSource_, &envAttack_, &envRelease_, &envDepth_, &envListen_ },
@@ -797,12 +803,13 @@ BandPanel::BandPanel(Apvts& state, int band)
 }
 
 void BandPanel::refresh(bool isSweepDriven) {
+    const bool isAllBypassed = masterBypassValue_.load() > 0.5f;
     const bool isBypassed = bypassValue_.load() > 0.5f;
     std::ranges::for_each(getChildren(), [&](juce::Component* control) {
-        if (control == &bypass_)
-            return;
+        const bool isBandOff = isBypassed && control != &bypass_;
         const bool isDriven = isSweepDriven && (control == &cutoff_ || control == &resonance_);
-        setInactive(*control, isBypassed || isDriven, isBypassed ? kBandBypassHint : kSweepDrivenHint);
+        const auto* ownHint = isBandOff ? kBandBypassHint : kSweepDrivenHint;
+        setInactive(*control, isAllBypassed || isBandOff || isDriven, isAllBypassed ? kAllBypassHint : ownHint);
     });
 }
 
@@ -958,19 +965,32 @@ void BandModulation::resized() {
     layoutRow(laneArea_.withTrimmedTop(kCaptionHeight), { &laneDepth_, &lanePhase_, &laneOffset_ });
 }
 
-void BandModulation::refresh(bool isLinked) {
+void BandModulation::refresh(bool isLinked, bool isAllBypassed) {
     // Step mode 0 is Off and 2 is Euclidean. MIDI source 0 is Off and 3 is CC.
     const int stepMode = juce::roundToInt(stepModeValue_.load());
     const int midiSource = juce::roundToInt(midiSourceValue_.load());
-    std::ranges::for_each(std::initializer_list<Knob*>{ &stepLength_, &stepBeats_, &stepRotation_, &stepDepth_ }, [&](Knob* knob) {
-        setInactive(*knob, stepMode == 0, "Choose Steps or Euclidean mode to use this control.");
-    });
-    setInactive(stepPulses_, stepMode != 2, "Choose Euclidean mode to use pulses.");
-    setInactive(steps_, stepMode != 1, "Choose Steps mode to use the step values.");
-    setInactive(midiCc_, midiSource != 3, "Choose CC as the MIDI source to use this control.");
-    setInactive(midiDepth_, midiSource == 0, "Choose a MIDI source to use this control.");
-    std::ranges::for_each(std::initializer_list<Knob*>{ &laneDepth_, &lanePhase_, &laneOffset_ }, [&](Knob* knob) {
-        setInactive(*knob, isLinked, "Choose Left/Right or Mid/Side channels to use the second lane.");
+    const std::array<juce::Component*, 4> stepControls{ &stepLength_, &stepBeats_, &stepRotation_, &stepDepth_ };
+    const std::array<juce::Component*, 3> laneControls{ &laneDepth_, &lanePhase_, &laneOffset_ };
+    // The hint says what turns a control on. It is empty while the control has an effect.
+    const auto ownHint = [&](juce::Component* control) -> juce::String {
+        if (stepMode == 0 && std::ranges::find(stepControls, control) != stepControls.end())
+            return "Choose Steps or Euclidean mode to use this control.";
+        if (control == &stepPulses_ && stepMode != 2)
+            return "Choose Euclidean mode to use pulses.";
+        if (control == &steps_ && stepMode != 1)
+            return "Choose Steps mode to use the step values.";
+        if (control == &midiCc_ && midiSource != 3)
+            return "Choose CC as the MIDI source to use this control.";
+        if (control == &midiDepth_ && midiSource == 0)
+            return "Choose a MIDI source to use this control.";
+        if (isLinked && std::ranges::find(laneControls, control) != laneControls.end())
+            return "Choose Left/Right or Mid/Side channels to use the second lane.";
+        return {};
+    };
+    const juce::String allBypassHint(kAllBypassHint);
+    std::ranges::for_each(getChildren(), [&](juce::Component* control) {
+        const auto hint = ownHint(control);
+        setInactive(*control, isAllBypassed || hint.isNotEmpty(), isAllBypassed ? allBypassHint : hint);
     });
 }
 
@@ -983,7 +1003,8 @@ ModulationPage::ModulationPage(Apvts& state)
       bandA_(state, 0),
       bandB_(state, 1),
       routingValue_(*state.getRawParameterValue("routing")),
-      channelsValue_(*state.getRawParameterValue("stereo_mode")) {
+      channelsValue_(*state.getRawParameterValue("stereo_mode")),
+      masterBypassValue_(*state.getRawParameterValue(params::kMasterBypass)) {
     setComponentID("modulationPage");
     std::ranges::for_each(std::initializer_list<juce::Component*>{ &routing_, &blend_, &channels_, &fmShape_, &fmTarget_, &bandA_, &bandB_ },
                           [this](juce::Component* control) { addAndMakeVisible(control); });
@@ -1006,10 +1027,16 @@ void ModulationPage::resized() {
 }
 
 void ModulationPage::refresh() {
-    setInactive(blend_, routingValue_.load() < 0.5f, "Choose Parallel routing to use the blend.");
+    const bool isAllBypassed = masterBypassValue_.load() > 0.5f;
+    const bool isSerial = routingValue_.load() < 0.5f;
+    std::ranges::for_each(std::initializer_list<juce::Component*>{ &routing_, &blend_, &channels_, &fmShape_, &fmTarget_ },
+                          [&](juce::Component* control) {
+        const bool isBlendUnused = control == &blend_ && isSerial;
+        setInactive(*control, isAllBypassed || isBlendUnused, isAllBypassed ? kAllBypassHint : "Choose Parallel routing to use the blend.");
+    });
     const bool isLinked = channelsValue_.load() < 0.5f;
-    bandA_.refresh(isLinked);
-    bandB_.refresh(isLinked);
+    bandA_.refresh(isLinked, isAllBypassed);
+    bandB_.refresh(isLinked, isAllBypassed);
 }
 
 EffectsPanel::EffectsPanel(OpenEdmFilterProcessor& processor)
@@ -1058,8 +1085,13 @@ EffectsPanel::EffectsPanel(OpenEdmFilterProcessor& processor)
 void EffectsPanel::timerCallback() {
     inputMeter_.update();
     outputMeter_.update();
-    const bool isLimiting = processor_.parameters.getRawParameterValue(params::kLimiter)->load() > 0.5f;
-    setInactive(ceiling_, !isLimiting, "Turn on LIMIT to use the ceiling.");
+    const auto isOn = [this](const char* id) { return processor_.parameters.getRawParameterValue(id)->load() > 0.5f; };
+    const bool isAllBypassed = isOn(params::kMasterBypass);
+    const bool isLimiting = isOn(params::kLimiter);
+    std::ranges::for_each(getChildren(), [&](juce::Component* control) {
+        const bool isCeilingUnused = control == &ceiling_ && !isLimiting;
+        setInactive(*control, isAllBypassed || isCeilingUnused, isAllBypassed ? kAllBypassHint : "Turn on LIMIT to use the ceiling.");
+    });
 }
 
 void EffectsPanel::mouseDown(const juce::MouseEvent& event) {

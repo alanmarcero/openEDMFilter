@@ -1324,9 +1324,17 @@ TEST_CASE("CEILING, FREEZE and the whole editor dim when their switch is off", "
     editorTimer.timerCallback();
     CHECK_THAT(freeze->getAlpha(), WithinAbs(openedm::theme::kInactiveAlpha, 1e-6f));
     CHECK(dynamic_cast<juce::TextButton*>(freeze)->getTooltip().contains("SPECTRUM"));
+    auto* drift = effects->findChildWithID("analog_drift");
+    const auto tooltipOf = [](juce::Component* knob) { return dynamic_cast<juce::Slider*>(knob->getChildComponent(0))->getTooltip(); };
     set(processor, "master_bypass", 1.0f);
     editorTimer.timerCallback();
-    CHECK_THAT(effects->getAlpha(), WithinAbs(openedm::theme::kInactiveAlpha, 1e-6f));
+    effectsTimer.timerCallback();
+    CHECK_THAT(drift->getAlpha(), WithinAbs(openedm::theme::kInactiveAlpha, 1e-6f));
+    CHECK(tooltipOf(drift).contains("BYPASS ALL"));
+    set(processor, "master_bypass", 0.0f);
+    effectsTimer.timerCallback();
+    CHECK_THAT(drift->getAlpha(), WithinAbs(1.0f, 1e-6f));
+    CHECK(tooltipOf(drift).contains("analog parts"));
 }
 
 TEST_CASE("Parameter groups keep every ID at its old index", "[plugin]") {
