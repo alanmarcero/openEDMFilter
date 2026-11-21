@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.14.1
+
+- **UI & Suite Fixes:** UI polish, full-size dial rings, 96 px effects strip, unit formatting and typed-value entry, per-slot A/B undo, inline preset confirms, uniform scaling, and screen-reader titles.
+
 ## v1.14.0
 
 Core DSP engine upgrades across filters, nonlinearities, routing, and dynamics:
