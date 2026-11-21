@@ -180,6 +180,12 @@ void OpenEdmFilterProcessor::setPreset(const juce::String& name, bool isEdited) 
     presetEdited_ = isEdited;
 }
 
+void OpenEdmFilterProcessor::renamePreset(const juce::String& from, const juce::String& to) {
+    const juce::ScopedLock lock(presetLock_);
+    if (presetName_ == from)
+        presetName_ = to;
+}
+
 juce::String OpenEdmFilterProcessor::presetName() const {
     const juce::ScopedLock lock(presetLock_);
     return presetName_;

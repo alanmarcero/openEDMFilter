@@ -392,6 +392,11 @@ TEST_CASE("The preset name follows loads, edits, saves, A/B slots and sessions",
     juce::AudioProcessor::copyXmlToBinary(legacy, legacyState);
     restored.setStateInformation(legacyState.getData(), static_cast<int>(legacyState.getSize()));
     CHECK(restored.presetDisplayName() == factoryFour + " *");
+
+    restored.markPresetSaved("Night Run");
+    restored.renamePreset("Other", "Ignored");
+    restored.renamePreset("Night Run", "Day Run");
+    CHECK(restored.presetDisplayName() == "Day Run");
 }
 
 TEST_CASE("Previous and next step through the preset list and wrap at the ends", "[suite]") {
@@ -475,4 +480,26 @@ TEST_CASE("Save asks before replacing and Delete asks before removing a user pre
     remove->onClick();
     CHECK_FALSE(store.load("My Sweep").has_value());
     CHECK(remove->getButtonText() == "DELETE");
+}
+
+TEST_CASE("Save and rename report the name the store lists", "[suite]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    TempPresets temp;
+    suite::PresetStore store(temp.directory);
+    suite::PresetBrowser browser(store, {}, {});
+    browser.setBounds(0, 0, 380, 420);
+    browser.captureState = [] { return juce::ValueTree("Snapshot"); };
+    juce::String saved;
+    juce::StringArray renamed;
+    browser.onSaved = [&](const juce::String& name) { saved = name; };
+    browser.onRenamed = [&](const juce::String& from, const juce::String& to) { renamed = { from, to }; };
+    auto* name = dynamic_cast<juce::TextEditor*>(findId(browser, "presetName"));
+
+    name->setText("My Sweep (16 Bar)", false);
+    dynamic_cast<juce::TextButton*>(findId(browser, "presetSave"))->onClick();
+    CHECK(saved == "My Sweep _16 Bar_");
+    CHECK(browser.listedNames().contains(saved));
+    name->setText("Late Sweep", false);
+    dynamic_cast<juce::TextButton*>(findId(browser, "presetRename"))->onClick();
+    CHECK(renamed == juce::StringArray{ "My Sweep _16 Bar_", "Late Sweep" });
 }

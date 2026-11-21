@@ -67,6 +67,8 @@ public:
     [[nodiscard]] juce::ValueTree parameterSnapshot() const { return editHistory_.captureParameters(); }
     void loadUserPreset(const juce::String& name, const juce::ValueTree& snapshot);
     void markPresetSaved(const juce::String& name) { setPreset(name, false); }
+    // Follows a rename of the loaded user preset and keeps its edit mark.
+    void renamePreset(const juce::String& from, const juce::String& to);
     [[nodiscard]] juce::String presetName() const;
     // The loaded preset's name, with " *" after the first edit since it loaded or saved.
     [[nodiscard]] juce::String presetDisplayName() const;

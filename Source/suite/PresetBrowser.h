@@ -26,6 +26,7 @@ public:
     std::function<void(int programIndex)> onFactoryPreset;
     std::function<void(const juce::String& name, const juce::ValueTree& snapshot)> onUserPreset;
     std::function<void(const juce::String& name)> onSaved;
+    std::function<void(const juce::String& from, const juce::String& to)> onRenamed;
     std::function<juce::ValueTree()> captureState;
 
     void setSearchText(const juce::String& text);

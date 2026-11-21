@@ -50,11 +50,12 @@ PresetBrowser::PresetBrowser(PresetStore& store, Factory factory, Colours colour
         }
         disarm();
         if (store_.save(presetName, captureState())) {
+            const auto storedName = PresetStore::sanitize(presetName);
             if (onSaved)
-                onSaved(presetName);
+                onSaved(storedName);
             rebuild();
             for (int i = 0; i < static_cast<int>(rows_.size()); ++i)
-                if (!rows_[static_cast<size_t>(i)].factory && rows_[static_cast<size_t>(i)].name.equalsIgnoreCase(presetName))
+                if (!rows_[static_cast<size_t>(i)].factory && rows_[static_cast<size_t>(i)].name.equalsIgnoreCase(storedName))
                     list_.selectRow(i);
         }
     };
@@ -65,8 +66,13 @@ PresetBrowser::PresetBrowser(PresetStore& store, Factory factory, Colours colour
         const auto presetName = name_.getText().trim();
         if (presetName.isEmpty())
             return;
-        if (store_.rename(row->name, presetName))
-            rebuild();
+        // rebuild() replaces the rows, so keep the old name first.
+        const auto oldName = row->name;
+        if (!store_.rename(oldName, presetName))
+            return;
+        if (onRenamed)
+            onRenamed(oldName, PresetStore::sanitize(presetName));
+        rebuild();
     };
     remove_.onClick = [this] {
         const auto* row = selectedRow();

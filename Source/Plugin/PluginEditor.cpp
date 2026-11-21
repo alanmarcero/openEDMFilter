@@ -41,6 +41,7 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     presetBrowser_->onFactoryPreset = [this](int index) { processor_.setCurrentProgram(index); };
     presetBrowser_->onUserPreset = [this](const juce::String& name, const juce::ValueTree& snapshot) { processor_.loadUserPreset(name, snapshot); };
     presetBrowser_->onSaved = [this](const juce::String& name) { processor_.markPresetSaved(name); };
+    presetBrowser_->onRenamed = [this](const juce::String& from, const juce::String& to) { processor_.renamePreset(from, to); };
     addChildComponent(*presetBrowser_);
 
     suiteBar_.onUndo = [this] { processor_.undoEdit(); };

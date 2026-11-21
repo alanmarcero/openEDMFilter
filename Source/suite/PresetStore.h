@@ -28,10 +28,11 @@ public:
     bool remove(const juce::String& name);
     bool setFavorite(bool factory, const juce::String& name, bool favorite);
     [[nodiscard]] std::optional<juce::ValueTree> load(const juce::String& name) const;
+    // The name the store saves and lists a preset under.
+    [[nodiscard]] static juce::String sanitize(juce::String name);
 
 private:
     [[nodiscard]] juce::File fileFor(const juce::String& name) const;
-    [[nodiscard]] static juce::String sanitize(juce::String name);
     [[nodiscard]] juce::StringArray readFavorites() const;
     bool writeFavorites(const juce::StringArray& lines) const;
     [[nodiscard]] static juce::String favoriteKey(bool factory, const juce::String& name);
