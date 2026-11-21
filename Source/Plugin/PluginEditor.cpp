@@ -162,6 +162,9 @@ void OpenEdmFilterEditor::timerCallback() {
         presetBox_.setSelectedId(id, juce::dontSendNotification);
     suiteBar_.setHistoryEnabled(processor_.canUndoEdit(), processor_.canRedoEdit());
     suiteBar_.setActiveSlot(processor_.abSlot());
+    const auto sweep = processor_.currentSweepSettings();
+    bandA_.refresh(openedm::core::AutoSweep::appliesToBand(sweep, 0));
+    bandB_.refresh(openedm::core::AutoSweep::appliesToBand(sweep, 1));
     if (!applyingStateSize_
         && (getWidth() != processor_.editorWidth() || getHeight() != processor_.editorHeight())) {
         applyingStateSize_ = true;

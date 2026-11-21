@@ -9,7 +9,7 @@
 #include <memory>
 
 class OpenEdmFilterEditor : public juce::AudioProcessorEditor,
-                            private juce::Timer,
+                            public juce::Timer,
                             private juce::KeyListener {
 public:
     explicit OpenEdmFilterEditor(OpenEdmFilterProcessor& processor);

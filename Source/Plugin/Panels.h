@@ -113,6 +113,7 @@ public:
     BandPanel(Apvts& state, int band);
     void paint(juce::Graphics& g) override;
     void resized() override;
+    void refresh(bool isSweepDriven);
 
 private:
     juce::String title_;
@@ -134,7 +135,7 @@ private:
     juce::Rectangle<int> filterArea_;
     juce::Rectangle<int> lfoArea_;
     juce::Rectangle<int> envelopeArea_;
-    juce::ParameterAttachment bypassWatcher_; // dims the band's controls while it is bypassed
+    const std::atomic<float>& bypassValue_;
 };
 
 class EffectsPanel : public juce::Component, private juce::Timer {

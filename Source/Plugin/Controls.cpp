@@ -18,6 +18,7 @@ Knob::Knob(Apvts& state, const juce::String& parameterId, const juce::String& ti
     : slider_(juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow),
       title_({}, title.toUpperCase()),
       attachment_(std::make_unique<Apvts::SliderAttachment>(state, parameterId, slider_)) {
+    setComponentID(parameterId);
     slider_.onDragStart = [this] { dragging_ = true; };
     slider_.onDragEnd = [this] {
         dragging_ = false;
@@ -43,6 +44,7 @@ void Knob::bind(Apvts& state, const juce::String& parameterId) {
         return;
     }
     attachment_.reset();
+    setComponentID(parameterId);
     if (auto* param = state.getParameter(parameterId)) {
         slider_.setDoubleClickReturnValue(true, param->convertFrom0to1(param->getDefaultValue()));
     }
@@ -72,6 +74,7 @@ Choice::Choice(Apvts& state, const juce::String& parameterId, const juce::String
         box_.addItemList(parameter->choices, 1);
     }
     attachment_ = std::make_unique<Apvts::ComboBoxAttachment>(state, parameterId, box_);
+    setComponentID(parameterId);
     box_.setColour(juce::ComboBox::outlineColourId, accent);
     title_.setFont(juce::FontOptions(kTitleFontSize, juce::Font::bold));
     title_.setColour(juce::Label::textColourId, theme::kTextDim);
@@ -83,6 +86,7 @@ Choice::Choice(Apvts& state, const juce::String& parameterId, const juce::String
 
 void Choice::bind(Apvts& state, const juce::String& parameterId) {
     attachment_.reset();
+    setComponentID(parameterId);
     attachment_ = std::make_unique<Apvts::ComboBoxAttachment>(state, parameterId, box_);
 }
 
@@ -130,6 +134,7 @@ void FilterTypeMenu::sync() {
 Toggle::Toggle(Apvts& state, const juce::String& parameterId, const juce::String& text, juce::Colour accent)
     : button_(text),
       attachment_(state, parameterId, button_) {
+    setComponentID(parameterId);
     button_.setClickingTogglesState(true);
     button_.setColour(juce::TextButton::buttonOnColourId, accent);
     addAndMakeVisible(button_);
@@ -142,6 +147,27 @@ void Toggle::resized() {
 
 void Toggle::setTooltip(const juce::String& text) {
     button_.setTooltip(text);
+}
+
+void setInactive(juce::Component& control, bool isInactive, const juce::String& enableHint) {
+    control.setAlpha(isInactive ? kInactiveAlpha : 1.0f);
+    std::vector<juce::SettableTooltipClient*> parts;
+    const auto collect = [&](auto&& self, juce::Component& part) -> void {
+        if (auto* client = dynamic_cast<juce::SettableTooltipClient*>(&part))
+            parts.push_back(client);
+        std::ranges::for_each(part.getChildren(), [&](juce::Component* child) { self(self, *child); });
+    };
+    collect(collect, control);
+    if (parts.empty())
+        return;
+
+    // A slider can rebuild its value box, so every part gets the tooltip each time.
+    auto& properties = control.getProperties();
+    if (!properties.contains("activeTooltip"))
+        properties.set("activeTooltip", parts.front()->getTooltip());
+    const juce::String activeTooltip = properties["activeTooltip"];
+    const auto& tooltip = isInactive ? enableHint : activeTooltip;
+    std::ranges::for_each(parts, [&](juce::SettableTooltipClient* part) { part->setTooltip(tooltip); });
 }
 
 void layoutRow(juce::Rectangle<int> area, std::initializer_list<juce::Component*> components) {

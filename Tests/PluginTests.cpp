@@ -983,3 +983,62 @@ TEST_CASE("Typed percent, kHz, seconds and dB land on the value they name", "[pl
     CHECK(shown("a_cutoff", 6800.0f) == "6.80 kHz");
     CHECK(shown("a_lfo_depth", 0.2f) == "+20%");
 }
+
+TEST_CASE("Auto Sweep dims the cutoff and resonance it drives and says why", "[plugin][ui]") {
+#if JUCE_LINUX
+    if (std::getenv("DISPLAY") == nullptr) SKIP("Native editor requires a display");
+#endif
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenEdmFilterProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    std::vector<juce::Component*> bands;
+    std::ranges::copy_if(editor->getChildren(), std::back_inserter(bands),
+        [](auto* child) { return dynamic_cast<openedm::ui::BandPanel*>(child) != nullptr; });
+    REQUIRE(bands.size() == 2);
+    auto* cutoffA = bands[0]->findChildWithID("a_cutoff");
+    auto* resonanceA = bands[0]->findChildWithID("a_reso");
+    auto* widthA = bands[0]->findChildWithID("a_width");
+    auto* cutoffB = bands[1]->findChildWithID("b_cutoff");
+    const auto tooltipOf = [](juce::Component* knob) { return dynamic_cast<juce::Slider*>(knob->getChildComponent(0))->getTooltip(); };
+    auto& timer = dynamic_cast<juce::Timer&>(*editor);
+
+    set(processor, "sweep_on", 1.0f);
+    timer.timerCallback();
+    CHECK_THAT(cutoffA->getAlpha(), WithinAbs(openedm::ui::kInactiveAlpha, 1e-6f));
+    CHECK_THAT(resonanceA->getAlpha(), WithinAbs(openedm::ui::kInactiveAlpha, 1e-6f));
+    CHECK(tooltipOf(cutoffA).contains("AUTO SWEEP"));
+    CHECK_THAT(widthA->getAlpha(), WithinAbs(1.0f, 1e-6f));
+    CHECK_THAT(cutoffB->getAlpha(), WithinAbs(1.0f, 1e-6f));
+
+    set(processor, "sweep_target", 1.0f);
+    timer.timerCallback();
+    CHECK_THAT(cutoffA->getAlpha(), WithinAbs(1.0f, 1e-6f));
+    CHECK(tooltipOf(cutoffA).isEmpty());
+    CHECK_THAT(cutoffB->getAlpha(), WithinAbs(openedm::ui::kInactiveAlpha, 1e-6f));
+
+    set(processor, "sweep_on", 0.0f);
+    set(processor, "b_bypass", 1.0f);
+    timer.timerCallback();
+    CHECK_THAT(cutoffB->getAlpha(), WithinAbs(openedm::ui::kInactiveAlpha, 1e-6f));
+    CHECK(tooltipOf(cutoffB).contains("BYPASS"));
+}
+
+TEST_CASE("A click on the response display leaves a swept band alone", "[plugin][ui]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenEdmFilterProcessor processor;
+    openedm::ui::ResponseView view(processor);
+    view.setBounds(0, 0, 800, 120);
+    set(processor, "sweep_on", 1.0f);
+    set(processor, "b_cutoff", 1000.0f);
+    // Before the first block, the swept A marker sits at the 80 Hz sweep start, left of B at 1 kHz.
+    const juce::Point<float> nearA{ 190.0f, 60.0f };
+    const auto now = juce::Time::getCurrentTime();
+    const juce::MouseEvent press(juce::Desktop::getInstance().getMainMouseSource(), nearA, {}, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                 &view, &view, now, nearA, now, 1, false);
+
+    view.mouseDown(press);
+    view.mouseUp(press);
+
+    CHECK_THAT(processor.parameters.getRawParameterValue("a_cutoff")->load(), WithinAbs(20000.0f, 0.5f));
+    CHECK(processor.parameters.getRawParameterValue("b_cutoff")->load() < 200.0f);
+}

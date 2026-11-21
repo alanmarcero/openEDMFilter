@@ -25,6 +25,9 @@ constexpr float kSlopeDragPixels = 90.0f;
 constexpr double kFallbackSampleRate = 44100.0;
 constexpr int kCaptionHeight = 14;
 constexpr int kSectionGap = 10;
+constexpr const char* kBandBypassHint = "Turn off BYPASS on this filter to use this control.";
+constexpr const char* kSweepDrivenHint
+    = "Auto Sweep sets this value. To use this control, turn off AUTO SWEEP or set the sweep target to the other filter.";
 
 void drawLevelMeter(juce::Graphics& g, juce::Rectangle<int> section, float peak, juce::Colour accent) {
     const auto bounds = section.reduced(10, 0);
@@ -85,8 +88,13 @@ float ResponseView::displayResonance(int band) const {
 }
 
 void ResponseView::mouseDown(const juce::MouseEvent& event) {
+    // Auto Sweep overrides a swept band's cutoff and resonance, so a click moves only a band it leaves free.
+    const auto sweep = processor_.currentSweepSettings();
+    const auto isFree = [&](int band) { return !core::AutoSweep::appliesToBand(sweep, band); };
+    if (!isFree(0) && !isFree(1))
+        return;
     const auto distanceTo = [&](int band) { return std::abs(event.position.x - xForHz(displayCutoff(band))); };
-    const int band = distanceTo(0) <= distanceTo(1) ? 0 : 1;
+    const int band = !isFree(1) || (isFree(0) && distanceTo(0) <= distanceTo(1)) ? 0 : 1;
     dragCutoff_ = processor_.parameters.getParameter(params::bandId(band, params::kCutoff));
     dragResonance_ = processor_.parameters.getParameter(params::bandId(band, params::kResonance));
     resonanceAtDragStart_ = dragResonance_->getValue();
@@ -224,6 +232,7 @@ void ResponseView::paint(juce::Graphics& g) {
     g.strokePath(combined, juce::PathStrokeType(2.0f));
 
     g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+    const auto sweep = processor_.currentSweepSettings();
     std::ranges::for_each(std::views::iota(size_t{0}, size_t{2}), [&](size_t band) {
         const double cutoff = juce::jlimit(kMinHz, kMaxHz, displayCutoffs[band]);
         const juce::Point<float> marker{ xForHz(cutoff), yForMagnitude(combinedMagnitude(cutoff)) };
@@ -232,7 +241,11 @@ void ResponseView::paint(juce::Graphics& g) {
             + params::formatHz(static_cast<float>(cutoff)) + "  (" + juce::String(resPercent) + "%)";
         const auto justification = band == 0 ? juce::Justification::centredLeft : juce::Justification::centredRight;
         g.setColour(accents[band].withAlpha(shapes[band].enabled ? 1.0f : 0.3f));
-        g.fillEllipse(juce::Rectangle<float>(9.0f, 9.0f).withCentre(marker));
+        // A hollow marker shows a band that Auto Sweep drives. A drag does not move it.
+        const auto dot = juce::Rectangle<float>(9.0f, 9.0f).withCentre(marker);
+        g.drawEllipse(dot.reduced(0.75f), 1.5f);
+        if (!core::AutoSweep::appliesToBand(sweep, static_cast<int>(band)))
+            g.fillEllipse(dot);
         g.drawText(label, plot.withHeight(16.0f).reduced(4.0f, 0.0f), justification);
     });
 }
@@ -721,21 +734,24 @@ BandPanel::BandPanel(Apvts& state, int band)
       envRelease_(state, params::bandId(band, params::kEnvRelease), "Release", accent_),
       envDepth_(state, params::bandId(band, params::kEnvDepth), "Depth", accent_),
       envListen_(state, params::bandId(band, params::kEnvInput), "Listen", accent_),
-      bypassWatcher_(*state.getParameter(params::bandId(band, params::kBypass)), [this](float isBypassed) {
-          const float alpha = isBypassed > 0.5f ? 0.72f : 1.0f;
-          std::ranges::for_each(getChildren(), [&](juce::Component* control) {
-              if (control != &bypass_) {
-                  control->setAlpha(alpha);
-              }
-          });
-      }) {
+      bypassValue_(*state.getRawParameterValue(params::bandId(band, params::kBypass))) {
     std::ranges::for_each(std::initializer_list<juce::Component*>{
                               &bypass_, &type_, &slope_, &cutoff_, &resonance_, &width_, &lfoShape_, &lfoRate_,
                               &lfoDepth_, &envSource_, &envAttack_, &envRelease_, &envDepth_, &envListen_ },
                           [this](juce::Component* control) { addAndMakeVisible(control); });
     envListen_.setTooltip("Envelope input. Main follows this track. Sidechain follows the other track, or this track when no sidechain is connected.");
     envSource_.setTooltip("The envelope follows the input level around this frequency.");
-    bypassWatcher_.sendInitialUpdate();
+    refresh(false);
+}
+
+void BandPanel::refresh(bool isSweepDriven) {
+    const bool isBypassed = bypassValue_.load() > 0.5f;
+    std::ranges::for_each(getChildren(), [&](juce::Component* control) {
+        if (control == &bypass_)
+            return;
+        const bool isDriven = isSweepDriven && (control == &cutoff_ || control == &resonance_);
+        setInactive(*control, isBypassed || isDriven, isBypassed ? kBandBypassHint : kSweepDrivenHint);
+    });
 }
 
 void BandPanel::paint(juce::Graphics& g) {
