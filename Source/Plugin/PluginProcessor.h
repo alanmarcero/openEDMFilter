@@ -210,7 +210,7 @@ private:
     size_t spectrumWriteIndex_ = 0;
     float spectrumWindowSum_ = 0.0f;
     std::atomic<int> currentProgram_{ 0 };
-    // The host can save state off the message thread, so the name sits behind a lock.
+    // The host can save state off the message thread, so a lock guards the name.
     juce::CriticalSection presetLock_;
     juce::String presetName_;
     bool presetEdited_ = false;

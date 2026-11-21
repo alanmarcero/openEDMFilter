@@ -267,7 +267,7 @@ void PresetBrowser::loadNeighbour(const juce::String& currentName, int direction
     const int count = static_cast<int>(rows_.size());
     if (count == 0)
         return;
-    // A preset that is not in the list steps to the first or the last row.
+    // For a preset not in the list, the step goes to the first or the last row.
     const int position = static_cast<int>(std::distance(rows_.begin(), std::ranges::find(rows_, currentName, &Row::name)));
     const int unlisted = direction > 0 ? -1 : count;
     const int from = position < count ? position : unlisted;

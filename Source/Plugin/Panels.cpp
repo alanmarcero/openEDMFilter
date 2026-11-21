@@ -26,6 +26,8 @@ constexpr double kFallbackSampleRate = 44100.0;
 constexpr int kCaptionHeight = 14;
 constexpr int kSectionGap = 10;
 constexpr const char* kSweepTitle = "Auto Sweep & Tempo Sync";
+constexpr int kKnobHeight = 62;
+constexpr float kStepGridInset = 4.0f;
 constexpr const char* kBandBypassHint = "Turn off BYPASS on this filter to use this control.";
 constexpr const char* kSweepDrivenHint
     = "Auto Sweep sets this value. To use this control, turn off AUTO SWEEP or set the sweep target to the other filter.";
@@ -616,7 +618,7 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
     effectKnobs_[7]->setTooltip("Sweep position where the glitch starts to move from Start to End.");
     clockSync_.setTooltip("Follows the host tempo and time signature. Turn off to use TEMPO and the signature menu.");
     timeSig_.setTooltip("Host uses the host time signature while HOST SYNC is on. Without HOST SYNC, Host is 4/4.");
-    // The old sweep BYPASS has no button now but still stops the sweep, so turning the sweep on clears it.
+    // The sweep bypass parameter has no button but still stops the sweep. Turning the sweep on clears it.
     enabled_.setComponentID(params::kSweepEnabled);
     enabled_.setTitle("Auto Sweep");
     enabled_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentA);
@@ -842,19 +844,15 @@ StepGrid::StepGrid(Apvts& state, int band, juce::Colour accent)
     });
 }
 
-juce::Rectangle<float> StepGrid::barArea() const {
-    return getLocalBounds().toFloat().reduced(4.0f);
+void StepGrid::mouseDown(const juce::MouseEvent& event) {
+    lastStep_ = -1;
+    mouseDrag(event);
 }
 
-int StepGrid::stepAt(float x) const {
-    const auto area = barArea();
-    return juce::jlimit(0, 15, static_cast<int>((x - area.getX()) / area.getWidth() * 16.0f));
-}
-
-void StepGrid::drawTo(juce::Point<float> position) {
-    const auto area = barArea();
-    const float value = juce::jlimit(-1.0f, 1.0f, (area.getCentreY() - position.y) / (area.getHeight() * 0.5f));
-    const int step = stepAt(position.x);
+void StepGrid::mouseDrag(const juce::MouseEvent& event) {
+    const auto area = getLocalBounds().toFloat().reduced(kStepGridInset);
+    const float value = juce::jlimit(-1.0f, 1.0f, (area.getCentreY() - event.position.y) / (area.getHeight() * 0.5f));
+    const int step = juce::jlimit(0, 15, static_cast<int>((event.position.x - area.getX()) / area.getWidth() * 16.0f));
     // A fast drag skips bars, so the bars between the last step and this one take the same value.
     const int from = lastStep_ < 0 ? step : lastStep_;
     std::ranges::for_each(std::views::iota(std::min(from, step), std::max(from, step) + 1), [&](int index) {
@@ -867,15 +865,6 @@ void StepGrid::drawTo(juce::Point<float> position) {
     lastStep_ = step;
 }
 
-void StepGrid::mouseDown(const juce::MouseEvent& event) {
-    lastStep_ = -1;
-    drawTo(event.position);
-}
-
-void StepGrid::mouseDrag(const juce::MouseEvent& event) {
-    drawTo(event.position);
-}
-
 void StepGrid::mouseUp(const juce::MouseEvent&) {
     std::ranges::for_each(std::views::iota(size_t{ 0 }, isDrawing_.size()), [&](size_t step) {
         if (isDrawing_[step])
@@ -885,7 +874,9 @@ void StepGrid::mouseUp(const juce::MouseEvent&) {
 }
 
 void StepGrid::mouseDoubleClick(const juce::MouseEvent& event) {
-    stepAttachments_[static_cast<size_t>(stepAt(event.position.x))]->setValueAsCompleteGesture(0.0f);
+    const auto area = getLocalBounds().toFloat().reduced(kStepGridInset);
+    const int step = juce::jlimit(0, 15, static_cast<int>((event.position.x - area.getX()) / area.getWidth() * 16.0f));
+    stepAttachments_[static_cast<size_t>(step)]->setValueAsCompleteGesture(0.0f);
 }
 
 void StepGrid::paint(juce::Graphics& g) {
@@ -893,7 +884,7 @@ void StepGrid::paint(juce::Graphics& g) {
     g.fillRoundedRectangle(getLocalBounds().toFloat(), 6.0f);
     g.setColour(theme::kPanelEdge);
     g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), 6.0f, 1.0f);
-    const auto area = barArea();
+    const auto area = getLocalBounds().toFloat().reduced(kStepGridInset);
     const float centre = area.getCentreY();
     g.setColour(theme::kTrack);
     g.drawHorizontalLine(juce::roundToInt(centre), area.getX(), area.getRight());
@@ -944,9 +935,9 @@ void BandModulation::paint(juce::Graphics& g) {
 
 void BandModulation::resized() {
     auto bounds = getLocalBounds().reduced(12, 6).withTrimmedTop(26);
-    stepsArea_ = bounds.removeFromTop(kCaptionHeight + 62);
+    stepsArea_ = bounds.removeFromTop(kCaptionHeight + kKnobHeight);
     bounds.removeFromTop(6);
-    auto lower = bounds.removeFromBottom(kCaptionHeight + 62);
+    auto lower = bounds.removeFromBottom(kCaptionHeight + kKnobHeight);
     bounds.removeFromBottom(6);
     gridArea_ = bounds;
     midiArea_ = lower.removeFromLeft((lower.getWidth() - kSectionGap) / 2);
@@ -1087,7 +1078,6 @@ void EffectsPanel::resized() {
         auto area = sections_[section].area.reduced(8, 0).withTrimmedTop(juce::jmin(34, juce::jmax(18, sections_[section].area.getHeight() / 4)));
         return area.withTrimmedBottom(4);
     };
-    // A thin meter runs down the right edge of INPUT and OUTPUT at every size.
     auto input = content(0);
     inputMeter_.setBounds(input.removeFromRight(6));
     layoutRow(input.withTrimmedRight(6), { &inputGain_, &subPreserve_ });

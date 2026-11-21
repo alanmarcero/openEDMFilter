@@ -89,7 +89,7 @@ Choice::Choice(Apvts& state, const juce::String& parameterId, const juce::String
 void Choice::bind(Apvts& state, const juce::String& parameterId) {
     attachment_.reset();
     setComponentID(parameterId);
-    // A box with no visible title speaks the name of the slot parameter it now edits.
+    // A box with no visible title uses the parameter name as its screen reader title.
     if (!title_.isVisible())
         box_.setTitle(state.getParameter(parameterId)->getName(64));
     attachment_ = std::make_unique<Apvts::ComboBoxAttachment>(state, parameterId, box_);

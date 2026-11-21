@@ -1371,7 +1371,7 @@ TEST_CASE("The modulation page has a native control for every routing, step and 
     };
     const float top = 6.0f;
     const float firstStep = 6.0f;
-    const float thirdStep = 4.0f + (grid->getWidth() - 8.0f) * 2.5f / 16.0f;
+    const float thirdStep = 4.0f + (static_cast<float>(grid->getWidth()) - 8.0f) * 2.5f / 16.0f;
     grid->mouseDown(mouseAt({ firstStep, top }));
     grid->mouseDrag(mouseAt({ thirdStep, top }));
     grid->mouseUp(mouseAt({ thirdStep, top }));

@@ -17,8 +17,9 @@ public:
     using TreeSink = std::function<void(const juce::ValueTree&)>;
     using TreeWriter = std::function<void(juce::ValueTree&)>;
 
-    // All hooks are optional. savePreset adds the loaded preset to each snapshot and loadPreset reads it
-    // back, so undo and A/B bring back the preset name. markEdited runs before a gesture edit is stored.
+    // All hooks are optional. savePreset writes the loaded preset into each snapshot.
+    // loadPreset reads it back, so undo and A/B restore the preset name.
+    // markEdited runs before ParameterUndo stores a gesture edit.
     void setHooks(TreeWriter savePreset, TreeSink loadPreset, std::function<void()> markEdited);
 
     // Each A/B slot has its own history, so an undo never applies a state from the other slot.

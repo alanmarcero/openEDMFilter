@@ -30,7 +30,7 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     setLookAndFeel(&lookAndFeel_);
     inertia_.setTooltip("Slows cutoff moves on the 48 and 96 dB slopes to stop clicks. Turn off for fast gates.");
     masterBypass_.setTooltip("Bypasses the whole plugin. The host bypass uses this switch.");
-    faceplate_ =juce::ImageCache::getFromMemory(BinaryData::analogcyberfaceplate_png, BinaryData::analogcyberfaceplate_pngSize);
+    faceplate_ = juce::ImageCache::getFromMemory(BinaryData::analogcyberfaceplate_png, BinaryData::analogcyberfaceplate_pngSize);
     pulse_ = juce::Drawable::createFromImageData(BinaryData::filterpulse_svg, BinaryData::filterpulse_svgSize);
 
     std::vector<juce::String> factoryNames;
@@ -113,7 +113,7 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
 
     setWantsKeyboardFocus(true);
     addKeyListener(this);
-    // Set the size first. The limits clamp the empty start bounds, and that resize would replace the saved size.
+    // Set the size first. The limits clamp the empty start bounds. That resize replaces the saved size.
     setSize(processor_.editorWidth(), processor_.editorHeight());
     setResizeLimits(OpenEdmFilterProcessor::kMinEditorWidth, OpenEdmFilterProcessor::kMinEditorHeight,
                     OpenEdmFilterProcessor::kMaxEditorWidth, OpenEdmFilterProcessor::kMaxEditorHeight);
@@ -154,12 +154,13 @@ void OpenEdmFilterEditor::timerCallback() {
     bandA_.refresh(openedm::core::AutoSweep::appliesToBand(sweep, 0));
     bandB_.refresh(openedm::core::AutoSweep::appliesToBand(sweep, 1));
     sweep_.refresh();
-    openedm::ui::setInactive(freezeSpectrumButton_, !spectrumButton_.getToggleState(), "Turn on SPECTRUM to freeze the trace.");
-    // BYPASS ALL passes the dry signal, so every control panel dims with it.
-    const bool isBypassed = processor_.parameters.getRawParameterValue(openedm::params::kMasterBypass)->load() > 0.5f;
     modulationPage_.refresh();
+    openedm::ui::setInactive(freezeSpectrumButton_, !spectrumButton_.getToggleState(), "Turn on SPECTRUM to freeze the trace.");
     if (modulationPage_.isVisible() != processor_.modulationPageVisible.load())
         resized();
+
+    // BYPASS ALL passes the dry signal, so every control panel dims with it.
+    const bool isBypassed = processor_.parameters.getRawParameterValue(openedm::params::kMasterBypass)->load() > 0.5f;
     std::ranges::for_each(std::initializer_list<juce::Component*>{ &sweep_, &bandA_, &bandB_, &effects_, &modulationPage_ }, [&](juce::Component* panel) {
         panel->setAlpha(isBypassed ? theme::kInactiveAlpha : 1.0f);
     });
@@ -267,7 +268,7 @@ void OpenEdmFilterEditor::resized() {
     bounds.removeFromTop(gap);
     effects_.setBounds(bounds);
 
-    // The modulation page takes the place of the sweep and filter panels. The response view stays in sight.
+    // The modulation page takes the place of the sweep and filter panels. The response view stays visible.
     const bool showsModulation = processor_.modulationPageVisible.load();
     modulationPage_.setBounds(sweep_.getBounds().getUnion(bandB_.getBounds()));
     modulationPage_.setVisible(showsModulation);

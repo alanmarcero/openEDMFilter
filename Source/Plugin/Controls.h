@@ -61,8 +61,7 @@ private:
     Apvts::ButtonAttachment attachment_;
 };
 
-// A thin vertical peak meter in dBFS. It holds the highest peak for 1 s and turns its top red
-// above 0 dBFS until a click clears it.
+// A thin vertical dBFS peak meter with a 1 s peak hold. Its top turns red above 0 dBFS until a click.
 class LevelMeter : public juce::Component, public juce::SettableTooltipClient {
 public:
     LevelMeter(std::atomic<float>& peak, const juce::String& name, int framesPerSecond, juce::Colour accent);
@@ -86,7 +85,7 @@ private:
 };
 
 // Draws a control at theme::kInactiveAlpha while its setting has no effect.
-// Its tooltip then says what turns it on. The original tooltip comes back when it is active again.
+// Its tooltip then says what turns it on. The original tooltip returns when the control is active.
 void setInactive(juce::Component& control, bool isInactive, const juce::String& enableHint);
 
 // Places components left to right in equal-width cells.

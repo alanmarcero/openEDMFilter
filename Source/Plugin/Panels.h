@@ -157,10 +157,6 @@ public:
     void mouseDoubleClick(const juce::MouseEvent& event) override;
 
 private:
-    [[nodiscard]] juce::Rectangle<float> barArea() const;
-    [[nodiscard]] int stepAt(float x) const;
-    void drawTo(juce::Point<float> position);
-
     juce::Colour accent_;
     juce::RangedAudioParameter& length_;
     juce::ParameterAttachment lengthWatcher_;
@@ -202,7 +198,6 @@ private:
     juce::Rectangle<int> laneArea_;
 };
 
-// Routing, FM shape and target, channels, and each filter's steps, MIDI and lane.
 class ModulationPage : public juce::Component {
 public:
     explicit ModulationPage(Apvts& state);

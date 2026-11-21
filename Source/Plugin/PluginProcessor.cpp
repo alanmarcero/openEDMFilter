@@ -10,6 +10,9 @@
 namespace core = openedm::core;
 namespace params = openedm::params;
 
+// processBlock stores the time signature for the editor, so the store must not lock.
+static_assert(std::atomic<juce::AudioPlayHead::TimeSignature>::is_always_lock_free);
+
 OpenEdmFilterProcessor::OpenEdmFilterProcessor()
     : AudioProcessor(BusesProperties()
                          .withInput("Input", juce::AudioChannelSet::stereo(), true)
@@ -136,7 +139,7 @@ void OpenEdmFilterProcessor::setEditorSize(int width, int height) noexcept {
     editorHeight_ = juce::jlimit(kMinEditorHeight, kMaxEditorHeight, height);
 }
 
-// A switch or a copy is not an undo step. Each slot keeps its own history, and a copy clears the target's.
+// A switch or a copy is not an undo step. Each slot keeps its own history. A copy clears the target's history.
 void OpenEdmFilterProcessor::toggleAB() {
     editHistory_.flush();
     ab_.remember(editHistory_.captureParameters(), ab_.active());

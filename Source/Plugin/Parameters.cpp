@@ -50,7 +50,6 @@ struct ValueText {
 constexpr int kVersion = 1;
 
 const Parser kParseNumber = [](const juce::String& text) { return text.getFloatValue(); };
-// "50" and "50%" both mean 50%.
 const Parser kParsePercent = [](const juce::String& text) { return text.getFloatValue() / 100.0f; };
 
 const ValueText kFormatHz{ [](float hz, int) { return formatHz(hz); },
@@ -73,7 +72,8 @@ const ValueText kFormatMs{ [](float ms, int) {
 const ValueText kFormatDb{ [](float db, int) {
     // Rounding first stops "-0.0 dB".
     const float tenths = std::round(db * 10.0f) / 10.0f;
-    return (tenths > 0.0f ? "+" : "") + juce::String(tenths == 0.0f ? 0.0f : tenths, 1) + " dB";
+    const float shown = std::abs(tenths) < 0.05f ? 0.0f : tenths;
+    return (shown > 0.0f ? "+" : "") + juce::String(shown, 1) + " dB";
 }, kParseNumber };
 const ValueText kFormatBpm{ [](float bpm, int) { return juce::String(bpm, 1) + " BPM"; }, kParseNumber };
 
@@ -139,7 +139,7 @@ juce::String formatHz(float hz) {
     if (juce::roundToInt(hz) >= 1000) {
         return juce::String(hz / 1000.0f, 2) + " kHz";
     }
-    // Choosing the format from the rounded value keeps 99.97 Hz out of "100.0 Hz".
+    // The rounded value picks the format. So 99.97 Hz shows as "100 Hz".
     const float tenths = std::round(hz * 10.0f) / 10.0f;
     // juce::String(float, 0) prints every digit, so whole numbers go through roundToInt.
     return (tenths < 100.0f ? juce::String(tenths, 1) : juce::String(juce::roundToInt(hz))) + " Hz";
@@ -262,10 +262,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     std::unique_ptr<juce::AudioProcessorParameterGroup> group;
     std::ranges::for_each(layout.parameters, [&](std::unique_ptr<juce::RangedAudioParameter>& parameter) {
         const auto start = std::ranges::find_if(kGroups, [&](const Group& next) { return parameter->paramID == next.firstId; });
-        if (start != kGroups.end() && group != nullptr)
-            grouped.add(std::move(group));
-        if (start != kGroups.end())
+        if (start != kGroups.end()) {
+            if (group != nullptr)
+                grouped.add(std::move(group));
             group = std::make_unique<juce::AudioProcessorParameterGroup>(start->id, start->name, " | ");
+        }
         group->addChild(std::move(parameter));
     });
     grouped.add(std::move(group));
