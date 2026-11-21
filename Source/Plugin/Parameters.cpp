@@ -139,10 +139,10 @@ juce::String formatHz(float hz) {
     if (juce::roundToInt(hz) >= 1000) {
         return juce::String(hz / 1000.0f, 2) + " kHz";
     }
-    // The rounded value picks the format. So 99.97 Hz shows as "100 Hz".
+    // Only rates below 10 Hz, such as FM RATE, need a decimal. The rounded value picks the format.
     const float tenths = std::round(hz * 10.0f) / 10.0f;
     // juce::String(float, 0) prints every digit, so whole numbers go through roundToInt.
-    return (tenths < 100.0f ? juce::String(tenths, 1) : juce::String(juce::roundToInt(hz))) + " Hz";
+    return (tenths < 10.0f ? juce::String(tenths, 1) : juce::String(juce::roundToInt(hz))) + " Hz";
 }
 
 juce::String bandId(int band, const char* suffix) {

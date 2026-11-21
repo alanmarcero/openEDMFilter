@@ -1011,6 +1011,8 @@ TEST_CASE("Typed percent, kHz, seconds and dB land on the value they name", "[pl
     CHECK(shown("a_env_attack", 4.5f) == "4.5 ms");
     CHECK(shown("a_env_release", 160.0f) == "160 ms");
     CHECK(shown("a_cutoff", 850.0f) == "850 Hz");
+    CHECK(shown("a_cutoff", 20.0f) == "20 Hz");
+    CHECK(shown("fm_rate", 0.5f) == "0.5 Hz");
     CHECK(shown("a_cutoff", 6800.0f) == "6.80 kHz");
     CHECK(shown("a_lfo_depth", 0.2f) == "+20%");
 }
