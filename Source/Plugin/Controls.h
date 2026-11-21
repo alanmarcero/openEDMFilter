@@ -62,11 +62,12 @@ private:
 };
 
 // A thin vertical dBFS peak meter with a 1 s peak hold. Its top turns red above 0 dBFS until a click.
-class LevelMeter : public juce::Component, public juce::SettableTooltipClient {
+class LevelMeter : public juce::Component, public juce::TooltipClient {
 public:
     LevelMeter(std::atomic<float>& peak, const juce::String& name, int framesPerSecond, juce::Colour accent);
     // Takes the peak since the last call. Call it once per editor frame.
     void update();
+    juce::String getTooltip() override;
     void paint(juce::Graphics& g) override;
     void mouseDown(const juce::MouseEvent& event) override;
     [[nodiscard]] float heldPeak() const noexcept { return held_; }

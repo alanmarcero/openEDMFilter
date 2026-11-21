@@ -1,6 +1,7 @@
 #include "Controls.h"
 #include "Theme.h"
 #include "Parameters.h"
+#include <tuple>
 
 namespace openedm::ui {
 
@@ -159,23 +160,18 @@ void Toggle::setTooltip(const juce::String& text) {
 
 void setInactive(juce::Component& control, bool isInactive, const juce::String& enableHint) {
     control.setAlpha(isInactive ? theme::kInactiveAlpha : 1.0f);
-    std::vector<juce::SettableTooltipClient*> parts;
-    const auto collect = [&](auto&& self, juce::Component& part) -> void {
-        if (auto* client = dynamic_cast<juce::SettableTooltipClient*>(&part))
-            parts.push_back(client);
+    // The first part holds the tooltip to restore. A slider can rebuild its value box, so every part gets set each time.
+    auto& properties = control.getProperties();
+    const auto apply = [&](auto&& self, juce::Component& part) -> void {
+        if (auto* client = dynamic_cast<juce::SettableTooltipClient*>(&part)) {
+            if (!properties.contains("activeTooltip"))
+                properties.set("activeTooltip", client->getTooltip());
+            const juce::String activeTooltip = properties["activeTooltip"];
+            client->setTooltip(isInactive ? enableHint : activeTooltip);
+        }
         std::ranges::for_each(part.getChildren(), [&](juce::Component* child) { self(self, *child); });
     };
-    collect(collect, control);
-    if (parts.empty())
-        return;
-
-    // A slider can rebuild its value box, so every part gets the tooltip each time.
-    auto& properties = control.getProperties();
-    if (!properties.contains("activeTooltip"))
-        properties.set("activeTooltip", parts.front()->getTooltip());
-    const juce::String activeTooltip = properties["activeTooltip"];
-    const auto& tooltip = isInactive ? enableHint : activeTooltip;
-    std::ranges::for_each(parts, [&](juce::SettableTooltipClient* part) { part->setTooltip(tooltip); });
+    apply(apply, control);
 }
 
 LevelMeter::LevelMeter(std::atomic<float>& peak, const juce::String& name, int framesPerSecond, juce::Colour accent)
@@ -190,8 +186,10 @@ LevelMeter::LevelMeter(std::atomic<float>& peak, const juce::String& name, int f
 
 void LevelMeter::update() {
     const float peak = peak_.exchange(0.0f);
-    // The bar falls 20 dB per second. The hold mark stays for 1 s, then follows the bar.
-    level_ = std::max(peak, level_ * fallPerFrame_);
+    const auto before = std::tuple(level_, held_, isClipped_);
+    // The bar falls 20 dB per second and empties below -60 dBFS. The hold mark stays for 1 s, then follows the bar.
+    const float fallen = level_ * fallPerFrame_;
+    level_ = std::max(peak, fallen < 0.001f ? 0.0f : fallen);
     if (peak >= held_) {
         held_ = peak;
         framesLeft_ = holdFrames_;
@@ -199,10 +197,14 @@ void LevelMeter::update() {
     if (peak < held_ && --framesLeft_ <= 0)
         held_ = level_;
     isClipped_ = isClipped_ || peak > 1.0f;
+    if (std::tuple(level_, held_, isClipped_) != before)
+        repaint();
+}
+
+juce::String LevelMeter::getTooltip() {
     const juce::String heldDb(juce::Decibels::gainToDecibels(held_), 1);
     const auto heldText = held_ > 0.0f ? heldDb + " dBFS" : juce::String("-INF dBFS");
-    setTooltip(name_ + " peak " + heldText + ". A red top shows a peak above 0 dBFS. Click to clear it.");
-    repaint();
+    return name_ + " peak " + heldText + ". A red top shows a peak above 0 dBFS. Click to clear it.";
 }
 
 void LevelMeter::paint(juce::Graphics& g) {
