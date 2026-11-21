@@ -436,3 +436,42 @@ TEST_CASE("Each A/B slot keeps its own undo history", "[suite]") {
     CHECK_THAT(cutoff(processor), WithinAbs(300.0f, 0.1f));
     CHECK_FALSE(processor.canUndoEdit());
 }
+
+TEST_CASE("Save asks before replacing and Delete asks before removing a user preset", "[suite]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    TempPresets temp;
+    suite::PresetStore store(temp.directory);
+    const auto snapshotWith = [](double hz) {
+        juce::ValueTree snapshot("Snapshot");
+        juce::ValueTree param("PARAM");
+        param.setProperty("id", "a_cutoff", nullptr);
+        param.setProperty("value", hz, nullptr);
+        snapshot.appendChild(param, nullptr);
+        return snapshot;
+    };
+    const auto storedHz = [&] { return static_cast<double>(store.load("My Sweep")->getChild(0).getProperty("value")); };
+    REQUIRE(store.save("My Sweep", snapshotWith(100.0)));
+    suite::PresetBrowser browser(store, {}, {});
+    browser.setBounds(0, 0, 380, 420);
+    browser.captureState = [&] { return snapshotWith(200.0); };
+    auto* save = dynamic_cast<juce::TextButton*>(findId(browser, "presetSave"));
+    auto* remove = dynamic_cast<juce::TextButton*>(findId(browser, "presetDelete"));
+    auto* name = dynamic_cast<juce::TextEditor*>(findId(browser, "presetName"));
+    auto* list = dynamic_cast<juce::ListBox*>(findId(browser, "presetList"));
+
+    name->setText("My Sweep", false);
+    save->onClick();
+    CHECK(save->getButtonText() == "REPLACE?");
+    CHECK_THAT(storedHz(), WithinAbs(100.0, 1e-9));
+    save->onClick();
+    CHECK(save->getButtonText() == "SAVE");
+    CHECK_THAT(storedHz(), WithinAbs(200.0, 1e-9));
+
+    list->selectRow(0);
+    remove->onClick();
+    CHECK(remove->getButtonText() == "DELETE?");
+    CHECK(store.load("My Sweep").has_value());
+    remove->onClick();
+    CHECK_FALSE(store.load("My Sweep").has_value());
+    CHECK(remove->getButtonText() == "DELETE");
+}

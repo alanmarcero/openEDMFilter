@@ -22,6 +22,7 @@ PresetBrowser::PresetBrowser(PresetStore& store, Factory factory, Colours colour
     name_.setColour(juce::TextEditor::backgroundColourId, colours_.panel);
     name_.setColour(juce::TextEditor::textColourId, colours_.text);
     name_.setColour(juce::TextEditor::outlineColourId, colours_.edge);
+    name_.onTextChange = [this] { disarm(); };
 
     const auto styleButton = [this](juce::TextButton& button, const juce::String& id) {
         button.setComponentID(id);
@@ -36,6 +37,15 @@ PresetBrowser::PresetBrowser(PresetStore& store, Factory factory, Colours colour
         const auto presetName = name_.getText().trim();
         if (presetName.isEmpty() || captureState == nullptr)
             return;
+        // Replacing a user preset and deleting one each take a second click within 3 seconds.
+        if (store_.load(presetName).has_value() && confirming_ != &save_) {
+            disarm();
+            confirming_ = &save_;
+            save_.setButtonText("REPLACE?");
+            startTimer(3000);
+            return;
+        }
+        disarm();
         if (store_.save(presetName, captureState())) {
             if (onSaved)
                 onSaved(presetName);
@@ -59,6 +69,14 @@ PresetBrowser::PresetBrowser(PresetStore& store, Factory factory, Colours colour
         const auto* row = selectedRow();
         if (row == nullptr || row->factory)
             return;
+        if (confirming_ != &remove_) {
+            disarm();
+            confirming_ = &remove_;
+            remove_.setButtonText("DELETE?");
+            startTimer(3000);
+            return;
+        }
+        disarm();
         if (store_.remove(row->name)) {
             name_.clear();
             rebuild();
@@ -84,6 +102,17 @@ PresetBrowser::PresetBrowser(PresetStore& store, Factory factory, Colours colour
 
 PresetBrowser::~PresetBrowser() {
     list_.setModel(nullptr);
+}
+
+void PresetBrowser::timerCallback() {
+    disarm();
+}
+
+void PresetBrowser::disarm() {
+    stopTimer();
+    confirming_ = nullptr;
+    save_.setButtonText("SAVE");
+    remove_.setButtonText("DELETE");
 }
 
 void PresetBrowser::setSearchText(const juce::String& text) {
@@ -212,6 +241,7 @@ void PresetBrowser::listBoxItemClicked(int row, const juce::MouseEvent& event) {
 }
 
 void PresetBrowser::selectedRowsChanged(int) {
+    disarm();
     if (const auto* row = selectedRow())
         name_.setText(row->name, juce::dontSendNotification);
     updateButtons();

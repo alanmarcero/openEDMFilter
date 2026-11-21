@@ -16,7 +16,7 @@ struct Colours {
 };
 
 // Factory and user presets, with search and favorites. Factory rows cannot be renamed or deleted.
-class PresetBrowser : public juce::Component, private juce::ListBoxModel {
+class PresetBrowser : public juce::Component, private juce::ListBoxModel, private juce::Timer {
 public:
     using Factory = std::vector<juce::String>;
 
@@ -49,6 +49,8 @@ private:
     void listBoxItemClicked(int row, const juce::MouseEvent& event) override;
     void selectedRowsChanged(int lastRow) override;
 
+    void timerCallback() override;
+    void disarm();
     void rebuild();
     void loadRow(int row);
     void updateButtons();
@@ -65,6 +67,8 @@ private:
     juce::TextButton remove_{ "DELETE" };
     juce::TextButton favorite_{ "FAVORITE" };
     juce::ListBox list_{ "Presets", this };
+    // A replace or delete waits for a second click on this button.
+    juce::TextButton* confirming_ = nullptr;
 };
 
 } // namespace suite
