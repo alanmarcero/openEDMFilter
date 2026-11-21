@@ -39,7 +39,8 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     presetBrowser_ = std::make_unique<suite::PresetBrowser>(presetStore_, std::move(factoryNames), suiteColours());
     presetBrowser_->captureState = [this] { return processor_.parameterSnapshot(); };
     presetBrowser_->onFactoryPreset = [this](int index) { processor_.setCurrentProgram(index); };
-    presetBrowser_->onUserPreset = [this](const juce::ValueTree& snapshot) { processor_.applyParameterSnapshot(snapshot, "User preset"); };
+    presetBrowser_->onUserPreset = [this](const juce::String& name, const juce::ValueTree& snapshot) { processor_.loadUserPreset(name, snapshot); };
+    presetBrowser_->onSaved = [this](const juce::String& name) { processor_.markPresetSaved(name); };
     addChildComponent(*presetBrowser_);
 
     suiteBar_.onUndo = [this] { processor_.undoEdit(); };
@@ -57,32 +58,18 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     openedm::presets::populateComboMenu(presetBox_, openedm::presets::factoryPresets());
     presetBox_.setComponentID("factoryPreset");
     presetBox_.setColour(juce::ComboBox::outlineColourId, theme::kPanelEdge);
-    presetBox_.setSelectedId(processor_.getCurrentProgram() + 1, juce::dontSendNotification);
+    presetBox_.setText(processor_.presetDisplayName(), juce::dontSendNotification);
     presetBox_.onChange = [this] { processor_.setCurrentProgram(presetBox_.getSelectedId() - 1); };
 
     prevPresetBtn_.setComponentID("prevPreset");
     prevPresetBtn_.setTooltip("Previous preset");
     prevPresetBtn_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentA);
-    prevPresetBtn_.onClick = [this] {
-        const int num = processor_.getNumPrograms();
-        if (num <= 0) return;
-        const int cur = processor_.getCurrentProgram();
-        const int nextProg = (cur <= 0 ? num : cur) - 1;
-        processor_.setCurrentProgram(nextProg);
-        presetBox_.setSelectedId(nextProg + 1, juce::dontSendNotification);
-    };
+    prevPresetBtn_.onClick = [this] { presetBrowser_->loadNeighbour(processor_.presetName(), -1); };
 
     nextPresetBtn_.setComponentID("nextPreset");
     nextPresetBtn_.setTooltip("Next preset");
     nextPresetBtn_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentA);
-    nextPresetBtn_.onClick = [this] {
-        const int num = processor_.getNumPrograms();
-        if (num <= 0) return;
-        const int cur = processor_.getCurrentProgram();
-        const int nextProg = (cur + 1) % num;
-        processor_.setCurrentProgram(nextProg);
-        presetBox_.setSelectedId(nextProg + 1, juce::dontSendNotification);
-    };
+    nextPresetBtn_.onClick = [this] { presetBrowser_->loadNeighbour(processor_.presetName(), 1); };
 
     advancedButton_.setComponentID("advancedModulation");
     advancedButton_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentFx);
@@ -153,9 +140,8 @@ bool OpenEdmFilterEditor::keyPressed(const juce::KeyPress& key, juce::Component*
 }
 
 void OpenEdmFilterEditor::timerCallback() {
-    const auto id = processor_.getCurrentProgram() + 1;
-    if (presetBox_.getSelectedId() != id)
-        presetBox_.setSelectedId(id, juce::dontSendNotification);
+    if (const auto shown = processor_.presetDisplayName(); presetBox_.getText() != shown)
+        presetBox_.setText(shown, juce::dontSendNotification);
     suiteBar_.setHistoryEnabled(processor_.canUndoEdit(), processor_.canRedoEdit());
     suiteBar_.setActiveSlot(processor_.abSlot());
     const auto sweep = processor_.currentSweepSettings();

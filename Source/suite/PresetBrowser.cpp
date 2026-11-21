@@ -1,4 +1,5 @@
 #include "PresetBrowser.h"
+#include <algorithm>
 
 namespace suite {
 
@@ -36,6 +37,8 @@ PresetBrowser::PresetBrowser(PresetStore& store, Factory factory, Colours colour
         if (presetName.isEmpty() || captureState == nullptr)
             return;
         if (store_.save(presetName, captureState())) {
+            if (onSaved)
+                onSaved(presetName);
             rebuild();
             for (int i = 0; i < static_cast<int>(rows_.size()); ++i)
                 if (!rows_[static_cast<size_t>(i)].factory && rows_[static_cast<size_t>(i)].name.equalsIgnoreCase(presetName))
@@ -224,7 +227,20 @@ void PresetBrowser::loadRow(int row) {
         return;
     }
     if (auto snapshot = store_.load(item.name); snapshot.has_value() && onUserPreset)
-        onUserPreset(*snapshot);
+        onUserPreset(item.name, *snapshot);
+}
+
+void PresetBrowser::loadNeighbour(const juce::String& currentName, int direction) {
+    const int count = static_cast<int>(rows_.size());
+    if (count == 0)
+        return;
+    // A preset that is not in the list steps to the first or the last row.
+    const int position = static_cast<int>(std::distance(rows_.begin(), std::ranges::find(rows_, currentName, &Row::name)));
+    const int unlisted = direction > 0 ? -1 : count;
+    const int from = position < count ? position : unlisted;
+    const int next = ((from + direction) % count + count) % count;
+    list_.selectRow(next);
+    loadRow(next);
 }
 
 const PresetBrowser::Row* PresetBrowser::selectedRow() const {

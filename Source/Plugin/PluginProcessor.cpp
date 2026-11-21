@@ -68,9 +68,21 @@ OpenEdmFilterProcessor::OpenEdmFilterProcessor()
     });
     setLatencySamples(core::FilterEngine::kLatencySamples);
     parameters.state.setProperty("barsLayout", params::kSweepBarsLayout, nullptr);
+    presetName_ = openedm::presets::factoryPresets().front().name;
     editHistory_.setHooks(
-        [this] { return currentProgram_.load(); },
-        [this](int program) { currentProgram_ = program; },
+        [this](juce::ValueTree& snapshot) {
+            const juce::ScopedLock lock(presetLock_);
+            snapshot.setProperty("program", currentProgram_.load(), nullptr);
+            snapshot.setProperty("presetName", presetName_, nullptr);
+            snapshot.setProperty("presetEdited", presetEdited_, nullptr);
+        },
+        [this](const juce::ValueTree& snapshot) {
+            if (snapshot.hasProperty("program"))
+                currentProgram_ = static_cast<int>(snapshot.getProperty("program"));
+            if (snapshot.hasProperty("presetName"))
+                setPreset(snapshot.getProperty("presetName").toString(), static_cast<bool>(snapshot.getProperty("presetEdited")));
+        },
+        [this] { setPreset(presetName(), true); },
         [this] { return ab_.active(); },
         [this](int slot) { ab_.setActive(slot); },
         [this] { return ab_.toValueTree(); },
@@ -148,8 +160,34 @@ void OpenEdmFilterProcessor::copyBetweenSlots(int from, int to) {
     }, "Copy");
 }
 
-void OpenEdmFilterProcessor::applyParameterSnapshot(const juce::ValueTree& snapshot, const juce::String& name) {
-    editHistory_.performEdit([&] { editHistory_.restore(snapshot); }, name);
+void OpenEdmFilterProcessor::editParameters(const std::function<void()>& edit, const juce::String& name) {
+    editHistory_.performEdit([&] {
+        edit();
+        setPreset(presetName(), true);
+    }, name);
+}
+
+void OpenEdmFilterProcessor::loadUserPreset(const juce::String& name, const juce::ValueTree& snapshot) {
+    editHistory_.performEdit([&] {
+        editHistory_.restore(snapshot);
+        setPreset(name, false);
+    }, "User preset");
+}
+
+void OpenEdmFilterProcessor::setPreset(const juce::String& name, bool isEdited) {
+    const juce::ScopedLock lock(presetLock_);
+    presetName_ = name;
+    presetEdited_ = isEdited;
+}
+
+juce::String OpenEdmFilterProcessor::presetName() const {
+    const juce::ScopedLock lock(presetLock_);
+    return presetName_;
+}
+
+juce::String OpenEdmFilterProcessor::presetDisplayName() const {
+    const juce::ScopedLock lock(presetLock_);
+    return presetEdited_ ? presetName_ + " *" : presetName_;
 }
 
 int OpenEdmFilterProcessor::currentSweepSlot() const noexcept {
@@ -509,6 +547,7 @@ void OpenEdmFilterProcessor::setCurrentProgram(int index) {
     }
     editHistory_.performEdit([&] {
         currentProgram_ = index;
+        setPreset(presets[static_cast<size_t>(index)].name, false);
         openedm::presets::apply(presets[static_cast<size_t>(index)], parameters);
     }, "Preset");
 }
@@ -525,6 +564,11 @@ void OpenEdmFilterProcessor::getStateInformation(juce::MemoryBlock& destData) {
     ab_.remember(editHistory_.captureParameters(), ab_.active());
     auto state = parameters.copyState();
     state.setProperty("program", currentProgram_.load(), nullptr);
+    {
+        const juce::ScopedLock lock(presetLock_);
+        state.setProperty("presetName", presetName_, nullptr);
+        state.setProperty("presetEdited", presetEdited_, nullptr);
+    }
     state.setProperty("preset_catalog_version", 2, nullptr);
     state.setProperty("barsLayout", params::kSweepBarsLayout, nullptr);
     state.setProperty("editorWidth", editorWidth_.load(), nullptr);
@@ -556,6 +600,9 @@ void OpenEdmFilterProcessor::setStateInformation(const void* data, int sizeInByt
     const int catalogVersion = static_cast<int>(state.getProperty("preset_catalog_version", 1));
     const int savedProgram = static_cast<int>(state.getProperty("program", 0));
     currentProgram_ = catalogVersion < 2 ? 0 : juce::jlimit(0, std::max(0, getNumPrograms() - 1), savedProgram);
+    // Older sessions saved only the program. Their settings can differ from it, so they show as edited.
+    const juce::String programName = openedm::presets::factoryPresets()[static_cast<size_t>(currentProgram_.load())].name;
+    setPreset(state.getProperty("presetName", programName).toString(), static_cast<bool>(state.getProperty("presetEdited", true)));
     parameters.replaceState(state);
     const int width = static_cast<int>(state.getProperty("editorWidth", 0));
     const int height = static_cast<int>(state.getProperty("editorHeight", 0));

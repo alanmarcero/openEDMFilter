@@ -56,7 +56,7 @@ public:
     [[nodiscard]] bool canUndoEdit() const { return editHistory_.canUndo(); }
     [[nodiscard]] bool canRedoEdit() const { return editHistory_.canRedo(); }
     void flushEdits() { editHistory_.flush(); }
-    void editParameters(const std::function<void()>& edit, const juce::String& name) { editHistory_.performEdit(edit, name); }
+    void editParameters(const std::function<void()>& edit, const juce::String& name);
     void toggleAB();
     void copyBetweenSlots(int from, int to);
     [[nodiscard]] int abSlot() const noexcept { return ab_.active(); }
@@ -65,7 +65,11 @@ public:
     [[nodiscard]] int editorHeight() const noexcept { return editorHeight_.load(); }
     [[nodiscard]] bool isSidechainConnected() const noexcept;
     [[nodiscard]] juce::ValueTree parameterSnapshot() const { return editHistory_.captureParameters(); }
-    void applyParameterSnapshot(const juce::ValueTree& snapshot, const juce::String& name);
+    void loadUserPreset(const juce::String& name, const juce::ValueTree& snapshot);
+    void markPresetSaved(const juce::String& name) { setPreset(name, false); }
+    [[nodiscard]] juce::String presetName() const;
+    // The loaded preset's name, with " *" after the first edit since it loaded or saved.
+    [[nodiscard]] juce::String presetDisplayName() const;
 
     juce::AudioProcessorValueTreeState parameters;
 
@@ -192,6 +196,7 @@ private:
     };
     std::array<std::array<ControllerValue, 128>, 16> controllers_{};
     std::uint64_t controllerOrder_ = 0;
+    void setPreset(const juce::String& name, bool isEdited);
     void handleMidi(const juce::MidiMessage& message) noexcept;
     void updateInputAnalysis(const juce::AudioBuffer<float>& buffer, float inputGain) noexcept;
     void updateOutputMeter(const juce::AudioBuffer<float>& buffer) noexcept;
@@ -205,6 +210,10 @@ private:
     size_t spectrumWriteIndex_ = 0;
     float spectrumWindowSum_ = 0.0f;
     std::atomic<int> currentProgram_{ 0 };
+    // The host can save state off the message thread, so the name sits behind a lock.
+    juce::CriticalSection presetLock_;
+    juce::String presetName_;
+    bool presetEdited_ = false;
     double processingSampleRate_ = 44100.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OpenEdmFilterProcessor)

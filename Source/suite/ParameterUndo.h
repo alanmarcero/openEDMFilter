@@ -15,9 +15,12 @@ public:
 
     using TreeSource = std::function<juce::ValueTree()>;
     using TreeSink = std::function<void(const juce::ValueTree&)>;
+    using TreeWriter = std::function<void(juce::ValueTree&)>;
 
-    // program / A/B hooks are optional. Slot trees ride along so a copy or toggle undoes cleanly.
-    void setHooks(std::function<int()> getProgram, std::function<void(int)> setProgram,
+    // All hooks are optional. savePreset adds the loaded preset to each snapshot and loadPreset reads it
+    // back, so undo and A/B bring back the preset name. markEdited runs before a gesture edit is stored.
+    // Slot trees ride along so a copy or toggle undoes cleanly.
+    void setHooks(TreeWriter savePreset, TreeSink loadPreset, std::function<void()> markEdited,
                   std::function<int()> getAbSlot, std::function<void(int)> setAbSlot,
                   TreeSource copySlots, TreeSink restoreSlots);
 
@@ -54,8 +57,9 @@ private:
     int openGestures_ = 0;
     bool commitPending_ = false;
     bool applying_ = false;
-    std::function<int()> getProgram_;
-    std::function<void(int)> setProgram_;
+    TreeWriter savePreset_;
+    TreeSink loadPreset_;
+    std::function<void()> markEdited_;
     std::function<int()> getAbSlot_;
     std::function<void(int)> setAbSlot_;
     TreeSource copySlots_;

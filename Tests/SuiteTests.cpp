@@ -4,6 +4,7 @@
 #include "PluginProcessor.h"
 #include "PresetBrowser.h"
 #include "PresetStore.h"
+#include "Presets.h"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
@@ -311,6 +312,8 @@ TEST_CASE("Editor scales down, remembers its size, and undo keys work", "[suite]
 
     setCutoff(processor, 555.0f);
     processor.flushEdits();
+    dynamic_cast<juce::Timer&>(*editor).timerCallback();
+    CHECK(dynamic_cast<juce::ComboBox*>(findId(*editor, "factoryPreset"))->getText() == "Uplifting / Init *");
     REQUIRE(editor->keyPressed(juce::KeyPress('z', juce::ModifierKeys::commandModifier, 0)));
     REQUIRE_THAT(cutoff(processor), WithinAbs(processor.parameters.getParameter("a_cutoff")->convertFrom0to1(
         processor.parameters.getParameter("a_cutoff")->getDefaultValue()), 0.1f));
@@ -336,4 +339,72 @@ TEST_CASE("Editor scales down, remembers its size, and undo keys work", "[suite]
     std::unique_ptr<juce::AudioProcessorEditor> reopened(restored.createEditor());
     CHECK(reopened->getWidth() == OpenEdmFilterProcessor::kMinEditorWidth);
     CHECK(reopened->getHeight() == OpenEdmFilterProcessor::kMinEditorHeight);
+}
+
+TEST_CASE("The preset name follows loads, edits, saves, A/B slots and sessions", "[suite]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenEdmFilterProcessor processor;
+    const juce::String factoryFour = openedm::presets::factoryPresets()[4].name;
+    juce::ValueTree snapshot("Snapshot");
+    juce::ValueTree param("PARAM");
+    param.setProperty("id", "a_cutoff", nullptr);
+    param.setProperty("value", 640.0, nullptr);
+    snapshot.appendChild(param, nullptr);
+
+    CHECK(processor.presetDisplayName() == "Uplifting / Init");
+    processor.loadUserPreset("Night Drive", snapshot);
+    CHECK(processor.presetDisplayName() == "Night Drive");
+    setCutoff(processor, 900.0f);
+    processor.flushEdits();
+    CHECK(processor.presetDisplayName() == "Night Drive *");
+    processor.undoEdit();
+    CHECK(processor.presetDisplayName() == "Night Drive");
+    processor.redoEdit();
+    CHECK(processor.presetDisplayName() == "Night Drive *");
+    processor.markPresetSaved("Late Drive");
+    CHECK(processor.presetDisplayName() == "Late Drive");
+
+    setCutoff(processor, 1000.0f);
+    processor.flushEdits();
+    processor.copyBetweenSlots(0, 1);
+    processor.toggleAB();
+    processor.setCurrentProgram(4);
+    CHECK(processor.presetDisplayName() == factoryFour);
+    processor.toggleAB();
+    CHECK(processor.presetDisplayName() == "Late Drive *");
+
+    juce::MemoryBlock saved;
+    processor.getStateInformation(saved);
+    OpenEdmFilterProcessor restored;
+    restored.setStateInformation(saved.getData(), static_cast<int>(saved.getSize()));
+    CHECK(restored.presetDisplayName() == "Late Drive *");
+    restored.toggleAB();
+    CHECK(restored.presetDisplayName() == factoryFour);
+
+    juce::XmlElement legacy("openEDMFilter");
+    legacy.setAttribute("program", 4);
+    legacy.setAttribute("preset_catalog_version", 2);
+    juce::MemoryBlock legacyState;
+    juce::AudioProcessor::copyXmlToBinary(legacy, legacyState);
+    restored.setStateInformation(legacyState.getData(), static_cast<int>(legacyState.getSize()));
+    CHECK(restored.presetDisplayName() == factoryFour + " *");
+}
+
+TEST_CASE("Previous and next step through the preset list and wrap at the ends", "[suite]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    TempPresets temp;
+    suite::PresetStore store(temp.directory);
+    REQUIRE(store.save("My Sweep", juce::ValueTree("Snapshot")));
+    suite::PresetBrowser browser(store, { "Uplifting / Wide", "Rolling / Tight" }, {});
+    std::vector<juce::String> loaded;
+    browser.onFactoryPreset = [&](int program) { loaded.push_back("factory " + juce::String(program)); };
+    browser.onUserPreset = [&](const juce::String& name, const juce::ValueTree&) { loaded.push_back(name); };
+
+    browser.loadNeighbour("Uplifting / Wide", 1);
+    browser.loadNeighbour("Rolling / Tight", 1);
+    browser.loadNeighbour("My Sweep", 1);
+    browser.loadNeighbour("Uplifting / Wide", -1);
+    browser.loadNeighbour("Not Listed", 1);
+
+    CHECK(loaded == std::vector<juce::String>{ "factory 1", "My Sweep", "factory 0", "My Sweep", "factory 0" });
 }

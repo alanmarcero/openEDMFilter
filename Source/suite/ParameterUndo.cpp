@@ -56,11 +56,12 @@ ParameterUndo::~ParameterUndo() {
     undo_.clearUndoHistory();
 }
 
-void ParameterUndo::setHooks(std::function<int()> getProgram, std::function<void(int)> setProgram,
+void ParameterUndo::setHooks(TreeWriter savePreset, TreeSink loadPreset, std::function<void()> markEdited,
                              std::function<int()> getAbSlot, std::function<void(int)> setAbSlot,
                              TreeSource copySlots, TreeSink restoreSlots) {
-    getProgram_ = std::move(getProgram);
-    setProgram_ = std::move(setProgram);
+    savePreset_ = std::move(savePreset);
+    loadPreset_ = std::move(loadPreset);
+    markEdited_ = std::move(markEdited);
     getAbSlot_ = std::move(getAbSlot);
     setAbSlot_ = std::move(setAbSlot);
     copySlots_ = std::move(copySlots);
@@ -83,8 +84,8 @@ juce::RangedAudioParameter* ParameterUndo::findParameter(const juce::String& id)
 
 juce::ValueTree ParameterUndo::captureParameters() const {
     juce::ValueTree tree("Snapshot");
-    if (getProgram_)
-        tree.setProperty("program", getProgram_(), nullptr);
+    if (savePreset_)
+        savePreset_(tree);
     for (auto* parameter : processor_.getParameters()) {
         if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*>(parameter)) {
             juce::ValueTree child("PARAM");
@@ -118,8 +119,8 @@ void ParameterUndo::restore(const juce::ValueTree& snapshot) {
         if (!juce::approximatelyEqual(ranged->convertFrom0to1(ranged->getValue()), value))
             ranged->setValueNotifyingHost(ranged->convertTo0to1(value));
     }
-    if (snapshot.hasProperty("program") && setProgram_)
-        setProgram_(static_cast<int>(snapshot.getProperty("program")));
+    if (loadPreset_)
+        loadPreset_(snapshot);
     if (snapshot.hasProperty("abSlot") && setAbSlot_)
         setAbSlot_(juce::jlimit(0, 1, static_cast<int>(snapshot.getProperty("abSlot"))));
     if (restoreSlots_)
@@ -173,8 +174,12 @@ void ParameterUndo::handleAsyncUpdate() {
     if (!commitPending_ || openGestures_ != 0 || applying_)
         return;
     commitPending_ = false;
-    const auto after = captureUndo();
+    auto after = captureUndo();
     if (!sameTree(before_, after)) {
+        if (markEdited_) {
+            markEdited_();
+            after = captureUndo();
+        }
         undo_.beginNewTransaction("Edit");
         undo_.perform(new SnapshotAction(*this, before_, after), "Edit");
     }

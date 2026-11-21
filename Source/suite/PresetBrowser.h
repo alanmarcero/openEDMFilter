@@ -24,10 +24,13 @@ public:
     ~PresetBrowser() override;
 
     std::function<void(int programIndex)> onFactoryPreset;
-    std::function<void(const juce::ValueTree& snapshot)> onUserPreset;
+    std::function<void(const juce::String& name, const juce::ValueTree& snapshot)> onUserPreset;
+    std::function<void(const juce::String& name)> onSaved;
     std::function<juce::ValueTree()> captureState;
 
     void setSearchText(const juce::String& text);
+    // Loads the row before or after the named preset in list order and wraps at the ends.
+    void loadNeighbour(const juce::String& currentName, int direction);
     [[nodiscard]] juce::StringArray listedNames() const;
 
     void paint(juce::Graphics& g) override;
