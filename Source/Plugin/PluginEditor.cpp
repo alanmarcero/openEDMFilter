@@ -125,10 +125,11 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
 
     setWantsKeyboardFocus(true);
     addKeyListener(this);
+    // Set the size first. The limits clamp the empty start bounds, and that resize would replace the saved size.
+    setSize(processor_.editorWidth(), processor_.editorHeight());
     setResizeLimits(OpenEdmFilterProcessor::kMinEditorWidth, OpenEdmFilterProcessor::kMinEditorHeight,
                     OpenEdmFilterProcessor::kMaxEditorWidth, OpenEdmFilterProcessor::kMaxEditorHeight);
     setResizable(true, true);
-    setSize(processor_.editorWidth(), processor_.editorHeight());
     startTimerHz(30);
 }
 
