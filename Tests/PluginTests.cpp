@@ -282,8 +282,16 @@ TEST_CASE("Editor slot buttons and host automation rebind the visible sweep knob
             if (!child->isVisible()) continue;
             if (auto* dial = dynamic_cast<juce::Slider*>(child); dial != nullptr && dial->isRotary()) {
                 CAPTURE(parent.getComponentID().toStdString(), dial->getBounds().toString().toStdString());
-                CHECK(dial->getHeight() - dial->getTextBoxHeight() >= 32);
+                const int rotaryHeight = dial->getHeight() - dial->getTextBoxHeight();
+                CHECK(rotaryHeight >= 32);
                 CHECK(dial->getWidth() >= 32);
+                // The drawn ring must fill its rotary area. The middle row crosses its full width.
+                const auto image = dial->createComponentSnapshot({ 0, 0, dial->getWidth(), rotaryHeight }, true, 1.0f);
+                std::vector<int> drawn;
+                std::ranges::copy_if(std::views::iota(0, image.getWidth()), std::back_inserter(drawn),
+                    [&](int column) { return image.getPixelAt(column, rotaryHeight / 2).getAlpha() > 0; });
+                REQUIRE_FALSE(drawn.empty());
+                CHECK(drawn.back() - drawn.front() + 1 >= juce::jmin(dial->getWidth(), rotaryHeight) - 4);
             }
             if (dynamic_cast<juce::TextButton*>(child) || dynamic_cast<juce::ComboBox*>(child)) {
                 CAPTURE(child->getName().toStdString(), child->getBounds().toString().toStdString());

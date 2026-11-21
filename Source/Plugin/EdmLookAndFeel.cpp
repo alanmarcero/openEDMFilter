@@ -6,6 +6,9 @@ namespace openedm::ui {
 namespace {
 
 constexpr float kArcThickness = 3.5f;
+// The ring's outer edge sits this far inside the rotary area. The focus outline uses the margin.
+constexpr float kRingInset = 1.5f;
+constexpr float kBodyGap = 2.0f;
 constexpr float kCornerRadius = 4.0f;
 constexpr float kControlFontSize = 14.0f;
 
@@ -64,10 +67,10 @@ void EdmLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int width
                                       float startAngle, float endAngle, juce::Slider& slider) {
     const DisabledFade fade(g, slider);
     const auto accent = slider.findColour(juce::Slider::rotarySliderFillColourId);
-    const auto bounds = juce::Rectangle<int>(x, y, width, height).toFloat().reduced(4.0f);
-    const float radius = juce::jmin(bounds.getWidth(), bounds.getHeight()) / 2.0f;
-    const auto centre = bounds.getCentre();
-    const float arcRadius = radius - kArcThickness;
+    const auto area = juce::Rectangle<int>(x, y, width, height).toFloat();
+    const float outerRadius = juce::jmin(area.getWidth(), area.getHeight()) / 2.0f - kRingInset;
+    const auto centre = area.getCentre();
+    const float arcRadius = outerRadius - kArcThickness / 2.0f;
     const float valueAngle = startAngle + sliderPos * (endAngle - startAngle);
     const bool isBipolar = juce::approximatelyEqual(slider.getMinimum(), -slider.getMaximum());
     const float originAngle = isBipolar ? (startAngle + endAngle) / 2.0f : startAngle;
@@ -83,7 +86,7 @@ void EdmLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int width
     g.setColour(accent);
     g.strokePath(value, stroke);
 
-    const float bodyRadius = arcRadius - kArcThickness - 2.0f;
+    const float bodyRadius = arcRadius - kArcThickness / 2.0f - kBodyGap;
     const auto body = juce::Rectangle<float>(bodyRadius * 2.0f, bodyRadius * 2.0f).withCentre(centre);
     g.setColour(juce::Colours::black.withAlpha(0.5f));
     g.fillEllipse(body.translated(0, 2));
@@ -95,13 +98,13 @@ void EdmLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int width
     g.setColour(theme::kBackground.withAlpha(0.6f));
     g.drawEllipse(body.reduced(2.0f), 1.0f);
 
-    const auto tip = centre.getPointOnCircumference(bodyRadius - 3.0f, valueAngle);
+    const auto tip = centre.getPointOnCircumference(bodyRadius - 2.0f, valueAngle);
     const auto tail = centre.getPointOnCircumference(bodyRadius * 0.35f, valueAngle);
     g.setColour(theme::kText);
     g.drawLine({ tail, tip }, 2.0f);
     if (slider.hasKeyboardFocus(true)) {
         g.setColour(accent);
-        g.drawRoundedRectangle(bounds, 4.0f, 1.2f);
+        g.drawRoundedRectangle(area.reduced(0.6f), 4.0f, 1.2f);
     }
 }
 
