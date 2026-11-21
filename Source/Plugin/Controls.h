@@ -50,7 +50,9 @@ private:
 
 class Toggle : public juce::Component {
 public:
-    Toggle(Apvts& state, const juce::String& parameterId, const juce::String& text, juce::Colour accent);
+    // A screen reader says spokenTitle, or the text when spokenTitle is empty.
+    Toggle(Apvts& state, const juce::String& parameterId, const juce::String& text, juce::Colour accent,
+           const juce::String& spokenTitle = {});
     void resized() override;
     void setTooltip(const juce::String& text);
 

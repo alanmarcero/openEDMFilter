@@ -11,6 +11,7 @@ constexpr int kStarWidth = 28;
 PresetBrowser::PresetBrowser(PresetStore& store, Factory factory, Colours colours)
     : store_(store), factory_(std::move(factory)), colours_(colours) {
     search_.setComponentID("presetSearch");
+    search_.setTitle("Search presets");
     search_.setTextToShowWhenEmpty("Search presets", colours_.dim);
     search_.setColour(juce::TextEditor::backgroundColourId, colours_.panel);
     search_.setColour(juce::TextEditor::textColourId, colours_.text);
@@ -18,21 +19,23 @@ PresetBrowser::PresetBrowser(PresetStore& store, Factory factory, Colours colour
     search_.onTextChange = [this] { rebuild(); };
 
     name_.setComponentID("presetName");
+    name_.setTitle("Preset name");
     name_.setTextToShowWhenEmpty("Preset name", colours_.dim);
     name_.setColour(juce::TextEditor::backgroundColourId, colours_.panel);
     name_.setColour(juce::TextEditor::textColourId, colours_.text);
     name_.setColour(juce::TextEditor::outlineColourId, colours_.edge);
     name_.onTextChange = [this] { disarm(); };
 
-    const auto styleButton = [this](juce::TextButton& button, const juce::String& id) {
+    const auto styleButton = [this](juce::TextButton& button, const juce::String& id, const juce::String& title) {
         button.setComponentID(id);
+        button.setTitle(title);
         button.setColour(juce::TextButton::buttonOnColourId, colours_.accent);
         addAndMakeVisible(button);
     };
-    styleButton(save_, "presetSave");
-    styleButton(rename_, "presetRename");
-    styleButton(remove_, "presetDelete");
-    styleButton(favorite_, "presetFavorite");
+    styleButton(save_, "presetSave", "Save preset");
+    styleButton(rename_, "presetRename", "Rename preset");
+    styleButton(remove_, "presetDelete", "Delete preset");
+    styleButton(favorite_, "presetFavorite", "Favorite preset");
     save_.onClick = [this] {
         const auto presetName = name_.getText().trim();
         if (presetName.isEmpty() || captureState == nullptr)

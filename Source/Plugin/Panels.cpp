@@ -618,6 +618,7 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
     timeSig_.setTooltip("Host uses the host time signature while HOST SYNC is on. Without HOST SYNC, Host is 4/4.");
     // The old sweep BYPASS has no button now but still stops the sweep, so turning the sweep on clears it.
     enabled_.setComponentID(params::kSweepEnabled);
+    enabled_.setTitle("Auto Sweep");
     enabled_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentA);
     enabled_.onClick = [this] {
         const bool isRunning = enabled_.getToggleState();
@@ -628,6 +629,7 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
     for (size_t i = 0; i < slotButtons_.size(); ++i) {
         auto& button = slotButtons_[i];
         button.setButtonText("SLOT " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + i)));
+        button.setTitle("Sweep slot " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + i)));
         button.setColour(juce::TextButton::buttonOnColourId, theme::kAccentA);
         button.setTooltip("Auto Mode: select and edit this sweep slot. Automate Auto Mode in your DAW.");
         button.onClick = [this, i] { slotWatcher_.setValueAsCompleteGesture(static_cast<float>(i)); };
@@ -637,6 +639,7 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
     barsLabel_.setColour(juce::Label::textColourId, theme::kTextDim);
     barsLabel_.setJustificationType(juce::Justification::centredRight);
     slopePresetBox_.setComponentID("sweepPreset");
+    slopePresetBox_.setTitle("Sweep preset");
     slopePresetBox_.setTextWhenNothingSelected("Sweep Preset...");
     openedm::presets::populateComboMenu(slopePresetBox_, openedm::presets::sweepSlopePresets(), false);
     slopePresetBox_.setColour(juce::ComboBox::outlineColourId, theme::kAccentA);
@@ -757,7 +760,8 @@ void SweepPanel::resized() {
 BandPanel::BandPanel(Apvts& state, int band)
     : title_(band == 0 ? "Filter A" : "Filter B"),
       accent_(band == 0 ? theme::kAccentA : theme::kAccentB),
-      bypass_(state, params::bandId(band, params::kBypass), "BYPASS", theme::kBypassEngaged),
+      bypass_(state, params::bandId(band, params::kBypass), "BYPASS", theme::kBypassEngaged,
+              band == 0 ? "Bypass Filter A" : "Bypass Filter B"),
       type_(state, band, accent_),
       slope_(state, params::bandId(band, params::kSlope), {}, accent_),
       cutoff_(state, params::bandId(band, params::kCutoff), "Cutoff", accent_),
@@ -1019,7 +1023,7 @@ EffectsPanel::EffectsPanel(OpenEdmFilterProcessor& processor)
       crushBits_(processor.parameters, params::kCrushBits, "Bits", theme::kAccentFx),
       crushMix_(processor.parameters, params::kCrushMix, "Mix", theme::kAccentFx),
       crushPosition_(processor.parameters, params::kCrushPosition, "Position", theme::kAccentFx),
-      crushLink_(processor.parameters, params::kCrushLink, "LINK A", theme::kAccentFx),
+      crushLink_(processor.parameters, params::kCrushLink, "LINK A", theme::kAccentFx, "Link crush rate to Filter A"),
       ringFrequency_(processor.parameters, params::kRingFrequency, "Freq", theme::kAccentFx),
       ringMix_(processor.parameters, params::kRingMix, "Mix", theme::kAccentFx),
       fmRate_(processor.parameters, params::kFmRate, "Rate", theme::kAccentFx),

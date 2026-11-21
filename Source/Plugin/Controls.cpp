@@ -19,6 +19,7 @@ Knob::Knob(Apvts& state, const juce::String& parameterId, const juce::String& ti
       title_({}, title.toUpperCase()),
       attachment_(std::make_unique<Apvts::SliderAttachment>(state, parameterId, slider_)) {
     setComponentID(parameterId);
+    slider_.setTitle(title);
     slider_.onDragStart = [this] { dragging_ = true; };
     slider_.onDragEnd = [this] {
         dragging_ = false;
@@ -75,6 +76,7 @@ Choice::Choice(Apvts& state, const juce::String& parameterId, const juce::String
     }
     attachment_ = std::make_unique<Apvts::ComboBoxAttachment>(state, parameterId, box_);
     setComponentID(parameterId);
+    box_.setTitle(title.isNotEmpty() ? title : state.getParameter(parameterId)->getName(64));
     box_.setColour(juce::ComboBox::outlineColourId, accent);
     title_.setFont(juce::FontOptions(kTitleFontSize, juce::Font::bold));
     title_.setColour(juce::Label::textColourId, theme::kTextDim);
@@ -87,6 +89,9 @@ Choice::Choice(Apvts& state, const juce::String& parameterId, const juce::String
 void Choice::bind(Apvts& state, const juce::String& parameterId) {
     attachment_.reset();
     setComponentID(parameterId);
+    // A box with no visible title speaks the name of the slot parameter it now edits.
+    if (!title_.isVisible())
+        box_.setTitle(state.getParameter(parameterId)->getName(64));
     attachment_ = std::make_unique<Apvts::ComboBoxAttachment>(state, parameterId, box_);
 }
 
@@ -113,6 +118,7 @@ FilterTypeMenu::FilterTypeMenu(Apvts& state, int band, juce::Colour accent)
     setColour(juce::ComboBox::outlineColourId, accent);
     setComponentID(params::bandId(band, params::kType));
     setName(band == 0 ? "Filter A type" : "Filter B type");
+    setTitle(getName());
     onChange = [this] {
         const int index = getSelectedId() - 1;
         if (index < 0) return;
@@ -131,10 +137,12 @@ void FilterTypeMenu::sync() {
     setSelectedId(params::effectiveType(original_.getIndex(), response_.getIndex()) + 1, juce::dontSendNotification);
 }
 
-Toggle::Toggle(Apvts& state, const juce::String& parameterId, const juce::String& text, juce::Colour accent)
+Toggle::Toggle(Apvts& state, const juce::String& parameterId, const juce::String& text, juce::Colour accent,
+               const juce::String& spokenTitle)
     : button_(text),
       attachment_(state, parameterId, button_) {
     setComponentID(parameterId);
+    button_.setTitle(spokenTitle.isNotEmpty() ? spokenTitle : text);
     button_.setClickingTogglesState(true);
     button_.setColour(juce::TextButton::buttonOnColourId, accent);
     addAndMakeVisible(button_);

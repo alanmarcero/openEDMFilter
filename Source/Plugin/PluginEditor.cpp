@@ -57,27 +57,33 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
 
     openedm::presets::populateComboMenu(presetBox_, openedm::presets::factoryPresets());
     presetBox_.setComponentID("factoryPreset");
+    presetBox_.setTitle("Preset");
     presetBox_.setColour(juce::ComboBox::outlineColourId, theme::kPanelEdge);
     presetBox_.setText(processor_.presetDisplayName(), juce::dontSendNotification);
     presetBox_.onChange = [this] { processor_.setCurrentProgram(presetBox_.getSelectedId() - 1); };
 
     prevPresetBtn_.setComponentID("prevPreset");
+    prevPresetBtn_.setTitle("Previous preset");
     prevPresetBtn_.setTooltip("Previous preset");
     prevPresetBtn_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentA);
     prevPresetBtn_.onClick = [this] { presetBrowser_->loadNeighbour(processor_.presetName(), -1); };
 
     nextPresetBtn_.setComponentID("nextPreset");
+    nextPresetBtn_.setTitle("Next preset");
     nextPresetBtn_.setTooltip("Next preset");
     nextPresetBtn_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentA);
     nextPresetBtn_.onClick = [this] { presetBrowser_->loadNeighbour(processor_.presetName(), 1); };
 
     advancedButton_.setComponentID("advancedModulation");
+    advancedButton_.setTitle("Modulation page");
     advancedButton_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentFx);
     advancedButton_.setTooltip("Shows routing, FM shape, channels, steps and MIDI. Click again to show the sweep and filters.");
     advancedButton_.onClick = [this] {
         processor_.modulationPageVisible = !processor_.modulationPageVisible.load();
         resized();
     };
+    spectrumButton_.setTitle("Spectrum");
+    freezeSpectrumButton_.setTitle("Freeze spectrum");
     spectrumButton_.setClickingTogglesState(true);
     spectrumButton_.setToggleState(processor_.spectrumVisible.load(), juce::dontSendNotification);
     spectrumButton_.setTooltip("Show or hide the live input spectrum in the response display");

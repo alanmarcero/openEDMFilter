@@ -1392,3 +1392,30 @@ TEST_CASE("The modulation page has a native control for every routing, step and 
     CHECK_THAT(grid->getAlpha(), WithinAbs(1.0f, 1e-6f));
     CHECK_THAT(page->findChildWithID("parallel_blend")->getAlpha(), WithinAbs(1.0f, 1e-6f));
 }
+
+TEST_CASE("Every slider, menu and button has a title for screen readers", "[plugin][ui]") {
+#if JUCE_LINUX
+    if (std::getenv("DISPLAY") == nullptr) SKIP("Native editor requires a display");
+#endif
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenEdmFilterProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    std::vector<std::string> untitled;
+    std::map<juce::String, juce::String> titles;
+    const auto collect = [&](auto&& self, juce::Component& parent) -> void {
+        std::ranges::for_each(parent.getChildren(), [&](juce::Component* child) {
+            const bool isControl = dynamic_cast<juce::Slider*>(child) != nullptr || dynamic_cast<juce::ComboBox*>(child) != nullptr
+                || dynamic_cast<juce::TextButton*>(child) != nullptr;
+            if (isControl && child->getTitle().isEmpty())
+                untitled.push_back((parent.getComponentID() + "/" + child->getComponentID()).toStdString());
+            if (auto* button = dynamic_cast<juce::TextButton*>(child)) titles[button->getButtonText()] = button->getTitle();
+            self(self, *child);
+        });
+    };
+    collect(collect, *editor);
+
+    CHECK(untitled.empty());
+    CHECK(titles["<"] == "Previous preset");
+    CHECK(titles["A>B"] == "Copy A to B");
+    CHECK(titles["LINK A"] == "Link crush rate to Filter A");
+}

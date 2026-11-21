@@ -3,20 +3,22 @@
 namespace suite {
 
 SuiteBar::SuiteBar() {
-    const auto add = [this](juce::TextButton& button, const juce::String& id, const juce::String& tip, std::function<void()>* callback) {
+    const auto add = [this](juce::TextButton& button, const juce::String& id, const juce::String& title, const juce::String& tip,
+                            std::function<void()>* callback) {
         button.setComponentID(id);
+        button.setTitle(title);
         button.setTooltip(tip);
         button.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff48f0c8));
         button.onClick = [callback] { if (callback != nullptr && *callback) (*callback)(); };
         addAndMakeVisible(button);
     };
-    add(undo_, "undoButton", "Undo the last edit  |  Ctrl/Cmd+Z", &onUndo);
-    add(redo_, "redoButton", "Redo the last edit  |  Shift+Ctrl/Cmd+Z", &onRedo);
-    add(slotA_, "abA", "Hear slot A", &onShowA);
-    add(slotB_, "abB", "Hear slot B", &onShowB);
-    add(copyAToB_, "copyAToB", "Copy slot A onto slot B", &onCopyAToB);
-    add(copyBToA_, "copyBToA", "Copy slot B onto slot A", &onCopyBToA);
-    add(presets_, "presetBrowserButton", "Factory and user presets", &onPresets);
+    add(undo_, "undoButton", "Undo", "Undo the last edit  |  Ctrl/Cmd+Z", &onUndo);
+    add(redo_, "redoButton", "Redo", "Redo the last edit  |  Shift+Ctrl/Cmd+Z", &onRedo);
+    add(slotA_, "abA", "Slot A", "Hear slot A", &onShowA);
+    add(slotB_, "abB", "Slot B", "Hear slot B", &onShowB);
+    add(copyAToB_, "copyAToB", "Copy A to B", "Copy slot A onto slot B", &onCopyAToB);
+    add(copyBToA_, "copyBToA", "Copy B to A", "Copy slot B onto slot A", &onCopyBToA);
+    add(presets_, "presetBrowserButton", "Presets", "Factory and user presets", &onPresets);
     slotA_.setClickingTogglesState(false);
     slotB_.setClickingTogglesState(false);
     setActiveSlot(0);
