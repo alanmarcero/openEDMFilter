@@ -2,12 +2,41 @@
 #include <algorithm>
 #include <cmath>
 #include <ranges>
+#include <vector>
 
 namespace openedm::params {
 
 namespace {
 
-using Layout = juce::AudioProcessorValueTreeState::ParameterLayout;
+// Parameters in creation order. createParameterLayout() groups them afterwards.
+struct Layout {
+    std::vector<std::unique_ptr<juce::RangedAudioParameter>> parameters;
+    void add(std::unique_ptr<juce::RangedAudioParameter> parameter) { parameters.push_back(std::move(parameter)); }
+};
+
+struct Group {
+    const char* firstId;
+    const char* id;
+    const char* name;
+};
+
+// Each group starts at its first parameter and runs to the next group, so IDs and order stay unchanged.
+constexpr std::array<Group, 13> kGroups{ {
+    { "a_bypass", "filter_a", "Filter A" },
+    { "b_bypass", "filter_b", "Filter B" },
+    { kFmRate, "effects", "FM, Drive, Crush, Ring and Output" },
+    { kClockSync, "sweep", "Clock and Auto Sweep A" },
+    { "sweep_b_target", "sweep_slots", "Auto Sweep B to D" },
+    { kSweepCrushStart, "sweep_effects", "Sweep Bitcrush and Glitch" },
+    { "routing", "routing", "Routing, FM Shape and Channels" },
+    { "a_midi_source", "modulation_a", "Filter A Steps, MIDI and Lane" },
+    { "b_midi_source", "modulation_b", "Filter B Steps, MIDI and Lane" },
+    { kInputGain, "input", "Input" },
+    { "a_response", "responses", "Filter Responses" },
+    { kSubPreserve, "character", "Sub, Drift and Spread" },
+    { "a_env_input", "envelope_inputs", "Envelope Inputs" },
+} };
+
 using Attributes = juce::AudioParameterFloatAttributes;
 using Formatter = std::function<juce::String(float, int)>;
 using Parser = std::function<float(const juce::String&)>;
@@ -228,7 +257,19 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     for (int band = 0; band < 2; ++band)
         addChoice(layout, bandId(band, kEnvInput), band == 0 ? "A Env Input" : "B Env Input",
                   { "Main", "Sidechain" }, 0, 7);
-    return layout;
+
+    juce::AudioProcessorValueTreeState::ParameterLayout grouped;
+    std::unique_ptr<juce::AudioProcessorParameterGroup> group;
+    std::ranges::for_each(layout.parameters, [&](std::unique_ptr<juce::RangedAudioParameter>& parameter) {
+        const auto start = std::ranges::find_if(kGroups, [&](const Group& next) { return parameter->paramID == next.firstId; });
+        if (start != kGroups.end() && group != nullptr)
+            grouped.add(std::move(group));
+        if (start != kGroups.end())
+            group = std::make_unique<juce::AudioProcessorParameterGroup>(start->id, start->name, " | ");
+        group->addChild(std::move(parameter));
+    });
+    grouped.add(std::move(group));
+    return grouped;
 }
 
 void migrateSweepBarState(juce::ValueTree& state) {

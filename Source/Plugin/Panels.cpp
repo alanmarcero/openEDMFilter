@@ -825,6 +825,189 @@ void BandPanel::resized() {
     layoutRow(envelopeArea_.withTrimmedTop(kCaptionHeight), { &envListen_, &envSource_, &envAttack_, &envRelease_, &envDepth_ });
 }
 
+StepGrid::StepGrid(Apvts& state, int band, juce::Colour accent)
+    : accent_(accent),
+      length_(*state.getParameter(params::bandId(band, "step_length"))),
+      lengthWatcher_(length_, [this](float) { repaint(); }) {
+    setComponentID(params::bandId(band, "step_grid"));
+    setTitle(juce::String(band == 0 ? "Filter A" : "Filter B") + " step values");
+    setTooltip("Drag across the bars to draw step values. Double-click a bar to reset it to 0.");
+    std::ranges::for_each(std::views::iota(size_t{ 0 }, values_.size()), [&](size_t step) {
+        values_[step] = state.getParameter(params::bandId(band, "step_") + juce::String(step + 1));
+        stepAttachments_.push_back(std::make_unique<juce::ParameterAttachment>(*values_[step], [this](float) { repaint(); }));
+    });
+}
+
+juce::Rectangle<float> StepGrid::barArea() const {
+    return getLocalBounds().toFloat().reduced(4.0f);
+}
+
+int StepGrid::stepAt(float x) const {
+    const auto area = barArea();
+    return juce::jlimit(0, 15, static_cast<int>((x - area.getX()) / area.getWidth() * 16.0f));
+}
+
+void StepGrid::drawTo(juce::Point<float> position) {
+    const auto area = barArea();
+    const float value = juce::jlimit(-1.0f, 1.0f, (area.getCentreY() - position.y) / (area.getHeight() * 0.5f));
+    const int step = stepAt(position.x);
+    // A fast drag skips bars, so the bars between the last step and this one take the same value.
+    const int from = lastStep_ < 0 ? step : lastStep_;
+    std::ranges::for_each(std::views::iota(std::min(from, step), std::max(from, step) + 1), [&](int index) {
+        const auto slot = static_cast<size_t>(index);
+        if (!isDrawing_[slot])
+            stepAttachments_[slot]->beginGesture();
+        isDrawing_[slot] = true;
+        stepAttachments_[slot]->setValueAsPartOfGesture(value);
+    });
+    lastStep_ = step;
+}
+
+void StepGrid::mouseDown(const juce::MouseEvent& event) {
+    lastStep_ = -1;
+    drawTo(event.position);
+}
+
+void StepGrid::mouseDrag(const juce::MouseEvent& event) {
+    drawTo(event.position);
+}
+
+void StepGrid::mouseUp(const juce::MouseEvent&) {
+    std::ranges::for_each(std::views::iota(size_t{ 0 }, isDrawing_.size()), [&](size_t step) {
+        if (isDrawing_[step])
+            stepAttachments_[step]->endGesture();
+        isDrawing_[step] = false;
+    });
+}
+
+void StepGrid::mouseDoubleClick(const juce::MouseEvent& event) {
+    stepAttachments_[static_cast<size_t>(stepAt(event.position.x))]->setValueAsCompleteGesture(0.0f);
+}
+
+void StepGrid::paint(juce::Graphics& g) {
+    g.setColour(theme::kBackground.brighter(0.04f));
+    g.fillRoundedRectangle(getLocalBounds().toFloat(), 6.0f);
+    g.setColour(theme::kPanelEdge);
+    g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), 6.0f, 1.0f);
+    const auto area = barArea();
+    const float centre = area.getCentreY();
+    g.setColour(theme::kTrack);
+    g.drawHorizontalLine(juce::roundToInt(centre), area.getX(), area.getRight());
+    // Steps past the pattern length do not play, so they draw faint.
+    const int length = juce::roundToInt(length_.convertFrom0to1(length_.getValue()));
+    const float width = area.getWidth() / 16.0f;
+    std::ranges::for_each(std::views::iota(0, 16), [&](int step) {
+        const auto* parameter = values_[static_cast<size_t>(step)];
+        const float top = centre - parameter->convertFrom0to1(parameter->getValue()) * area.getHeight() * 0.5f;
+        const float left = area.getX() + static_cast<float>(step) * width + 2.0f;
+        g.setColour(accent_.withAlpha(step < length ? 0.9f : 0.25f));
+        g.fillRect(juce::Rectangle<float>::leftTopRightBottom(left, std::min(top, centre) - 1.0f, left + width - 4.0f,
+                                                              std::max(top, centre) + 1.0f));
+    });
+}
+
+BandModulation::BandModulation(Apvts& state, int band)
+    : title_(band == 0 ? "Filter A modulation" : "Filter B modulation"),
+      accent_(band == 0 ? theme::kAccentA : theme::kAccentB),
+      stepMode_(state, params::bandId(band, "step_mode"), "Mode", accent_),
+      stepLength_(state, params::bandId(band, "step_length"), "Length", accent_),
+      stepBeats_(state, params::bandId(band, "step_beats"), "Beats", accent_),
+      stepPulses_(state, params::bandId(band, "step_pulses"), "Pulses", accent_),
+      stepRotation_(state, params::bandId(band, "step_rotation"), "Rotate", accent_),
+      stepDepth_(state, params::bandId(band, "step_depth"), "Depth", accent_),
+      steps_(state, band, accent_),
+      midiSource_(state, params::bandId(band, "midi_source"), "Source", accent_),
+      midiCc_(state, params::bandId(band, "midi_cc"), "CC", accent_),
+      midiDepth_(state, params::bandId(band, "midi_depth"), "Depth", accent_),
+      laneDepth_(state, params::bandId(band, "lane2_depth"), "Depth", accent_),
+      lanePhase_(state, params::bandId(band, "lane2_phase"), "Phase", accent_),
+      laneOffset_(state, params::bandId(band, "lane2_offset"), "Offset", accent_),
+      stepModeValue_(*state.getRawParameterValue(params::bandId(band, "step_mode"))),
+      midiSourceValue_(*state.getRawParameterValue(params::bandId(band, "midi_source"))) {
+    std::ranges::for_each(std::initializer_list<juce::Component*>{
+                              &stepMode_, &stepLength_, &stepBeats_, &stepPulses_, &stepRotation_, &stepDepth_, &steps_,
+                              &midiSource_, &midiCc_, &midiDepth_, &laneDepth_, &lanePhase_, &laneOffset_ },
+                          [this](juce::Component* control) { addAndMakeVisible(control); });
+}
+
+void BandModulation::paint(juce::Graphics& g) {
+    drawPanel(g, getLocalBounds(), title_, accent_);
+    drawCaption(g, stepsArea_, "Steps / Euclidean");
+    drawCaption(g, gridArea_, "Step values (drag to draw)");
+    drawCaption(g, midiArea_, "MIDI");
+    drawCaption(g, laneArea_, "Right / side lane");
+}
+
+void BandModulation::resized() {
+    auto bounds = getLocalBounds().reduced(12, 6).withTrimmedTop(26);
+    stepsArea_ = bounds.removeFromTop(kCaptionHeight + 62);
+    bounds.removeFromTop(6);
+    auto lower = bounds.removeFromBottom(kCaptionHeight + 62);
+    bounds.removeFromBottom(6);
+    gridArea_ = bounds;
+    midiArea_ = lower.removeFromLeft((lower.getWidth() - kSectionGap) / 2);
+    lower.removeFromLeft(kSectionGap);
+    laneArea_ = lower;
+    layoutRow(stepsArea_.withTrimmedTop(kCaptionHeight), { &stepMode_, &stepLength_, &stepBeats_, &stepPulses_, &stepRotation_, &stepDepth_ });
+    steps_.setBounds(gridArea_.withTrimmedTop(kCaptionHeight));
+    layoutRow(midiArea_.withTrimmedTop(kCaptionHeight), { &midiSource_, &midiCc_, &midiDepth_ });
+    layoutRow(laneArea_.withTrimmedTop(kCaptionHeight), { &laneDepth_, &lanePhase_, &laneOffset_ });
+}
+
+void BandModulation::refresh(bool isLinked) {
+    // Step mode 0 is Off and 2 is Euclidean. MIDI source 0 is Off and 3 is CC.
+    const int stepMode = juce::roundToInt(stepModeValue_.load());
+    const int midiSource = juce::roundToInt(midiSourceValue_.load());
+    std::ranges::for_each(std::initializer_list<Knob*>{ &stepLength_, &stepBeats_, &stepRotation_, &stepDepth_ }, [&](Knob* knob) {
+        setInactive(*knob, stepMode == 0, "Choose Steps or Euclidean mode to use this control.");
+    });
+    setInactive(stepPulses_, stepMode != 2, "Choose Euclidean mode to use pulses.");
+    setInactive(steps_, stepMode != 1, "Choose Steps mode to use the step values.");
+    setInactive(midiCc_, midiSource != 3, "Choose CC as the MIDI source to use this control.");
+    setInactive(midiDepth_, midiSource == 0, "Choose a MIDI source to use this control.");
+    std::ranges::for_each(std::initializer_list<Knob*>{ &laneDepth_, &lanePhase_, &laneOffset_ }, [&](Knob* knob) {
+        setInactive(*knob, isLinked, "Choose Left/Right or Mid/Side channels to use the second lane.");
+    });
+}
+
+ModulationPage::ModulationPage(Apvts& state)
+    : routing_(state, "routing", "Routing", theme::kAccentFx),
+      blend_(state, "parallel_blend", "A/B Blend", theme::kAccentFx),
+      channels_(state, "stereo_mode", "Channels", theme::kAccentFx),
+      fmShape_(state, "fm_shape", "FM Wave", theme::kAccentFx),
+      fmTarget_(state, "fm_target", "FM Target", theme::kAccentFx),
+      bandA_(state, 0),
+      bandB_(state, 1),
+      routingValue_(*state.getRawParameterValue("routing")),
+      channelsValue_(*state.getRawParameterValue("stereo_mode")) {
+    setComponentID("modulationPage");
+    std::ranges::for_each(std::initializer_list<juce::Component*>{ &routing_, &blend_, &channels_, &fmShape_, &fmTarget_, &bandA_, &bandB_ },
+                          [this](juce::Component* control) { addAndMakeVisible(control); });
+    refresh();
+}
+
+void ModulationPage::paint(juce::Graphics& g) {
+    drawPanel(g, globalArea_, "Routing, FM and channels", theme::kAccentFx);
+}
+
+void ModulationPage::resized() {
+    auto bounds = getLocalBounds();
+    globalArea_ = bounds.removeFromTop(98);
+    bounds.removeFromTop(4);
+    bandA_.setBounds(bounds.removeFromLeft((bounds.getWidth() - 4) / 2));
+    bounds.removeFromLeft(4);
+    bandB_.setBounds(bounds);
+    const auto row = globalArea_.reduced(12, 6).withTrimmedTop(24);
+    layoutRow(row.withWidth(juce::jmin(row.getWidth(), 820)), { &routing_, &blend_, &channels_, &fmShape_, &fmTarget_ });
+}
+
+void ModulationPage::refresh() {
+    setInactive(blend_, routingValue_.load() < 0.5f, "Choose Parallel routing to use the blend.");
+    const bool isLinked = channelsValue_.load() < 0.5f;
+    bandA_.refresh(isLinked);
+    bandB_.refresh(isLinked);
+}
+
 EffectsPanel::EffectsPanel(OpenEdmFilterProcessor& processor)
     : processor_(processor),
       inputGain_(processor.parameters, params::kInputGain, "Gain", theme::kAccentOut),

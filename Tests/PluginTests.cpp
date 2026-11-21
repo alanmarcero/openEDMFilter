@@ -804,11 +804,19 @@ TEST_CASE("Native editor opens and closes the routing and modulation controls", 
     REQUIRE(button != nullptr);
     button->onClick();
     auto control = std::ranges::find_if(editor->getChildren(), [](auto* child) {
-        return dynamic_cast<juce::GenericAudioProcessorEditor*>(child) != nullptr;
+        return dynamic_cast<openedm::ui::ModulationPage*>(child) != nullptr;
+    });
+    auto sweep = std::ranges::find_if(editor->getChildren(), [](auto* child) {
+        return dynamic_cast<openedm::ui::SweepPanel*>(child) != nullptr;
     });
     REQUIRE(control != editor->getChildren().end());
     REQUIRE((*control)->isVisible());
     REQUIRE((*control)->getWidth() > 500);
+    REQUIRE_FALSE((*sweep)->isVisible());
+    REQUIRE(button->getToggleState());
+    REQUIRE(std::ranges::none_of(editor->getChildren(), [](auto* child) {
+        return dynamic_cast<juce::GenericAudioProcessorEditor*>(child) != nullptr;
+    }));
     const auto audit = [&](auto&& self, juce::Component& parent) -> void {
         for (auto* child : parent.getChildren()) {
             if (!child->isVisible()) continue;
@@ -830,6 +838,7 @@ TEST_CASE("Native editor opens and closes the routing and modulation controls", 
     }
     button->onClick();
     REQUIRE_FALSE((*control)->isVisible());
+    REQUIRE((*sweep)->isVisible());
 }
 
 TEST_CASE("Reset All Controllers only resets the addressed MIDI channel", "[approved][plugin][midi-reset]") {
@@ -1305,4 +1314,81 @@ TEST_CASE("CEILING, FREEZE and the whole editor dim when their switch is off", "
     set(processor, "master_bypass", 1.0f);
     editorTimer.timerCallback();
     CHECK_THAT(effects->getAlpha(), WithinAbs(openedm::theme::kInactiveAlpha, 1e-6f));
+}
+
+TEST_CASE("Parameter groups keep every ID at its old index", "[plugin]") {
+    OpenEdmFilterProcessor processor;
+    const auto& all = processor.getParameters();
+    const std::array<int, 14> starts{ 0, 13, 26, 43, 58, 85, 117, 122, 150, 178, 179, 181, 184, 185 };
+    std::vector<juce::String> ids;
+    std::ranges::transform(starts, std::back_inserter(ids),
+        [&](int index) { return dynamic_cast<juce::RangedAudioParameter*>(all[index])->paramID; });
+
+    CHECK(all.size() == 186);
+    CHECK(ids == std::vector<juce::String>{ "a_bypass", "b_bypass", "fm_rate", "clock_sync", "sweep_b_target",
+        "sweep_crush_start", "routing", "a_midi_source", "b_midi_source", "input_gain", "a_response", "sub_preserve",
+        "a_env_input", "b_env_input" });
+    CHECK(processor.getParameterTree().getSubgroups(false).size() == 13);
+    CHECK(processor.getParameterTree().getParameters(false).isEmpty());
+}
+
+TEST_CASE("The modulation page has a native control for every routing, step and MIDI parameter", "[plugin][ui]") {
+#if JUCE_LINUX
+    if (std::getenv("DISPLAY") == nullptr) SKIP("Native editor requires a display");
+#endif
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenEdmFilterProcessor processor;
+    processor.modulationPageVisible = true;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    auto* page = *std::ranges::find_if(editor->getChildren(), [](auto* child) { return dynamic_cast<openedm::ui::ModulationPage*>(child) != nullptr; });
+    std::vector<juce::String> bound;
+    const auto collect = [&](auto&& self, juce::Component& parent) -> void {
+        std::ranges::for_each(parent.getChildren(), [&](juce::Component* child) {
+            if (dynamic_cast<openedm::ui::Knob*>(child) != nullptr || dynamic_cast<openedm::ui::Choice*>(child) != nullptr)
+                bound.push_back(child->getComponentID());
+            self(self, *child);
+        });
+    };
+    collect(collect, *page);
+    std::ranges::sort(bound);
+    std::vector<juce::String> expected{ "routing", "parallel_blend", "stereo_mode", "fm_shape", "fm_target" };
+    std::ranges::for_each(std::array{ "a_", "b_" }, [&](const char* prefix) {
+        std::ranges::for_each(std::array{ "midi_source", "midi_cc", "midi_depth", "step_mode", "step_length", "step_pulses",
+                                          "step_rotation", "step_beats", "step_depth", "lane2_depth", "lane2_phase", "lane2_offset" },
+                              [&](const char* id) { expected.push_back(juce::String(prefix) + id); });
+    });
+    std::ranges::sort(expected);
+    CHECK(page->isVisible());
+    CHECK(bound == expected);
+
+    auto* bandA = *std::ranges::find_if(page->getChildren(), [](auto* child) { return dynamic_cast<openedm::ui::BandModulation*>(child) != nullptr; });
+    auto* grid = dynamic_cast<openedm::ui::StepGrid*>(bandA->findChildWithID("a_step_grid"));
+    REQUIRE(grid != nullptr);
+    const auto now = juce::Time::getCurrentTime();
+    const auto mouseAt = [&](juce::Point<float> position) {
+        return juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(), position, {}, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                grid, grid, now, position, now, 1, false);
+    };
+    const float top = 6.0f;
+    const float firstStep = 6.0f;
+    const float thirdStep = 4.0f + (grid->getWidth() - 8.0f) * 2.5f / 16.0f;
+    grid->mouseDown(mouseAt({ firstStep, top }));
+    grid->mouseDrag(mouseAt({ thirdStep, top }));
+    grid->mouseUp(mouseAt({ thirdStep, top }));
+    processor.flushEdits();
+    CHECK(processor.parameters.getRawParameterValue("a_step_1")->load() > 0.9f);
+    CHECK(processor.parameters.getRawParameterValue("a_step_2")->load() > 0.9f);
+    CHECK(processor.parameters.getRawParameterValue("a_step_3")->load() > 0.9f);
+    CHECK_THAT(processor.parameters.getRawParameterValue("a_step_4")->load(), WithinAbs(0.0f, 1e-6f));
+    CHECK(processor.canUndoEdit());
+
+    set(processor, "a_step_mode", 0.0f);
+    dynamic_cast<juce::Timer&>(*editor).timerCallback();
+    CHECK_THAT(grid->getAlpha(), WithinAbs(openedm::theme::kInactiveAlpha, 1e-6f));
+    CHECK_THAT(page->findChildWithID("parallel_blend")->getAlpha(), WithinAbs(openedm::theme::kInactiveAlpha, 1e-6f));
+    set(processor, "a_step_mode", 1.0f);
+    set(processor, "routing", 1.0f);
+    dynamic_cast<juce::Timer&>(*editor).timerCallback();
+    CHECK_THAT(grid->getAlpha(), WithinAbs(1.0f, 1e-6f));
+    CHECK_THAT(page->findChildWithID("parallel_blend")->getAlpha(), WithinAbs(1.0f, 1e-6f));
 }

@@ -84,6 +84,7 @@ public:
     std::atomic<float> displayOutputPeak{ 0.0f };
     std::array<std::atomic<float>, kSpectrumDisplayBins> displaySpectrum{};
     std::atomic<bool> spectrumVisible{ true };
+    std::atomic<bool> modulationPageVisible{ false };
     std::atomic<bool> spectrumFrozen{ false };
 
 private:

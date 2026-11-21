@@ -146,6 +146,83 @@ private:
     const std::atomic<float>& bypassValue_;
 };
 
+// Sixteen bipolar step values for one filter. A drag across the bars draws them.
+class StepGrid : public juce::Component, public juce::SettableTooltipClient {
+public:
+    StepGrid(Apvts& state, int band, juce::Colour accent);
+    void paint(juce::Graphics& g) override;
+    void mouseDown(const juce::MouseEvent& event) override;
+    void mouseDrag(const juce::MouseEvent& event) override;
+    void mouseUp(const juce::MouseEvent& event) override;
+    void mouseDoubleClick(const juce::MouseEvent& event) override;
+
+private:
+    [[nodiscard]] juce::Rectangle<float> barArea() const;
+    [[nodiscard]] int stepAt(float x) const;
+    void drawTo(juce::Point<float> position);
+
+    juce::Colour accent_;
+    juce::RangedAudioParameter& length_;
+    juce::ParameterAttachment lengthWatcher_;
+    std::array<juce::RangedAudioParameter*, 16> values_{};
+    std::vector<std::unique_ptr<juce::ParameterAttachment>> stepAttachments_;
+    std::array<bool, 16> isDrawing_{};
+    int lastStep_ = -1;
+};
+
+// Steps, MIDI and the right or side lane for one filter.
+class BandModulation : public juce::Component {
+public:
+    BandModulation(Apvts& state, int band);
+    void paint(juce::Graphics& g) override;
+    void resized() override;
+    void refresh(bool isLinked);
+
+private:
+    juce::String title_;
+    juce::Colour accent_;
+    Choice stepMode_;
+    Knob stepLength_;
+    Knob stepBeats_;
+    Knob stepPulses_;
+    Knob stepRotation_;
+    Knob stepDepth_;
+    StepGrid steps_;
+    Choice midiSource_;
+    Knob midiCc_;
+    Knob midiDepth_;
+    Knob laneDepth_;
+    Knob lanePhase_;
+    Knob laneOffset_;
+    const std::atomic<float>& stepModeValue_;
+    const std::atomic<float>& midiSourceValue_;
+    juce::Rectangle<int> stepsArea_;
+    juce::Rectangle<int> gridArea_;
+    juce::Rectangle<int> midiArea_;
+    juce::Rectangle<int> laneArea_;
+};
+
+// Routing, FM shape and target, channels, and each filter's steps, MIDI and lane.
+class ModulationPage : public juce::Component {
+public:
+    explicit ModulationPage(Apvts& state);
+    void paint(juce::Graphics& g) override;
+    void resized() override;
+    void refresh();
+
+private:
+    Choice routing_;
+    Knob blend_;
+    Choice channels_;
+    Choice fmShape_;
+    Choice fmTarget_;
+    BandModulation bandA_;
+    BandModulation bandB_;
+    const std::atomic<float>& routingValue_;
+    const std::atomic<float>& channelsValue_;
+    juce::Rectangle<int> globalArea_;
+};
+
 class EffectsPanel : public juce::Component, public juce::Timer {
 public:
     explicit EffectsPanel(OpenEdmFilterProcessor& processor);

@@ -529,6 +529,7 @@ void OpenEdmFilterProcessor::getStateInformation(juce::MemoryBlock& destData) {
     state.setProperty("barsLayout", params::kSweepBarsLayout, nullptr);
     state.setProperty("editorWidth", editorWidth_.load(), nullptr);
     state.setProperty("editorHeight", editorHeight_.load(), nullptr);
+    state.setProperty("modulationPage", modulationPageVisible.load(), nullptr);
     if (auto existing = state.getChildWithName("AB"); existing.isValid())
         state.removeChild(existing, nullptr);
     state.appendChild(ab_.toValueTree(), nullptr);
@@ -562,6 +563,7 @@ void OpenEdmFilterProcessor::setStateInformation(const void* data, int sizeInByt
         editorWidth_ = width;
     if (height >= kMinEditorHeight && height <= kMaxEditorHeight)
         editorHeight_ = height;
+    modulationPageVisible = static_cast<bool>(state.getProperty("modulationPage", false));
     const auto fallback = editHistory_.captureParameters();
     if (auto ab = state.getChildWithName("AB"); ab.isValid())
         ab_.fromValueTree(ab, fallback);

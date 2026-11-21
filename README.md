@@ -32,7 +32,7 @@ HOST SYNC follows host tempo and time signature. The internal clock supports 40�
 
 ## Shape a transition
 
-Choose **Low Shelf** to bring up the bass, **High Shelf** to lift the top, or **Bell Cut** to clear space around a frequency. Resonance sets shelving boost from +3 to +12 dB or bell-cut depth from −3 to −18 dB. Width controls the transition or bell bandwidth. The gain range holds at every slope. For a phaser sweep, select **All Pass** on Filter A, bypass B, then select Parallel and put A/B Blend halfway. Move A’s cutoff to move the cancellation through the spectrum.
+Choose **Low Shelf** to bring up the bass, **High Shelf** to lift the top, or **Bell Cut** to clear space around a frequency. Resonance sets shelving boost from +3 to +12 dB or bell-cut depth from −3 to −18 dB. Width controls the transition or bell bandwidth. The gain range holds at every slope. For a phaser sweep, select **All Pass** on Filter A, bypass B, then open the MODULATION page, select Parallel and put A/B Blend halfway. Move A’s cutoff to move the cancellation through the spectrum.
 
 The animated pair of filter curves beside the title pulses with the host transport. It follows tempo and seeks, rests when the host stops, and follows the internal clock in Standalone.
 

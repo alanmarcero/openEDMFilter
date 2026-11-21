@@ -25,7 +25,8 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
       sweep_(processorToEdit),
       bandA_(processorToEdit.parameters, 0),
       bandB_(processorToEdit.parameters, 1),
-      effects_(processorToEdit) {
+      effects_(processorToEdit),
+      modulationPage_(processorToEdit.parameters) {
     setLookAndFeel(&lookAndFeel_);
     inertia_.setTooltip("Slows cutoff moves on the 48 and 96 dB slopes to stop clicks. Turn off for fast gates.");
     masterBypass_.setTooltip("Bypasses the whole plugin. The host bypass uses this switch.");
@@ -84,17 +85,10 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     };
 
     advancedButton_.setComponentID("advancedModulation");
-    advancedButton_.setTooltip("Routing, FM, MIDI, step patterns and independent R/S modulation");
+    advancedButton_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentFx);
+    advancedButton_.setTooltip("Shows routing, FM shape, channels, steps and MIDI. Click again to show the sweep and filters.");
     advancedButton_.onClick = [this] {
-        if (!advancedControls_) {
-            advancedControls_ = std::make_unique<juce::GenericAudioProcessorEditor>(processor_);
-            advancedControls_->setOpaque(true);
-            addChildComponent(*advancedControls_);
-        }
-        const bool show = !advancedControls_->isVisible();
-        advancedControls_->setVisible(show);
-        if (show) advancedControls_->toFront(false);
-        advancedButton_.setToggleState(show, juce::dontSendNotification);
+        processor_.modulationPageVisible = !processor_.modulationPageVisible.load();
         resized();
     };
     spectrumButton_.setClickingTogglesState(true);
@@ -122,6 +116,7 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     addAndMakeVisible(bandA_);
     addAndMakeVisible(bandB_);
     addAndMakeVisible(effects_);
+    addChildComponent(modulationPage_);
 
     setWantsKeyboardFocus(true);
     addKeyListener(this);
@@ -170,7 +165,10 @@ void OpenEdmFilterEditor::timerCallback() {
     openedm::ui::setInactive(freezeSpectrumButton_, !spectrumButton_.getToggleState(), "Turn on SPECTRUM to freeze the trace.");
     // BYPASS ALL passes the dry signal, so every control panel dims with it.
     const bool isBypassed = processor_.parameters.getRawParameterValue(openedm::params::kMasterBypass)->load() > 0.5f;
-    std::ranges::for_each(std::initializer_list<juce::Component*>{ &sweep_, &bandA_, &bandB_, &effects_ }, [&](juce::Component* panel) {
+    modulationPage_.refresh();
+    if (modulationPage_.isVisible() != processor_.modulationPageVisible.load())
+        resized();
+    std::ranges::for_each(std::initializer_list<juce::Component*>{ &sweep_, &bandA_, &bandB_, &effects_, &modulationPage_ }, [&](juce::Component* panel) {
         panel->setAlpha(isBypassed ? theme::kInactiveAlpha : 1.0f);
     });
     if (!applyingStateSize_
@@ -277,6 +275,14 @@ void OpenEdmFilterEditor::resized() {
     bounds.removeFromTop(gap);
     effects_.setBounds(bounds);
 
+    // The modulation page takes the place of the sweep and filter panels. The response view stays in sight.
+    const bool showsModulation = processor_.modulationPageVisible.load();
+    modulationPage_.setBounds(sweep_.getBounds().getUnion(bandB_.getBounds()));
+    modulationPage_.setVisible(showsModulation);
+    std::ranges::for_each(std::initializer_list<juce::Component*>{ &sweep_, &bandA_, &bandB_ },
+                          [&](juce::Component* panel) { panel->setVisible(!showsModulation); });
+    advancedButton_.setToggleState(showsModulation, juce::dontSendNotification);
+
     if (presetBrowser_ != nullptr) {
         const int width = juce::jmin(380, getWidth() - margin * 2);
         const int height = juce::jlimit(280, 480, getHeight() - headerHeight_ - margin * 2);
@@ -284,15 +290,5 @@ void OpenEdmFilterEditor::resized() {
         presetBrowser_->setVisible(presetBrowserVisible_);
         if (presetBrowserVisible_)
             presetBrowser_->toFront(false);
-    }
-    if (advancedControls_) {
-        const auto overlay = getLocalBounds().reduced(margin).withTrimmedTop(headerHeight_ + 4);
-        constexpr float scale = 1.8f;
-        const int scaledW = juce::roundToInt(overlay.getWidth() / scale);
-        const int scaledH = (juce::roundToInt(overlay.getHeight() / scale) / 40) * 40;
-        advancedControls_->setBounds(0, 0, juce::jmax(40, scaledW), juce::jmax(40, scaledH));
-        advancedControls_->setTransform(juce::AffineTransform::scale(scale).translated(float(overlay.getX()), float(overlay.getY())));
-        if (advancedControls_->isVisible())
-            advancedControls_->toFront(false);
     }
 }

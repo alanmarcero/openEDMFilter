@@ -37,7 +37,6 @@ private:
     juce::TextButton advancedButton_{"MODULATION"};
     juce::TextButton spectrumButton_{"SPECTRUM"};
     juce::TextButton freezeSpectrumButton_{"FREEZE"};
-    std::unique_ptr<juce::GenericAudioProcessorEditor> advancedControls_;
     juce::TextButton prevPresetBtn_{"<"};
     juce::TextButton nextPresetBtn_{">"};
     openedm::ui::Toggle masterBypass_;
@@ -47,6 +46,7 @@ private:
     openedm::ui::BandPanel bandA_;
     openedm::ui::BandPanel bandB_;
     openedm::ui::EffectsPanel effects_;
+    openedm::ui::ModulationPage modulationPage_;
     juce::Rectangle<int> pulseArea_;
     juce::Rectangle<int> titleArea_;
     int headerHeight_ = 40;
