@@ -9,6 +9,23 @@ constexpr float kArcThickness = 3.5f;
 constexpr float kCornerRadius = 4.0f;
 constexpr float kControlFontSize = 14.0f;
 
+// Draws everything in its scope at theme::kInactiveAlpha while the control is disabled.
+class DisabledFade {
+public:
+    DisabledFade(juce::Graphics& g, const juce::Component& control) : graphics_(g), isFaded_(!control.isEnabled()) {
+        if (isFaded_)
+            graphics_.beginTransparencyLayer(theme::kInactiveAlpha);
+    }
+    ~DisabledFade() {
+        if (isFaded_)
+            graphics_.endTransparencyLayer();
+    }
+
+private:
+    juce::Graphics& graphics_;
+    const bool isFaded_;
+};
+
 } // namespace
 
 EdmLookAndFeel::EdmLookAndFeel() {
@@ -45,6 +62,7 @@ EdmLookAndFeel::EdmLookAndFeel() {
 
 void EdmLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int width, int height, float sliderPos,
                                       float startAngle, float endAngle, juce::Slider& slider) {
+    const DisabledFade fade(g, slider);
     const auto accent = slider.findColour(juce::Slider::rotarySliderFillColourId);
     const auto bounds = juce::Rectangle<int>(x, y, width, height).toFloat().reduced(4.0f);
     const float radius = juce::jmin(bounds.getWidth(), bounds.getHeight()) / 2.0f;
@@ -89,6 +107,7 @@ void EdmLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int width
 
 void EdmLookAndFeel::drawComboBox(juce::Graphics& g, int width, int height, bool, int, int, int, int,
                                   juce::ComboBox& box) {
+    const DisabledFade fade(g, box);
     const auto bounds = juce::Rectangle<int>(width, height).toFloat().reduced(0.5f);
     g.setColour(box.findColour(juce::ComboBox::backgroundColourId));
     g.fillRoundedRectangle(bounds, kCornerRadius);
@@ -110,6 +129,7 @@ void EdmLookAndFeel::positionComboBoxText(juce::ComboBox& box, juce::Label& labe
 
 void EdmLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& button, const juce::Colour&,
                                           bool isHighlighted, bool) {
+    const DisabledFade fade(g, button);
     const auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
     const auto accent = button.findColour(juce::TextButton::buttonOnColourId);
     const bool isOn = button.getToggleState();
@@ -120,6 +140,7 @@ void EdmLookAndFeel::drawButtonBackground(juce::Graphics& g, juce::Button& butto
 }
 
 void EdmLookAndFeel::drawButtonText(juce::Graphics& g, juce::TextButton& button, bool, bool) {
+    const DisabledFade fade(g, button);
     const bool isOn = button.getToggleState();
     g.setColour(button.findColour(isOn ? juce::TextButton::textColourOnId : juce::TextButton::textColourOffId));
     g.setFont(juce::FontOptions(kControlFontSize, juce::Font::bold));

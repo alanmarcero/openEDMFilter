@@ -7,8 +7,6 @@ namespace openedm::ui {
 
 using Apvts = juce::AudioProcessorValueTreeState;
 
-inline constexpr float kInactiveAlpha = 0.4f;
-
 class Knob : public juce::Component {
 public:
     Knob(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent);
@@ -60,7 +58,7 @@ private:
     Apvts::ButtonAttachment attachment_;
 };
 
-// Draws a control at kInactiveAlpha while its setting has no effect.
+// Draws a control at theme::kInactiveAlpha while its setting has no effect.
 // Its tooltip then says what turns it on. The original tooltip comes back when it is active again.
 void setInactive(juce::Component& control, bool isInactive, const juce::String& enableHint);
 

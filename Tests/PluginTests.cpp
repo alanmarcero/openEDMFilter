@@ -2,12 +2,14 @@
 #include "PluginEditor.h"
 #include "Parameters.h"
 #include "Presets.h"
+#include "Theme.h"
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <numbers>
 #include <cmath>
 #include <map>
+#include <ranges>
 #include <string>
 
 using Catch::Matchers::WithinAbs;
@@ -1004,8 +1006,8 @@ TEST_CASE("Auto Sweep dims the cutoff and resonance it drives and says why", "[p
 
     set(processor, "sweep_on", 1.0f);
     timer.timerCallback();
-    CHECK_THAT(cutoffA->getAlpha(), WithinAbs(openedm::ui::kInactiveAlpha, 1e-6f));
-    CHECK_THAT(resonanceA->getAlpha(), WithinAbs(openedm::ui::kInactiveAlpha, 1e-6f));
+    CHECK_THAT(cutoffA->getAlpha(), WithinAbs(openedm::theme::kInactiveAlpha, 1e-6f));
+    CHECK_THAT(resonanceA->getAlpha(), WithinAbs(openedm::theme::kInactiveAlpha, 1e-6f));
     CHECK(tooltipOf(cutoffA).contains("AUTO SWEEP"));
     CHECK_THAT(widthA->getAlpha(), WithinAbs(1.0f, 1e-6f));
     CHECK_THAT(cutoffB->getAlpha(), WithinAbs(1.0f, 1e-6f));
@@ -1014,12 +1016,12 @@ TEST_CASE("Auto Sweep dims the cutoff and resonance it drives and says why", "[p
     timer.timerCallback();
     CHECK_THAT(cutoffA->getAlpha(), WithinAbs(1.0f, 1e-6f));
     CHECK(tooltipOf(cutoffA).isEmpty());
-    CHECK_THAT(cutoffB->getAlpha(), WithinAbs(openedm::ui::kInactiveAlpha, 1e-6f));
+    CHECK_THAT(cutoffB->getAlpha(), WithinAbs(openedm::theme::kInactiveAlpha, 1e-6f));
 
     set(processor, "sweep_on", 0.0f);
     set(processor, "b_bypass", 1.0f);
     timer.timerCallback();
-    CHECK_THAT(cutoffB->getAlpha(), WithinAbs(openedm::ui::kInactiveAlpha, 1e-6f));
+    CHECK_THAT(cutoffB->getAlpha(), WithinAbs(openedm::theme::kInactiveAlpha, 1e-6f));
     CHECK(tooltipOf(cutoffB).contains("BYPASS"));
 }
 
@@ -1041,4 +1043,31 @@ TEST_CASE("A click on the response display leaves a swept band alone", "[plugin]
 
     CHECK_THAT(processor.parameters.getRawParameterValue("a_cutoff")->load(), WithinAbs(20000.0f, 0.5f));
     CHECK(processor.parameters.getRawParameterValue("b_cutoff")->load() < 200.0f);
+}
+
+TEST_CASE("The look and feel draws disabled buttons, dials and menus dimmed", "[plugin][ui]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    openedm::ui::EdmLookAndFeel lookAndFeel;
+    juce::TextButton button("UNDO");
+    juce::Slider dial(juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::NoTextBox);
+    juce::ComboBox menu;
+    menu.addItem("Low Pass", 1);
+    menu.setSelectedId(1);
+    const auto ink = [&](juce::Component& control, bool isEnabled) {
+        control.setLookAndFeel(&lookAndFeel);
+        control.setBounds(0, 0, 80, 40);
+        control.setEnabled(isEnabled);
+        const auto image = control.createComponentSnapshot(control.getLocalBounds(), true, 1.0f);
+        control.setLookAndFeel(nullptr);
+        float total = 0.0f;
+        std::ranges::for_each(std::views::iota(0, image.getWidth() * image.getHeight()), [&](int pixel) {
+            const auto colour = image.getPixelAt(pixel % image.getWidth(), pixel / image.getWidth());
+            total += colour.getBrightness() * colour.getFloatAlpha();
+        });
+        return total;
+    };
+
+    CHECK(ink(button, false) < 0.6f * ink(button, true));
+    CHECK(ink(dial, false) < 0.6f * ink(dial, true));
+    CHECK(ink(menu, false) < 0.6f * ink(menu, true));
 }

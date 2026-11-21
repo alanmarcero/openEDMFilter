@@ -150,7 +150,7 @@ void Toggle::setTooltip(const juce::String& text) {
 }
 
 void setInactive(juce::Component& control, bool isInactive, const juce::String& enableHint) {
-    control.setAlpha(isInactive ? kInactiveAlpha : 1.0f);
+    control.setAlpha(isInactive ? theme::kInactiveAlpha : 1.0f);
     std::vector<juce::SettableTooltipClient*> parts;
     const auto collect = [&](auto&& self, juce::Component& part) -> void {
         if (auto* client = dynamic_cast<juce::SettableTooltipClient*>(&part))
