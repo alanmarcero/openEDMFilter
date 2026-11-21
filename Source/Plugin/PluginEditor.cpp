@@ -19,7 +19,7 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     : AudioProcessorEditor(processorToEdit),
       processor_(processorToEdit),
       presetStore_(suite::PresetStore::defaultDirectory("openEDMFilter")),
-      masterBypass_(processorToEdit.parameters, openedm::params::kMasterBypass, "BYPASS", theme::kAccentOut),
+      masterBypass_(processorToEdit.parameters, openedm::params::kMasterBypass, "BYPASS ALL", theme::kBypassEngaged),
       inertia_(processorToEdit.parameters, openedm::params::kInertia, "INERTIA", theme::kAccentA),
       response_(processorToEdit),
       sweep_(processorToEdit),
@@ -234,7 +234,7 @@ void OpenEdmFilterEditor::resized() {
     place(row2, freezeSpectrumButton_, 72);
     place(row2, spectrumButton_, 84);
     place(row2, inertia_, 76);
-    place(row2, masterBypass_, 72);
+    place(row2, masterBypass_, 104);
     place(row2, advancedButton_, juce::jmin(168, juce::jmax(120, row2.getWidth())));
 
     bounds.removeFromTop(4);

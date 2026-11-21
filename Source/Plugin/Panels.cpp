@@ -564,8 +564,6 @@ void SweepSlopeEditor::paint(juce::Graphics& g) {
 
 SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
     : processor_(processor),
-      bypass_(processor.parameters, params::kSweepBypass, "BYPASS", theme::kAccentA),
-      enabled_(processor.parameters, params::kSweepEnabled, "AUTO SWEEP", theme::kAccentA),
       clockSync_(processor.parameters, params::kClockSync, "HOST SYNC", theme::kAccentOut),
       timeSig_(processor.parameters, params::kTimeSignature, {}, theme::kAccentOut),
       bars_(processor.parameters, params::kSweepBars, {}, theme::kAccentA),
@@ -580,14 +578,8 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
       resStart_(processor.parameters, params::kSweepResStart, "Start", theme::kAccentB),
       resEnd_(processor.parameters, params::kSweepResEnd, "End", theme::kAccentB),
       resSlope_(processor.parameters, params::kSweepResSlope, "Slope", theme::kAccentB),
-      bypassWatcher_(*processor.parameters.getParameter(params::kSweepBypass), [this](float isBypassed) {
-          const float alpha = isBypassed > 0.5f ? 0.72f : 1.0f;
-          std::ranges::for_each(getChildren(), [&](juce::Component* control) {
-              if (control != &bypass_) {
-                  control->setAlpha(alpha);
-              }
-          });
-      }),
+      sweepOn_(*processor.parameters.getParameter(params::kSweepEnabled), [this](float) { refresh(); }),
+      sweepBypass_(*processor.parameters.getParameter(params::kSweepBypass), [this](float) { refresh(); }),
       slotWatcher_(*processor.parameters.getParameter(params::kSweepSlot), [this](float slot) {
           selectSlot(static_cast<int>(slot));
       }) {
@@ -600,6 +592,15 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
     effectKnobs_[3]->setTooltip("Sweep position where the bitcrush starts to move from Start to End.");
     effectKnobs_[7]->setTooltip("Sweep position where the glitch starts to move from Start to End.");
     clockSync_.setTooltip("Follows the host tempo and time signature. Turn off to use TEMPO and the signature menu.");
+    // The old sweep BYPASS has no button now but still stops the sweep, so turning the sweep on clears it.
+    enabled_.setComponentID(params::kSweepEnabled);
+    enabled_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentA);
+    enabled_.onClick = [this] {
+        const bool isRunning = enabled_.getToggleState();
+        sweepOn_.setValueAsCompleteGesture(isRunning ? 0.0f : 1.0f);
+        if (!isRunning)
+            sweepBypass_.setValueAsCompleteGesture(0.0f);
+    };
     for (size_t i = 0; i < slotButtons_.size(); ++i) {
         auto& button = slotButtons_[i];
         button.setButtonText("SLOT " + juce::String::charToString(static_cast<juce::juce_wchar>('A' + i)));
@@ -626,12 +627,25 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
     };
 
     std::ranges::for_each(std::initializer_list<juce::Component*>{
-                              &bypass_, &enabled_, &clockSync_, &timeSig_, &barsLabel_, &bars_, &mode_, &target_, &slopePresetBox_,
+                              &enabled_, &clockSync_, &timeSig_, &barsLabel_, &bars_, &mode_, &target_, &slopePresetBox_,
                               &tempo_, &slopeEditor_, &cutoffStart_, &cutoffEnd_, &cutoffSlope_,
                               &resStart_, &resEnd_, &resSlope_ },
                           [this](juce::Component* control) { addAndMakeVisible(control); });
-    bypassWatcher_.sendInitialUpdate();
     slotWatcher_.sendInitialUpdate();
+    refresh();
+}
+
+void SweepPanel::refresh() {
+    // A parameter attachment runs before the raw values update, so read the parameters themselves.
+    const auto isOn = [this](const char* id) { return processor_.parameters.getParameter(id)->getValue() > 0.5f; };
+    const bool isRunning = isOn(params::kSweepEnabled) && !isOn(params::kSweepBypass);
+    enabled_.setToggleState(isRunning, juce::dontSendNotification);
+    // The clock also sets the LFO and step rates. The slope editor dims its own curves.
+    const std::array<juce::Component*, 5> alwaysActive{ &enabled_, &clockSync_, &timeSig_, &tempo_, &slopeEditor_ };
+    std::ranges::for_each(getChildren(), [&](juce::Component* control) {
+        if (std::ranges::find(alwaysActive, control) == alwaysActive.end())
+            setInactive(*control, !isRunning, "Turn on AUTO SWEEP to use this control.");
+    });
 }
 
 void SweepPanel::selectSlot(int slot) {
@@ -685,9 +699,7 @@ void SweepPanel::resized() {
     header.removeFromRight(5);
     clockSync_.setBounds(header.removeFromRight(90));
     header.removeFromRight(5);
-    enabled_.setBounds(header.removeFromRight(95));
-    header.removeFromRight(5);
-    bypass_.setBounds(header.removeFromRight(78));
+    enabled_.setBounds(header.removeFromRight(95).withSizeKeepingCentre(95, 36));
 
     bounds.removeFromTop(4);
     slotArea_ = bounds.removeFromTop(40);
@@ -720,7 +732,7 @@ void SweepPanel::resized() {
 BandPanel::BandPanel(Apvts& state, int band)
     : title_(band == 0 ? "Filter A" : "Filter B"),
       accent_(band == 0 ? theme::kAccentA : theme::kAccentB),
-      bypass_(state, params::bandId(band, params::kBypass), "BYPASS", accent_),
+      bypass_(state, params::bandId(band, params::kBypass), "BYPASS", theme::kBypassEngaged),
       type_(state, band, accent_),
       slope_(state, params::bandId(band, params::kSlope), {}, accent_),
       cutoff_(state, params::bandId(band, params::kCutoff), "Cutoff", accent_),

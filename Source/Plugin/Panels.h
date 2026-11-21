@@ -74,11 +74,11 @@ public:
     explicit SweepPanel(OpenEdmFilterProcessor& processor);
     void paint(juce::Graphics& g) override;
     void resized() override;
+    void refresh();
 
 private:
     OpenEdmFilterProcessor& processor_;
-    Toggle bypass_;
-    Toggle enabled_;
+    juce::TextButton enabled_{ "AUTO SWEEP" };
     Toggle clockSync_;
     Choice timeSig_;
     Choice bars_;
@@ -104,7 +104,8 @@ private:
     juce::Rectangle<int> editorArea_;
     juce::Rectangle<int> cutoffArea_;
     juce::Rectangle<int> resArea_;
-    juce::ParameterAttachment bypassWatcher_; // dims the sweep controls while it is bypassed
+    juce::ParameterAttachment sweepOn_;
+    juce::ParameterAttachment sweepBypass_;
     juce::ParameterAttachment slotWatcher_;
 };
 

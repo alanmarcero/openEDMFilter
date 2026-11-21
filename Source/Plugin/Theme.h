@@ -16,6 +16,8 @@ inline const juce::Colour kAccentB{ 0xffffbe3b };
 inline const juce::Colour kAccentFx{ 0xff48f0c8 };
 inline const juce::Colour kAccentOut{ 0xffffbe3b };
 inline const juce::Colour kAccentSpectrum{ 0xff5ce1ff };
+// An engaged bypass turns sound off, so it gets a neutral fill, not an accent.
+inline const juce::Colour kBypassEngaged = kTextDim;
 
 // Alpha for a control that has no effect now or cannot act.
 inline constexpr float kInactiveAlpha = 0.4f;

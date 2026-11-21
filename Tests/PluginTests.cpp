@@ -927,7 +927,7 @@ TEST_CASE("The editor owns a tooltip window and the listed controls have tooltip
 
     REQUIRE(std::ranges::any_of(editor->getChildren(), [](auto* child) { return dynamic_cast<juce::TooltipWindow*>(child) != nullptr; }));
     CHECK(labelsWithTips["INERTIA"] == 1);
-    CHECK(labelsWithTips["BYPASS"] == 1);
+    CHECK(labelsWithTips["BYPASS ALL"] == 1);
     CHECK(labelsWithTips["HOST SYNC"] == 1);
     CHECK(labelsWithTips["SOURCE"] == 2);
     CHECK(labelsWithTips["ONSET"] == 2);
@@ -1070,4 +1070,44 @@ TEST_CASE("The look and feel draws disabled buttons, dials and menus dimmed", "[
     CHECK(ink(button, false) < 0.6f * ink(button, true));
     CHECK(ink(dial, false) < 0.6f * ink(dial, true));
     CHECK(ink(menu, false) < 0.6f * ink(menu, true));
+}
+
+TEST_CASE("AUTO SWEEP replaces the sweep BYPASS and engaged bypass draws as off", "[plugin][ui]") {
+#if JUCE_LINUX
+    if (std::getenv("DISPLAY") == nullptr) SKIP("Native editor requires a display");
+#endif
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenEdmFilterProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    std::vector<juce::TextButton*> buttons;
+    const auto collect = [&](auto&& self, juce::Component& parent) -> void {
+        std::ranges::for_each(parent.getChildren(), [&](juce::Component* child) {
+            if (auto* button = dynamic_cast<juce::TextButton*>(child)) buttons.push_back(button);
+            self(self, *child);
+        });
+    };
+    collect(collect, *editor);
+    const auto named = [&](const juce::String& text) {
+        return std::ranges::count_if(buttons, [&](auto* button) { return button->getButtonText() == text; });
+    };
+    auto* panel = *std::ranges::find_if(editor->getChildren(), [](auto* child) { return dynamic_cast<openedm::ui::SweepPanel*>(child) != nullptr; });
+    auto* autoSweep = dynamic_cast<juce::TextButton*>(panel->findChildWithID("sweep_on"));
+    auto* bars = panel->findChildWithID("sweep_bars");
+    auto* bypassAll = *std::ranges::find_if(buttons, [](auto* button) { return button->getButtonText() == "BYPASS ALL"; });
+
+    CHECK(named("BYPASS ALL") == 1);
+    CHECK(named("BYPASS") == 2);
+    CHECK(bypassAll->findColour(juce::TextButton::buttonOnColourId) == openedm::theme::kBypassEngaged);
+    CHECK_THAT(bars->getAlpha(), WithinAbs(openedm::theme::kInactiveAlpha, 1e-6f));
+
+    set(processor, "sweep_on", 1.0f);
+    set(processor, "sweep_bypass", 1.0f);
+    CHECK_FALSE(autoSweep->getToggleState());
+    autoSweep->onClick();
+    CHECK(processor.currentSweepSettings().enabled);
+    CHECK(autoSweep->getToggleState());
+    CHECK_THAT(bars->getAlpha(), WithinAbs(1.0f, 1e-6f));
+    autoSweep->onClick();
+    CHECK_THAT(processor.parameters.getRawParameterValue("sweep_on")->load(), WithinAbs(0.0f, 1e-6f));
+    CHECK_FALSE(autoSweep->getToggleState());
 }
