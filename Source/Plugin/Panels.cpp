@@ -1062,6 +1062,14 @@ void EffectsPanel::timerCallback() {
     setInactive(ceiling_, !isLimiting, "Turn on LIMIT to use the ceiling.");
 }
 
+void EffectsPanel::mouseDown(const juce::MouseEvent& event) {
+    // A meter is only 5 px wide, so a click beside it also clears its clip lamp.
+    std::ranges::for_each(std::array<LevelMeter*, 2>{ &inputMeter_, &outputMeter_ }, [&](LevelMeter* meter) {
+        if (meter->getBounds().expanded(8, 4).contains(event.getPosition()))
+            meter->mouseDown(event);
+    });
+}
+
 void EffectsPanel::paint(juce::Graphics& g) {
     std::ranges::for_each(sections_, [&](const Section& section) {
         drawPanel(g, section.area, section.title, section.accent);

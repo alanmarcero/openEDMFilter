@@ -224,6 +224,7 @@ public:
     explicit EffectsPanel(OpenEdmFilterProcessor& processor);
     void paint(juce::Graphics& g) override;
     void resized() override;
+    void mouseDown(const juce::MouseEvent& event) override;
 
 private:
     void timerCallback() override;

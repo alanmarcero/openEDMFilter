@@ -1286,6 +1286,16 @@ TEST_CASE("Input and output meters show at the default and the minimum size", "[
     CHECK(input->getHeight() >= 40);
     CHECK(output->getHeight() >= 40);
     CHECK(effects->getLocalBounds().contains(output->getBounds()));
+
+    auto* meter = dynamic_cast<openedm::ui::LevelMeter*>(output);
+    processor.displayOutputPeak.store(1.5f);
+    meter->update();
+    REQUIRE(meter->isClipped());
+    const auto beside = output->getBounds().getCentre().toFloat().translated(6.0f, 0.0f);
+    const auto now = juce::Time::getCurrentTime();
+    effects->mouseDown(juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(), beside, {}, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                        effects, effects, now, beside, now, 1, false));
+    CHECK_FALSE(meter->isClipped());
 }
 
 TEST_CASE("CEILING, FREEZE and the whole editor dim when their switch is off", "[plugin][ui]") {
