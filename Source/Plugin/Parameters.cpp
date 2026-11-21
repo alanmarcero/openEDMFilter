@@ -152,7 +152,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     addBool(layout, kClockSync, "Clock Sync", true);
     addFloat(layout, kTempoBpm, "Tempo", { 40.0f, 240.0f }, 128.0f, kFormatBpm);
     addChoice(layout, kTimeSignature, "Time Signature",
-              { "4/4", "3/4", "2/4", "5/4", "6/4", "6/8", "7/8", "9/8", "12/8" }, 0);
+              { "Host", "3/4", "2/4", "5/4", "6/4", "6/8", "7/8", "9/8", "12/8" }, 0);
     addBool(layout, kSweepEnabled, "Auto Sweep", false);
     addBool(layout, kSweepBypass, "Sweep Bypass", false);
     addChoice(layout, kSweepTarget, "Sweep Target", { "Filter A", "Filter B", "Both A+B", "A/B Mirror" }, 0);

@@ -76,6 +76,8 @@ public:
     std::atomic<float> displayBeatPhase{ -1.0f };
     float animationBeatPhase(double seconds) const noexcept;
     std::atomic<float> displayBpm{ 128.0f };
+    std::atomic<bool> displayHostTempo{ false };
+    std::atomic<juce::AudioPlayHead::TimeSignature> displayTimeSignature{};
     std::atomic<float> displayBeatsPerBar{ 4.0f };
     std::atomic<float> displayInputPeak{ 0.0f };
     std::atomic<float> displayOutputPeak{ 0.0f };

@@ -116,6 +116,7 @@ inline int sweepBarIndex(int bars) noexcept {
 void migrateSweepBarState(juce::ValueTree& state);
 
 // Time signatures (numerator, denominator), matching "time_sig" choices.
+// Choice 0 ("Host") uses the host signature with clock sync on, and 4/4 without it.
 inline constexpr std::array<std::pair<int, int>, 9> kTimeSignatures = { {
     { 4, 4 }, { 3, 4 }, { 2, 4 }, { 5, 4 }, { 6, 4 }, { 6, 8 }, { 7, 8 }, { 9, 8 }, { 12, 8 }
 } };

@@ -551,13 +551,12 @@ void SweepSlopeEditor::paint(juce::Graphics& g) {
         + juce::String(juce::roundToInt(settings.resonanceEnd * 100.0f)) + "%";
     g.drawText(resSummary, headerBar.withTrimmedLeft(155.0f).withWidth(105.0f), juce::Justification::centredLeft);
 
-    const int sigIndex = static_cast<int>(processor_.parameters.getRawParameterValue(params::kTimeSignature)->load());
-    const auto [num, denom] = params::kTimeSignatures[static_cast<size_t>(std::clamp(sigIndex, 0, static_cast<int>(params::kTimeSignatures.size()) - 1))];
+    const auto signature = processor_.displayTimeSignature.load();
     const float currentBar = phase * static_cast<float>(bars) + 1.0f;
     const float bpm = processor_.displayBpm.load();
     g.setColour(theme::kTextDim);
     const juce::String clockSummary = "BAR " + juce::String(currentBar, 1) + "/" + juce::String(bars)
-        + "  " + juce::String(num) + "/" + juce::String(denom)
+        + "  " + juce::String(signature.numerator) + "/" + juce::String(signature.denominator)
         + "  " + juce::String(juce::roundToInt(bpm)) + " BPM";
     g.drawText(clockSummary, getLocalBounds().toFloat().reduced(8.0f, 1.0f).removeFromBottom(13.0f), juce::Justification::centredRight);
 }
@@ -592,6 +591,7 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
     effectKnobs_[3]->setTooltip("Sweep position where the bitcrush starts to move from Start to End.");
     effectKnobs_[7]->setTooltip("Sweep position where the glitch starts to move from Start to End.");
     clockSync_.setTooltip("Follows the host tempo and time signature. Turn off to use TEMPO and the signature menu.");
+    timeSig_.setTooltip("Host uses the host time signature while HOST SYNC is on. Without HOST SYNC, Host is 4/4.");
     // The old sweep BYPASS has no button now but still stops the sweep, so turning the sweep on clears it.
     enabled_.setComponentID(params::kSweepEnabled);
     enabled_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentA);
@@ -646,6 +646,15 @@ void SweepPanel::refresh() {
         if (std::ranges::find(alwaysActive, control) == alwaysActive.end())
             setInactive(*control, !isRunning, "Turn on AUTO SWEEP to use this control.");
     });
+
+    const bool isHostTempo = isOn(params::kClockSync) && processor_.displayHostTempo.load();
+    setInactive(tempo_, isHostTempo, "HOST SYNC uses the host tempo. Turn off HOST SYNC to use TEMPO.");
+    const juce::String hostBpm(processor_.displayBpm.load(), 1);
+    const auto caption = isHostTempo ? "Host " + hostBpm + " BPM" : juce::String("Clock");
+    if (caption != clockCaption_) {
+        clockCaption_ = caption;
+        repaint(clockArea_);
+    }
 }
 
 void SweepPanel::selectSlot(int slot) {
@@ -665,7 +674,7 @@ void SweepPanel::selectSlot(int slot) {
 
 void SweepPanel::paint(juce::Graphics& g) {
     drawPanel(g, getLocalBounds(), "Auto Sweep & Tempo Sync", theme::kAccentA);
-    drawCaption(g, clockArea_, "Clock");
+    drawCaption(g, clockArea_, clockCaption_);
     drawCaption(g, editorArea_, "Slope editor (drag start / curve / end)");
     drawCaption(g, cutoffArea_, "Cutoff sweep");
     drawCaption(g, resArea_, "Resonance sweep");

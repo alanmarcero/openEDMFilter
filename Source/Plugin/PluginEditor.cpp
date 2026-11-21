@@ -165,6 +165,7 @@ void OpenEdmFilterEditor::timerCallback() {
     const auto sweep = processor_.currentSweepSettings();
     bandA_.refresh(openedm::core::AutoSweep::appliesToBand(sweep, 0));
     bandB_.refresh(openedm::core::AutoSweep::appliesToBand(sweep, 1));
+    sweep_.refresh();
     if (!applyingStateSize_
         && (getWidth() != processor_.editorWidth() || getHeight() != processor_.editorHeight())) {
         applyingStateSize_ = true;

@@ -101,6 +101,7 @@ private:
     juce::Rectangle<int> slotArea_;
     void selectSlot(int slot);
     juce::Rectangle<int> clockArea_;
+    juce::String clockCaption_{ "Clock" };
     juce::Rectangle<int> editorArea_;
     juce::Rectangle<int> cutoffArea_;
     juce::Rectangle<int> resArea_;

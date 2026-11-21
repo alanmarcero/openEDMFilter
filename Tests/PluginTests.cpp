@@ -1111,3 +1111,64 @@ TEST_CASE("AUTO SWEEP replaces the sweep BYPASS and engaged bypass draws as off"
     CHECK_THAT(processor.parameters.getRawParameterValue("sweep_on")->load(), WithinAbs(0.0f, 1e-6f));
     CHECK_FALSE(autoSweep->getToggleState());
 }
+
+TEST_CASE("Host sync reports the host tempo and the time signature it uses", "[plugin]") {
+    OpenEdmFilterProcessor processor;
+    processor.prepareToPlay(48000.0, 512);
+    ScriptedPlayHead host;
+    host.info.setIsPlaying(true);
+    host.info.setBpm(100.0);
+    host.info.setPpqPosition(0.0);
+    host.info.setTimeSignature(juce::AudioPlayHead::TimeSignature{ 3, 4 });
+    processor.setPlayHead(&host);
+    juce::AudioBuffer<float> buffer(2, 512);
+    buffer.clear();
+    juce::MidiBuffer midi;
+    auto* signatures = dynamic_cast<juce::AudioParameterChoice*>(processor.parameters.getParameter("time_sig"));
+
+    processor.processBlock(buffer, midi);
+    CHECK(signatures->choices[0] == "Host");
+    CHECK(processor.displayHostTempo.load());
+    CHECK(processor.displayTimeSignature.load() == juce::AudioPlayHead::TimeSignature{ 3, 4 });
+
+    set(processor, "time_sig", 3.0f);
+    processor.processBlock(buffer, midi);
+    CHECK(processor.displayTimeSignature.load() == juce::AudioPlayHead::TimeSignature{ 5, 4 });
+
+    set(processor, "time_sig", 0.0f);
+    set(processor, "clock_sync", 0.0f);
+    processor.processBlock(buffer, midi);
+    CHECK_FALSE(processor.displayHostTempo.load());
+    CHECK(processor.displayTimeSignature.load() == juce::AudioPlayHead::TimeSignature{ 4, 4 });
+    processor.setPlayHead(nullptr);
+}
+
+TEST_CASE("TEMPO dims while the host tempo runs the clock", "[plugin][ui]") {
+#if JUCE_LINUX
+    if (std::getenv("DISPLAY") == nullptr) SKIP("Native editor requires a display");
+#endif
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenEdmFilterProcessor processor;
+    processor.prepareToPlay(48000.0, 512);
+    ScriptedPlayHead host;
+    host.info.setBpm(126.0);
+    processor.setPlayHead(&host);
+    juce::AudioBuffer<float> buffer(2, 512);
+    buffer.clear();
+    juce::MidiBuffer midi;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    auto* panel = *std::ranges::find_if(editor->getChildren(), [](auto* child) { return dynamic_cast<openedm::ui::SweepPanel*>(child) != nullptr; });
+    auto* tempo = panel->findChildWithID("tempo_bpm");
+    auto& timer = dynamic_cast<juce::Timer&>(*editor);
+
+    processor.processBlock(buffer, midi);
+    timer.timerCallback();
+    CHECK_THAT(tempo->getAlpha(), WithinAbs(openedm::theme::kInactiveAlpha, 1e-6f));
+    CHECK(dynamic_cast<juce::Slider*>(tempo->getChildComponent(0))->getTooltip().contains("HOST SYNC"));
+
+    set(processor, "clock_sync", 0.0f);
+    processor.processBlock(buffer, midi);
+    timer.timerCallback();
+    CHECK_THAT(tempo->getAlpha(), WithinAbs(1.0f, 1e-6f));
+    processor.setPlayHead(nullptr);
+}

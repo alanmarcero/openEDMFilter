@@ -413,6 +413,10 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
     const double manualBpm = static_cast<double>(values_.tempoBpm->load());
     const int sigChoice = choice(values_.timeSignature);
     const double manualBeatsPerBar = params::beatsPerBarForSignature(sigChoice);
+    const auto [menuNumerator, menuDenominator]
+        = params::kTimeSignatures[static_cast<size_t>(std::clamp(sigChoice, 0, static_cast<int>(params::kTimeSignatures.size()) - 1))];
+    juce::AudioPlayHead::TimeSignature signature{ menuNumerator, menuDenominator };
+    bool hostTempo = false;
 
     bool hostStopped = false;
     const core::Transport transport = [&] {
@@ -428,12 +432,14 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
             return core::Transport{ manualBpm, std::nullopt, manualBeatsPerBar };
         }
         hostStopped = wrapperType != wrapperType_Standalone && !position->getIsPlaying();
+        hostTempo = position->getBpm().hasValue();
         const double bpm = position->getBpm().orFallback(manualBpm);
         double beatsPerBar = manualBeatsPerBar;
         if (sigChoice == 0 && position->getTimeSignature().hasValue()) {
             const auto sig = *position->getTimeSignature();
             if (sig.numerator > 0 && sig.denominator > 0) {
                 beatsPerBar = static_cast<double>(sig.numerator) * (4.0 / static_cast<double>(sig.denominator));
+                signature = sig;
             }
         }
         if (!position->getPpqPosition().hasValue()) {
@@ -478,6 +484,8 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
     displaySweepPhase.store(engine_.currentSweepPhase());
     displayBeatPhase.store(hostStopped ? 1.0f : engine_.currentBeatPhase(), std::memory_order_relaxed);
     displayBpm.store(static_cast<float>(transport.bpm));
+    displayHostTempo.store(hostTempo);
+    displayTimeSignature.store(signature);
     displayBeatsPerBar.store(static_cast<float>(transport.beatsPerBar));
 }
 

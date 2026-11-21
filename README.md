@@ -28,7 +28,7 @@ All of these plugins are in beta. The macOS and Linux builds are not up to date,
 - **Sidechain envelopes:** Each filter's envelope can listen to the main input or a sidechain from another track. If no sidechain is connected, that envelope keeps following the main input.
 - **Resizable window:** Drag the editor to fit the screen. It stays readable below 800 pixels tall, the proportions are not locked, and the size is saved with the session.
 
-HOST SYNC follows host tempo and time signature. The internal clock supports 40–240 BPM. Select 2/4, 3/4, 4/4, 5/4, 6/4, 6/8, 7/8, 9/8, or 12/8. The standalone app accepts MIDI and uses the internal clock. The plugin reports 173 samples of latency.
+HOST SYNC follows host tempo and time signature. The internal clock supports 40–240 BPM. Select Host, 2/4, 3/4, 5/4, 6/4, 6/8, 7/8, 9/8, or 12/8. Host uses the host signature while HOST SYNC is on and is 4/4 without it. The standalone app accepts MIDI and uses the internal clock. The plugin reports 173 samples of latency.
 
 ## Shape a transition
 
