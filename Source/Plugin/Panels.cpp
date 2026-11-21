@@ -25,6 +25,7 @@ constexpr float kSlopeDragPixels = 90.0f;
 constexpr double kFallbackSampleRate = 44100.0;
 constexpr int kCaptionHeight = 14;
 constexpr int kSectionGap = 10;
+constexpr const char* kSweepTitle = "Auto Sweep & Tempo Sync";
 constexpr const char* kBandBypassHint = "Turn off BYPASS on this filter to use this control.";
 constexpr const char* kSweepDrivenHint
     = "Auto Sweep sets this value. To use this control, turn off AUTO SWEEP or set the sweep target to the other filter.";
@@ -673,27 +674,18 @@ void SweepPanel::selectSlot(int slot) {
 }
 
 void SweepPanel::paint(juce::Graphics& g) {
-    drawPanel(g, getLocalBounds(), "Auto Sweep & Tempo Sync", theme::kAccentA);
+    drawPanel(g, getLocalBounds(), kSweepTitle, theme::kAccentA);
     drawCaption(g, clockArea_, clockCaption_);
     drawCaption(g, editorArea_, "Slope editor (drag start / curve / end)");
     drawCaption(g, cutoffArea_, "Cutoff sweep");
     drawCaption(g, resArea_, "Resonance sweep");
     drawCaption(g, crushArea_, "Bitcrush mix / onset = sweep position");
     drawCaption(g, glitchArea_, "Glitch mix / tempo-synced beat repeat");
-    g.setColour(theme::kTextDim);
-    g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
-    g.drawText("AUTO MODE", slotArea_.withWidth(76), juce::Justification::centredLeft);
-    const std::array<const char*, 4> labels{ "CUTOFF", "RESONANCE", "BITCRUSH", "GLITCH" };
-    const std::array colours{ theme::kAccentA, theme::kAccentB, theme::kAccentFx, theme::kAccentB };
-    auto legend = slotArea_.withTrimmedLeft(400);
-    for (size_t i = 0; i < labels.size(); ++i) {
-        g.setColour(colours[i]);
-        g.drawText(labels[i], legend.removeFromLeft(90), juce::Justification::centredLeft);
-    }
 }
 
 void SweepPanel::resized() {
     auto bounds = getLocalBounds().reduced(12, 6);
+    // The slot buttons share the title row, so each knob row below keeps 62 px.
     auto header = bounds.removeFromTop(40);
     slopePresetBox_.setBounds(header.removeFromRight(138).withSizeKeepingCentre(138, 36));
     header.removeFromRight(5);
@@ -703,21 +695,17 @@ void SweepPanel::resized() {
     header.removeFromRight(5);
     bars_.setBounds(header.removeFromRight(92));
     barsLabel_.setBounds(header.removeFromRight(40));
-    header.removeFromRight(5);
-    timeSig_.setBounds(header.removeFromRight(60));
-    header.removeFromRight(5);
-    clockSync_.setBounds(header.removeFromRight(90));
-    header.removeFromRight(5);
-    enabled_.setBounds(header.removeFromRight(95).withSizeKeepingCentre(95, 36));
+    const auto titleFont = juce::Font(juce::FontOptions(13.0f, juce::Font::bold));
+    header.removeFromLeft(juce::GlyphArrangement::getStringWidthInt(titleFont, juce::String(kSweepTitle).toUpperCase()) + 22);
+    enabled_.setBounds(header.removeFromLeft(95).withSizeKeepingCentre(95, 36));
+    header.removeFromLeft(5);
+    std::ranges::for_each(slotButtons_, [&](juce::TextButton& button) {
+        button.setBounds(header.removeFromLeft(64).withSizeKeepingCentre(64, 36));
+        header.removeFromLeft(4);
+    });
 
-    bounds.removeFromTop(4);
-    slotArea_ = bounds.removeFromTop(40);
-    auto buttons = slotArea_.withTrimmedLeft(78);
-    for (auto& button : slotButtons_) {
-        button.setBounds(buttons.removeFromLeft(74).withSizeKeepingCentre(70, 36));
-    }
     bounds.removeFromTop(6);
-    clockArea_ = bounds.removeFromLeft(70);
+    clockArea_ = bounds.removeFromLeft(90);
     bounds.removeFromLeft(kSectionGap);
     editorArea_ = bounds.removeFromLeft(400);
     bounds.removeFromLeft(kSectionGap);
@@ -730,7 +718,12 @@ void SweepPanel::resized() {
     bounds.removeFromLeft(kSectionGap);
     glitchArea_ = bounds;
 
-    tempo_.setBounds(clockArea_.withTrimmedTop(kCaptionHeight).withHeight(90));
+    auto clock = clockArea_.withTrimmedTop(kCaptionHeight);
+    clockSync_.setBounds(clock.removeFromTop(36));
+    clock.removeFromTop(4);
+    timeSig_.setBounds(clock.removeFromTop(36));
+    clock.removeFromTop(4);
+    tempo_.setBounds(clock);
     slopeEditor_.setBounds(editorArea_.withTrimmedTop(kCaptionHeight));
     layoutRow(cutoffArea_.withTrimmedTop(kCaptionHeight), { &cutoffStart_, &cutoffEnd_, &cutoffSlope_ });
     layoutRow(resArea_.withTrimmedTop(kCaptionHeight), { &resStart_, &resEnd_, &resSlope_ });

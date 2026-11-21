@@ -98,7 +98,6 @@ private:
     std::array<juce::TextButton, 4> slotButtons_;
     juce::Rectangle<int> crushArea_;
     juce::Rectangle<int> glitchArea_;
-    juce::Rectangle<int> slotArea_;
     void selectSlot(int slot);
     juce::Rectangle<int> clockArea_;
     juce::String clockCaption_{ "Clock" };

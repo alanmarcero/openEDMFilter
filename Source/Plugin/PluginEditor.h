@@ -34,12 +34,12 @@ private:
     bool presetBrowserVisible_ = false;
     bool applyingStateSize_ = false;
     juce::ComboBox presetBox_;
-    juce::TextButton advancedButton_{"MODULATION / ROUTING"};
+    juce::TextButton advancedButton_{"MODULATION"};
     juce::TextButton spectrumButton_{"SPECTRUM"};
     juce::TextButton freezeSpectrumButton_{"FREEZE"};
     std::unique_ptr<juce::GenericAudioProcessorEditor> advancedControls_;
-    juce::TextButton prevPresetBtn_{"Previous"};
-    juce::TextButton nextPresetBtn_{"Next"};
+    juce::TextButton prevPresetBtn_{"<"};
+    juce::TextButton nextPresetBtn_{">"};
     openedm::ui::Toggle masterBypass_;
     openedm::ui::Toggle inertia_;
     openedm::ui::ResponseView response_;
@@ -49,7 +49,7 @@ private:
     openedm::ui::EffectsPanel effects_;
     juce::Rectangle<int> pulseArea_;
     juce::Rectangle<int> titleArea_;
-    int headerHeight_ = 76;
+    int headerHeight_ = 40;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OpenEdmFilterEditor)
 };

@@ -42,6 +42,11 @@ void auditControls(juce::Component& component) {
     for (auto* child : component.getChildren()) {
         if (!child->isVisible())
             continue;
+        if (auto* dial = dynamic_cast<juce::Slider*>(child); dial != nullptr && dial->isRotary()) {
+            INFO(component.getComponentID().toStdString() << " " << dial->getBounds().toString().toStdString());
+            CHECK(dial->getHeight() - dial->getTextBoxHeight() >= 32);
+            CHECK(dial->getWidth() >= 32);
+        }
         if (dynamic_cast<juce::TextButton*>(child) != nullptr || dynamic_cast<juce::ComboBox*>(child) != nullptr) {
             INFO(child->getName().toStdString() << " " << child->getBounds().toString().toStdString()
                  << " parent " << component.getLocalBounds().toString().toStdString());

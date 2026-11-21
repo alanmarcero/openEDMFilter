@@ -266,8 +266,25 @@ TEST_CASE("Editor slot buttons and host automation rebind the visible sweep knob
         }
     }
     const auto audit = [&](auto&& self, juce::Component& parent) -> void {
+        std::vector<juce::Component*> visible;
+        // JUCE draws the resize corner over the editor's bottom-right corner on purpose.
+        std::ranges::copy_if(parent.getChildren(), std::back_inserter(visible), [](auto* child) {
+            return child->isVisible() && dynamic_cast<juce::ResizableCornerComponent*>(child) == nullptr;
+        });
+        std::ranges::for_each(std::views::iota(size_t{ 0 }, visible.size()), [&](size_t first) {
+            std::ranges::for_each(std::views::iota(first + 1, visible.size()), [&](size_t second) {
+                CAPTURE(parent.getComponentID().toStdString(), visible[first]->getBounds().toString().toStdString(),
+                        visible[second]->getBounds().toString().toStdString());
+                CHECK_FALSE(visible[first]->getBounds().intersects(visible[second]->getBounds()));
+            });
+        });
         for (auto* child : parent.getChildren()) {
             if (!child->isVisible()) continue;
+            if (auto* dial = dynamic_cast<juce::Slider*>(child); dial != nullptr && dial->isRotary()) {
+                CAPTURE(parent.getComponentID().toStdString(), dial->getBounds().toString().toStdString());
+                CHECK(dial->getHeight() - dial->getTextBoxHeight() >= 32);
+                CHECK(dial->getWidth() >= 32);
+            }
             if (dynamic_cast<juce::TextButton*>(child) || dynamic_cast<juce::ComboBox*>(child)) {
                 CAPTURE(child->getName().toStdString(), child->getBounds().toString().toStdString());
                 CHECK(child->getHeight() >= 36);

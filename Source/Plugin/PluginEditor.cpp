@@ -94,7 +94,7 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
         const bool show = !advancedControls_->isVisible();
         advancedControls_->setVisible(show);
         if (show) advancedControls_->toFront(false);
-        advancedButton_.setButtonText(show ? "CLOSE CONTROLS" : "MODULATION / ROUTING");
+        advancedButton_.setToggleState(show, juce::dontSendNotification);
         resized();
     };
     spectrumButton_.setClickingTogglesState(true);
@@ -209,48 +209,58 @@ void OpenEdmFilterEditor::resized() {
 
     const int margin = getWidth() < 1100 ? 8 : 12;
     auto bounds = getLocalBounds().reduced(margin);
-    headerHeight_ = 76;
+    headerHeight_ = 40;
     auto header = bounds.removeFromTop(headerHeight_);
-    auto row1 = header.removeFromTop(36);
-    header.removeFromTop(4);
-    auto row2 = header.removeFromTop(36);
 
     const int titleText = juce::GlyphArrangement::getStringWidthInt(juce::Font(juce::FontOptions(22.0f, juce::Font::bold)), "openEDMFilter");
-    titleArea_ = row1.removeFromLeft(juce::jlimit(160, 210, titleText + 4));
-    pulseArea_ = row1.removeFromLeft(56);
-    row1.removeFromLeft(4);
+    titleArea_ = header.removeFromLeft(juce::jlimit(160, 210, titleText + 4));
+    pulseArea_ = header.removeFromLeft(56);
+    header.removeFromLeft(4);
 
-    suiteBar_.setBounds(row1.removeFromRight(juce::jmin(suiteBar_.preferredWidth(), row1.getWidth())));
-    row1.removeFromRight(4);
-    nextPresetBtn_.setBounds(row1.removeFromRight(52));
-    row1.removeFromRight(4);
-    prevPresetBtn_.setBounds(row1.removeFromLeft(76));
-    row1.removeFromLeft(4);
-    presetBox_.setBounds(row1);
-
-    auto place = [](juce::Rectangle<int>& row, juce::Component& control, int width) {
-        auto cell = row.removeFromRight(width);
-        row.removeFromRight(4);
-        control.setBounds(cell.withSizeKeepingCentre(cell.getWidth(), 36));
+    const auto placeRight = [&](juce::Component& control, int width) {
+        control.setBounds(header.removeFromRight(width).withSizeKeepingCentre(width, 36));
+        header.removeFromRight(4);
     };
-    place(row2, freezeSpectrumButton_, 72);
-    place(row2, spectrumButton_, 84);
-    place(row2, inertia_, 76);
-    place(row2, masterBypass_, 104);
-    place(row2, advancedButton_, juce::jmin(168, juce::jmax(120, row2.getWidth())));
+    placeRight(suiteBar_, juce::jmin(suiteBar_.preferredWidth(), header.getWidth()));
+    placeRight(masterBypass_, 104);
+    nextPresetBtn_.setBounds(header.removeFromRight(44));
+    header.removeFromRight(4);
+    prevPresetBtn_.setBounds(header.removeFromLeft(44));
+    header.removeFromLeft(4);
+    presetBox_.setBounds(header.withSizeKeepingCentre(header.getWidth(), 36));
 
     bounds.removeFromTop(4);
     const int gap = 4;
     const int available = bounds.getHeight() - gap * 3;
-    const int responseMin = 64;
-    const int sweepMin = 190;
-    const int bandMin = 180;
-    const int effectsMin = 84;
+    // The minimums keep every dial at least 32 px. The response view takes the first 60 px of spare height.
+    const int responseMin = 56;
+    const int sweepMin = 218;
+    const int bandMin = 198;
+    const int effectsMin = 88;
     const int extra = juce::jmax(0, available - (responseMin + sweepMin + bandMin + effectsMin));
-    const int responseH = responseMin + extra * 15 / 100;
-    const int sweepH = sweepMin + extra * 40 / 100;
-    const int bandH = bandMin + extra * 30 / 100;
-    response_.setBounds(bounds.removeFromTop(responseH));
+    const int responseFirst = juce::jmin(extra, 60);
+    const int rest = extra - responseFirst;
+    const int responseH = responseMin + responseFirst + rest * 40 / 100;
+    const int sweepH = sweepMin + rest * 20 / 100;
+    const int bandH = bandMin + rest * 25 / 100;
+
+    // The display buttons sit beside the response view, in two rows when they fit.
+    auto responseRow = bounds.removeFromTop(responseH);
+    const bool hasTwoRows = responseRow.getHeight() >= 76;
+    auto cluster = responseRow.removeFromRight(hasTwoRows ? 192 : 356);
+    responseRow.removeFromRight(gap);
+    response_.setBounds(responseRow);
+    auto topRow = cluster.removeFromTop(36);
+    auto bottomRow = cluster.withTrimmedTop(gap).withHeight(36);
+    auto& displayRow = hasTwoRows ? bottomRow : topRow;
+    const auto placeLeft = [](juce::Rectangle<int>& row, juce::Component& control, int width) {
+        control.setBounds(row.removeFromLeft(width));
+        row.removeFromLeft(4);
+    };
+    placeLeft(topRow, advancedButton_, 112);
+    placeLeft(topRow, inertia_, 76);
+    placeLeft(displayRow, spectrumButton_, hasTwoRows ? 100 : 84);
+    placeLeft(displayRow, freezeSpectrumButton_, hasTwoRows ? 88 : 72);
     bounds.removeFromTop(gap);
     sweep_.setBounds(bounds.removeFromTop(sweepH));
     bounds.removeFromTop(gap);
