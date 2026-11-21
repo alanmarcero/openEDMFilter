@@ -54,6 +54,7 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
         resized();
     };
     suiteBar_.setActiveSlot(processor_.abSlot());
+    suiteBar_.setHistoryEnabled(processor_.canUndoEdit(), processor_.canRedoEdit());
 
     openedm::presets::populateComboMenu(presetBox_, openedm::presets::factoryPresets());
     presetBox_.setComponentID("factoryPreset");

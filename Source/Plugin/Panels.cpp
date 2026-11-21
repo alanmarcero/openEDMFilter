@@ -27,6 +27,7 @@ constexpr int kCaptionHeight = 14;
 constexpr int kSectionGap = 10;
 constexpr const char* kSweepTitle = "Auto Sweep & Tempo Sync";
 constexpr int kKnobHeight = 62;
+constexpr int kMeterWidth = 5;
 constexpr float kStepGridInset = 4.0f;
 constexpr const char* kBandBypassHint = "Turn off BYPASS on this filter to use this control.";
 constexpr const char* kSweepDrivenHint
@@ -1079,15 +1080,15 @@ void EffectsPanel::resized() {
         return area.withTrimmedBottom(4);
     };
     auto input = content(0);
-    inputMeter_.setBounds(input.removeFromRight(6));
-    layoutRow(input.withTrimmedRight(6), { &inputGain_, &subPreserve_ });
+    inputMeter_.setBounds(input.removeFromRight(kMeterWidth));
+    layoutRow(input.withTrimmedRight(3), { &inputGain_, &subPreserve_ });
     layoutRow(content(1), { &drive_, &drivePosition_, &analogDrift_ });
     layoutRow(content(2), { &crushRate_, &crushBits_, &crushMix_, &crushPosition_, &crushLink_ });
     layoutRow(content(3), { &ringFrequency_, &ringMix_ });
     layoutRow(content(4), { &fmRate_, &fmDepth_, &stereoSpread_ });
     auto output = content(5);
-    outputMeter_.setBounds(output.removeFromRight(6));
-    layoutRow(output.withTrimmedRight(6), { &mix_, &output_, &ceiling_, &limiter_ });
+    outputMeter_.setBounds(output.removeFromRight(kMeterWidth));
+    layoutRow(output.withTrimmedRight(3), { &mix_, &output_, &ceiling_, &limiter_ });
 }
 
 } // namespace openedm::ui

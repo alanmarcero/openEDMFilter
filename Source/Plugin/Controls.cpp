@@ -35,6 +35,8 @@ Knob::Knob(Apvts& state, const juce::String& parameterId, const juce::String& ti
     title_.setFont(juce::FontOptions(kTitleFontSize, juce::Font::bold));
     title_.setColour(juce::Label::textColourId, theme::kTextDim);
     title_.setJustificationType(juce::Justification::centred);
+    // A thin border leaves room for titles such as SUB KEEP on narrow knobs.
+    title_.setBorderSize({ 1, 1, 1, 1 });
     addAndMakeVisible(slider_);
     addAndMakeVisible(title_);
 }

@@ -306,6 +306,7 @@ TEST_CASE("Editor scales down, remembers its size, and undo keys work", "[suite]
     REQUIRE(editor->getConstrainer()->getFixedAspectRatio() == 0.0);
     CHECK(editor->getWidth() == OpenEdmFilterProcessor::kDefaultEditorWidth);
     CHECK(editor->getHeight() == OpenEdmFilterProcessor::kDefaultEditorHeight);
+    CHECK_FALSE(findId(*editor, "undoButton")->isEnabled());
     CHECK(editor->getHeight() < 800);
     CHECK(OpenEdmFilterProcessor::kMinEditorHeight < 800);
     editor->setSize(OpenEdmFilterProcessor::kMinEditorWidth, OpenEdmFilterProcessor::kMinEditorHeight);
