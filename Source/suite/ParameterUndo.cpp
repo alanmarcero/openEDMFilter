@@ -53,26 +53,20 @@ ParameterUndo::~ParameterUndo() {
     cancelPendingUpdate();
     for (auto* parameter : processor_.getParameters())
         parameter->removeListener(this);
-    undo_.clearUndoHistory();
+    std::ranges::for_each(histories_, [](juce::UndoManager& history) { history.clearUndoHistory(); });
 }
 
-void ParameterUndo::setHooks(TreeWriter savePreset, TreeSink loadPreset, std::function<void()> markEdited,
-                             std::function<int()> getAbSlot, std::function<void(int)> setAbSlot,
-                             TreeSource copySlots, TreeSink restoreSlots) {
+void ParameterUndo::setHooks(TreeWriter savePreset, TreeSink loadPreset, std::function<void()> markEdited) {
     savePreset_ = std::move(savePreset);
     loadPreset_ = std::move(loadPreset);
     markEdited_ = std::move(markEdited);
-    getAbSlot_ = std::move(getAbSlot);
-    setAbSlot_ = std::move(setAbSlot);
-    copySlots_ = std::move(copySlots);
-    restoreSlots_ = std::move(restoreSlots);
 }
 
 void ParameterUndo::clear() {
     cancelPendingUpdate();
     commitPending_ = false;
     openGestures_ = 0;
-    undo_.clearUndoHistory();
+    std::ranges::for_each(histories_, [](juce::UndoManager& history) { history.clearUndoHistory(); });
 }
 
 juce::RangedAudioParameter* ParameterUndo::findParameter(const juce::String& id) const {
@@ -97,15 +91,6 @@ juce::ValueTree ParameterUndo::captureParameters() const {
     return tree;
 }
 
-juce::ValueTree ParameterUndo::captureUndo() const {
-    auto tree = captureParameters();
-    if (getAbSlot_)
-        tree.setProperty("abSlot", getAbSlot_(), nullptr);
-    if (copySlots_)
-        tree.appendChild(copySlots_(), nullptr);
-    return tree;
-}
-
 void ParameterUndo::restore(const juce::ValueTree& snapshot) {
     const juce::ScopedValueSetter<bool> guard(applying_, true);
     for (int i = 0; i < snapshot.getNumChildren(); ++i) {
@@ -121,11 +106,6 @@ void ParameterUndo::restore(const juce::ValueTree& snapshot) {
     }
     if (loadPreset_)
         loadPreset_(snapshot);
-    if (snapshot.hasProperty("abSlot") && setAbSlot_)
-        setAbSlot_(juce::jlimit(0, 1, static_cast<int>(snapshot.getProperty("abSlot"))));
-    if (restoreSlots_)
-        if (auto slots = snapshot.getChildWithName("AB"); slots.isValid())
-            restoreSlots_(slots);
 }
 
 void ParameterUndo::performEdit(const std::function<void()>& edit, const juce::String& name) {
@@ -133,15 +113,15 @@ void ParameterUndo::performEdit(const std::function<void()>& edit, const juce::S
         edit();
         return;
     }
-    const auto before = captureUndo();
+    const auto before = captureParameters();
     {
         const juce::ScopedValueSetter<bool> guard(applying_, true);
         edit();
     }
-    const auto after = captureUndo();
+    const auto after = captureParameters();
     if (!sameTree(before, after)) {
-        undo_.beginNewTransaction(name);
-        undo_.perform(new SnapshotAction(*this, before, after), name);
+        histories_[activeHistory_].beginNewTransaction(name);
+        histories_[activeHistory_].perform(new SnapshotAction(*this, before, after), name);
     }
 }
 
@@ -150,7 +130,7 @@ void ParameterUndo::parameterGestureChanged(int, bool starting) {
         return;
     if (starting) {
         if (openGestures_ == 0 && !commitPending_)
-            before_ = captureUndo();
+            before_ = captureParameters();
         ++openGestures_;
         cancelPendingUpdate();
         commitPending_ = false;
@@ -174,14 +154,14 @@ void ParameterUndo::handleAsyncUpdate() {
     if (!commitPending_ || openGestures_ != 0 || applying_)
         return;
     commitPending_ = false;
-    auto after = captureUndo();
+    auto after = captureParameters();
     if (!sameTree(before_, after)) {
         if (markEdited_) {
             markEdited_();
-            after = captureUndo();
+            after = captureParameters();
         }
-        undo_.beginNewTransaction("Edit");
-        undo_.perform(new SnapshotAction(*this, before_, after), "Edit");
+        histories_[activeHistory_].beginNewTransaction("Edit");
+        histories_[activeHistory_].perform(new SnapshotAction(*this, before_, after), "Edit");
     }
 }
 

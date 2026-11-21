@@ -118,9 +118,12 @@ TEST_CASE("A and B keep independent settings and survive a session", "[suite]") 
     processor.toggleAB();
     REQUIRE_THAT(cutoff(processor), WithinAbs(1800.0f, 0.1f));
     processor.undoEdit();
-    REQUIRE(processor.abSlot() == 1);
+    REQUIRE(processor.abSlot() == 0);
     REQUIRE_THAT(cutoff(processor), WithinAbs(300.0f, 0.1f));
+    processor.redoEdit();
+    REQUIRE_THAT(cutoff(processor), WithinAbs(1800.0f, 0.1f));
 
+    processor.toggleAB();
     setCutoff(processor, 700.0f);
     processor.flushEdits();
     juce::MemoryBlock saved;
@@ -407,4 +410,29 @@ TEST_CASE("Previous and next step through the preset list and wrap at the ends",
     browser.loadNeighbour("Not Listed", 1);
 
     CHECK(loaded == std::vector<juce::String>{ "factory 1", "My Sweep", "factory 0", "My Sweep", "factory 0" });
+}
+
+TEST_CASE("Each A/B slot keeps its own undo history", "[suite]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenEdmFilterProcessor processor;
+    const float defaultCutoff = cutoff(processor);
+    setCutoff(processor, 300.0f);
+    processor.flushEdits();
+    processor.toggleAB();
+    CHECK_FALSE(processor.canUndoEdit());
+    setCutoff(processor, 5000.0f);
+    processor.flushEdits();
+    processor.toggleAB();
+
+    processor.undoEdit();
+    CHECK(processor.abSlot() == 0);
+    CHECK_THAT(cutoff(processor), WithinAbs(defaultCutoff, 0.1f));
+    CHECK_FALSE(processor.canUndoEdit());
+    processor.redoEdit();
+    CHECK_THAT(cutoff(processor), WithinAbs(300.0f, 0.1f));
+
+    processor.copyBetweenSlots(0, 1);
+    processor.toggleAB();
+    CHECK_THAT(cutoff(processor), WithinAbs(300.0f, 0.1f));
+    CHECK_FALSE(processor.canUndoEdit());
 }

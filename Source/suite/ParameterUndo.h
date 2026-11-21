@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <functional>
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -13,22 +14,21 @@ public:
     explicit ParameterUndo(juce::AudioProcessor& processor);
     ~ParameterUndo() override;
 
-    using TreeSource = std::function<juce::ValueTree()>;
     using TreeSink = std::function<void(const juce::ValueTree&)>;
     using TreeWriter = std::function<void(juce::ValueTree&)>;
 
     // All hooks are optional. savePreset adds the loaded preset to each snapshot and loadPreset reads it
     // back, so undo and A/B bring back the preset name. markEdited runs before a gesture edit is stored.
-    // Slot trees ride along so a copy or toggle undoes cleanly.
-    void setHooks(TreeWriter savePreset, TreeSink loadPreset, std::function<void()> markEdited,
-                  std::function<int()> getAbSlot, std::function<void(int)> setAbSlot,
-                  TreeSource copySlots, TreeSink restoreSlots);
+    void setHooks(TreeWriter savePreset, TreeSink loadPreset, std::function<void()> markEdited);
 
-    [[nodiscard]] juce::UndoManager& manager() noexcept { return undo_; }
-    [[nodiscard]] bool canUndo() const noexcept { return undo_.canUndo(); }
-    [[nodiscard]] bool canRedo() const noexcept { return undo_.canRedo(); }
-    void undo() { undo_.undo(); }
-    void redo() { undo_.redo(); }
+    // Each A/B slot has its own history, so an undo never applies a state from the other slot.
+    void selectHistory(int slot) noexcept { activeHistory_ = static_cast<size_t>(juce::jlimit(0, 1, slot)); }
+    void clearHistory(int slot) { histories_[static_cast<size_t>(juce::jlimit(0, 1, slot))].clearUndoHistory(); }
+    [[nodiscard]] juce::UndoManager& manager() noexcept { return histories_[activeHistory_]; }
+    [[nodiscard]] bool canUndo() const noexcept { return histories_[activeHistory_].canUndo(); }
+    [[nodiscard]] bool canRedo() const noexcept { return histories_[activeHistory_].canRedo(); }
+    void undo() { histories_[activeHistory_].undo(); }
+    void redo() { histories_[activeHistory_].redo(); }
     void clear();
 
     // Runs the edit, then stores one undo step when the snapshot changed.
@@ -48,11 +48,11 @@ private:
     void parameterGestureChanged(int, bool starting) override;
     void handleAsyncUpdate() override;
     void scheduleCommit();
-    [[nodiscard]] juce::ValueTree captureUndo() const;
     [[nodiscard]] juce::RangedAudioParameter* findParameter(const juce::String& id) const;
 
     juce::AudioProcessor& processor_;
-    juce::UndoManager undo_;
+    std::array<juce::UndoManager, 2> histories_;
+    size_t activeHistory_ = 0;
     juce::ValueTree before_;
     int openGestures_ = 0;
     bool commitPending_ = false;
@@ -60,10 +60,6 @@ private:
     TreeWriter savePreset_;
     TreeSink loadPreset_;
     std::function<void()> markEdited_;
-    std::function<int()> getAbSlot_;
-    std::function<void(int)> setAbSlot_;
-    TreeSource copySlots_;
-    TreeSink restoreSlots_;
 };
 
 } // namespace suite

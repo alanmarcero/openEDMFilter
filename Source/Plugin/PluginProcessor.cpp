@@ -82,11 +82,7 @@ OpenEdmFilterProcessor::OpenEdmFilterProcessor()
             if (snapshot.hasProperty("presetName"))
                 setPreset(snapshot.getProperty("presetName").toString(), static_cast<bool>(snapshot.getProperty("presetEdited")));
         },
-        [this] { setPreset(presetName(), true); },
-        [this] { return ab_.active(); },
-        [this](int slot) { ab_.setActive(slot); },
-        [this] { return ab_.toValueTree(); },
-        [this](const juce::ValueTree& tree) { ab_.fromValueTree(tree, editHistory_.captureParameters()); });
+        [this] { setPreset(presetName(), true); });
     ab_.reset(editHistory_.captureParameters());
 }
 
@@ -140,24 +136,25 @@ void OpenEdmFilterProcessor::setEditorSize(int width, int height) noexcept {
     editorHeight_ = juce::jlimit(kMinEditorHeight, kMaxEditorHeight, height);
 }
 
+// A switch or a copy is not an undo step. Each slot keeps its own history, and a copy clears the target's.
 void OpenEdmFilterProcessor::toggleAB() {
-    editHistory_.performEdit([&] {
-        ab_.remember(editHistory_.captureParameters(), ab_.active());
-        ab_.setActive(1 - ab_.active());
-        editHistory_.restore(ab_.slot(ab_.active()));
-    }, "A/B");
+    editHistory_.flush();
+    ab_.remember(editHistory_.captureParameters(), ab_.active());
+    ab_.setActive(1 - ab_.active());
+    editHistory_.selectHistory(ab_.active());
+    editHistory_.restore(ab_.slot(ab_.active()));
 }
 
 void OpenEdmFilterProcessor::copyBetweenSlots(int from, int to) {
     from = juce::jlimit(0, 1, from);
     to = juce::jlimit(0, 1, to);
-    editHistory_.performEdit([&] {
-        ab_.remember(editHistory_.captureParameters(), ab_.active());
-        const auto source = ab_.slot(from);
-        ab_.remember(source, to);
-        if (ab_.active() == to)
-            editHistory_.restore(source);
-    }, "Copy");
+    editHistory_.flush();
+    ab_.remember(editHistory_.captureParameters(), ab_.active());
+    const auto source = ab_.slot(from);
+    ab_.remember(source, to);
+    editHistory_.clearHistory(to);
+    if (ab_.active() == to)
+        editHistory_.restore(source);
 }
 
 void OpenEdmFilterProcessor::editParameters(const std::function<void()>& edit, const juce::String& name) {
@@ -617,6 +614,7 @@ void OpenEdmFilterProcessor::setStateInformation(const void* data, int sizeInByt
     else
         ab_.reset(fallback);
     editHistory_.clear();
+    editHistory_.selectHistory(ab_.active());
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() {
