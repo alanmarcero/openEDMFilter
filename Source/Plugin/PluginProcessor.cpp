@@ -181,18 +181,16 @@ juce::AudioProcessorParameter* OpenEdmFilterProcessor::getBypassParameter() cons
     return parameters.getParameter(params::kMasterBypass);
 }
 
-void OpenEdmFilterProcessor::updatePeakMeter(std::atomic<float>& meter, float peak, int samples) noexcept {
-    const float release = std::exp(-static_cast<float>(samples)
-                                   / static_cast<float>(std::max(1.0, processingSampleRate_) * 0.35));
-    const float heldPeak = meter.load(std::memory_order_relaxed) * release;
-    meter.store(std::max(peak, heldPeak), std::memory_order_relaxed);
+void OpenEdmFilterProcessor::updatePeakMeter(std::atomic<float>& meter, float peak) noexcept {
+    // A failed exchange reloads the current value, so a reset by the editor is never lost.
+    float held = meter.load(std::memory_order_relaxed);
+    while (peak > held && !meter.compare_exchange_weak(held, peak, std::memory_order_relaxed)) {}
 }
 
 void OpenEdmFilterProcessor::updateInputAnalysis(const juce::AudioBuffer<float>& buffer, float inputGain) noexcept {
     const int channels = std::min(2, buffer.getNumChannels());
     if (channels == 0) {
         spectrumWriteIndex_ = 0;
-        updatePeakMeter(displayInputPeak, 0.0f, buffer.getNumSamples());
         return;
     }
     float peak = 0.0f;
@@ -200,7 +198,7 @@ void OpenEdmFilterProcessor::updateInputAnalysis(const juce::AudioBuffer<float>&
         for (int channel = 0; channel < channels; ++channel)
             peak = std::max(peak, std::abs(buffer.getSample(channel, sample) * inputGain));
     }
-    updatePeakMeter(displayInputPeak, peak, buffer.getNumSamples());
+    updatePeakMeter(displayInputPeak, peak);
 
     if (spectrumFft_ == nullptr || !spectrumVisible.load(std::memory_order_relaxed)
         || spectrumFrozen.load(std::memory_order_relaxed)) {
@@ -227,7 +225,7 @@ void OpenEdmFilterProcessor::updateOutputMeter(const juce::AudioBuffer<float>& b
     for (int channel = 0; channel < channels; ++channel)
         for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
             peak = std::max(peak, std::abs(buffer.getSample(channel, sample)));
-    updatePeakMeter(displayOutputPeak, peak, buffer.getNumSamples());
+    updatePeakMeter(displayOutputPeak, peak);
 }
 
 void OpenEdmFilterProcessor::updateSpectrumFrame() noexcept {

@@ -170,6 +170,56 @@ void setInactive(juce::Component& control, bool isInactive, const juce::String& 
     std::ranges::for_each(parts, [&](juce::SettableTooltipClient* part) { part->setTooltip(tooltip); });
 }
 
+LevelMeter::LevelMeter(std::atomic<float>& peak, const juce::String& name, int framesPerSecond, juce::Colour accent)
+    : peak_(peak),
+      name_(name),
+      holdFrames_(framesPerSecond),
+      fallPerFrame_(std::pow(10.0f, -1.0f / static_cast<float>(framesPerSecond))),
+      accent_(accent) {
+    setComponentID(name.toLowerCase() + "Meter");
+    setTitle(name + " meter");
+}
+
+void LevelMeter::update() {
+    const float peak = peak_.exchange(0.0f);
+    // The bar falls 20 dB per second. The hold mark stays for 1 s, then follows the bar.
+    level_ = std::max(peak, level_ * fallPerFrame_);
+    if (peak >= held_) {
+        held_ = peak;
+        framesLeft_ = holdFrames_;
+    }
+    if (peak < held_ && --framesLeft_ <= 0)
+        held_ = level_;
+    isClipped_ = isClipped_ || peak > 1.0f;
+    const juce::String heldDb(juce::Decibels::gainToDecibels(held_), 1);
+    const auto heldText = held_ > 0.0f ? heldDb + " dBFS" : juce::String("-INF dBFS");
+    setTooltip(name_ + " peak " + heldText + ". A red top shows a peak above 0 dBFS. Click to clear it.");
+    repaint();
+}
+
+void LevelMeter::paint(juce::Graphics& g) {
+    auto bar = getLocalBounds().toFloat();
+    const auto lamp = bar.removeFromTop(bar.getWidth());
+    bar.removeFromTop(2.0f);
+    g.setColour(isClipped_ ? juce::Colour(0xffff665e) : theme::kTrack);
+    g.fillRoundedRectangle(lamp, 1.5f);
+    g.setColour(theme::kTrack);
+    g.fillRoundedRectangle(bar, 2.0f);
+    const auto heightFor = [&](float gain) {
+        const float db = juce::Decibels::gainToDecibels(gain, -60.0f);
+        return bar.getHeight() * juce::jlimit(0.0f, 1.0f, (db + 48.0f) / 48.0f);
+    };
+    g.setColour(accent_);
+    g.fillRoundedRectangle(bar.withTop(bar.getBottom() - heightFor(level_)), 2.0f);
+    g.setColour(theme::kText);
+    g.fillRect(bar.withTop(bar.getBottom() - heightFor(held_) - 1.0f).withHeight(2.0f));
+}
+
+void LevelMeter::mouseDown(const juce::MouseEvent&) {
+    isClipped_ = false;
+    repaint();
+}
+
 void layoutRow(juce::Rectangle<int> area, std::initializer_list<juce::Component*> components) {
     const int count = static_cast<int>(components.size());
     const int cellWidth = (area.getWidth() - kCellGap * (count - 1)) / count;

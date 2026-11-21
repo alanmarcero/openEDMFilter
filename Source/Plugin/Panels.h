@@ -182,8 +182,8 @@ private:
     Knob ceiling_;
     Toggle limiter_;
     std::array<Section, 6> sections_;
-    float lastInputPeak_ = -1.0f;
-    float lastOutputPeak_ = -1.0f;
+    LevelMeter inputMeter_;
+    LevelMeter outputMeter_;
 };
 
 } // namespace openedm::ui

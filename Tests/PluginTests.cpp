@@ -405,6 +405,9 @@ TEST_CASE("Editor slot buttons and host automation rebind the visible sweep knob
         juce::MidiBuffer midi;
         processor.processBlock(signal, midi);
         processor.displaySweepPhase.store(0.9f);
+        auto* effects = *std::ranges::find_if(editor->getChildren(), [](auto* child) { return dynamic_cast<openedm::ui::EffectsPanel*>(child) != nullptr; });
+        dynamic_cast<openedm::ui::LevelMeter*>(effects->findChildWithID("inputMeter"))->update();
+        dynamic_cast<openedm::ui::LevelMeter*>(effects->findChildWithID("outputMeter"))->update();
         const auto snapshot = editor->createComponentSnapshot(editor->getLocalBounds(), true, 1.0f);
         juce::FileOutputStream stream{ juce::File(capture) };
         REQUIRE(stream.openedOk());
@@ -1206,4 +1209,69 @@ TEST_CASE("Response readouts sit beside their own markers and grid labels do not
     CHECK(ResponseView::labelledDecibels(plot) == std::vector<float>{ 0.0f, 12.0f, -12.0f, -24.0f, -36.0f });
     CHECK(ResponseView::labelledDecibels(plot.withHeight(49.0f)) == std::vector<float>{ 0.0f, -24.0f });
     CHECK(ResponseView::labelledDecibels(plot.withHeight(32.0f)) == std::vector<float>{ 0.0f });
+}
+
+TEST_CASE("Peak meters keep the maximum since the editor last read them", "[plugin]") {
+    OpenEdmFilterProcessor processor;
+    processor.prepareToPlay(48000.0, 512);
+    set(processor, "a_bypass", 1.0f);
+    set(processor, "b_bypass", 1.0f);
+    set(processor, "limiter", 0.0f);
+    juce::MidiBuffer midi;
+    const auto render = [&](float level) {
+        juce::AudioBuffer<float> buffer(1, 512);
+        buffer.clear();
+        buffer.setSample(0, 100, level);
+        processor.processBlock(buffer, midi);
+    };
+
+    render(0.4f);
+    render(0.1f);
+    CHECK_THAT(processor.displayInputPeak.exchange(0.0f), WithinAbs(0.4f, 1e-6f));
+    render(0.1f);
+    CHECK_THAT(processor.displayInputPeak.load(), WithinAbs(0.1f, 1e-6f));
+}
+
+TEST_CASE("Level meters hold a peak for one second and latch clips until clicked", "[plugin][ui]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    std::atomic<float> peak{ 0.0f };
+    openedm::ui::LevelMeter meter(peak, "Input", 30, openedm::theme::kAccentOut);
+    const auto frames = [&](int count) { std::ranges::for_each(std::views::iota(0, count), [&](int) { meter.update(); }); };
+    const auto now = juce::Time::getCurrentTime();
+    const juce::MouseEvent click(juce::Desktop::getInstance().getMainMouseSource(), {}, {}, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                                 &meter, &meter, now, {}, now, 1, false);
+
+    peak = 0.5f;
+    frames(30);
+    CHECK_THAT(meter.heldPeak(), WithinAbs(0.5f, 1e-6f));
+    frames(1);
+    CHECK(meter.heldPeak() < 0.5f);
+    CHECK_FALSE(meter.isClipped());
+    peak = 1.2f;
+    frames(1);
+    CHECK(meter.isClipped());
+    frames(60);
+    CHECK(meter.isClipped());
+    meter.mouseDown(click);
+    CHECK_FALSE(meter.isClipped());
+}
+
+TEST_CASE("Input and output meters show at the default and the minimum size", "[plugin][ui]") {
+#if JUCE_LINUX
+    if (std::getenv("DISPLAY") == nullptr) SKIP("Native editor requires a display");
+#endif
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenEdmFilterProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    auto* effects = *std::ranges::find_if(editor->getChildren(), [](auto* child) { return dynamic_cast<openedm::ui::EffectsPanel*>(child) != nullptr; });
+    auto* input = effects->findChildWithID("inputMeter");
+    auto* output = effects->findChildWithID("outputMeter");
+
+    CHECK(input->isVisible());
+    CHECK(input->getHeight() >= 40);
+    CHECK(output->getHeight() >= 40);
+    editor->setSize(OpenEdmFilterProcessor::kMinEditorWidth, OpenEdmFilterProcessor::kMinEditorHeight);
+    CHECK(input->getHeight() >= 40);
+    CHECK(output->getHeight() >= 40);
+    CHECK(effects->getLocalBounds().contains(output->getBounds()));
 }

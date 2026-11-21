@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -56,6 +57,30 @@ public:
 private:
     juce::TextButton button_;
     Apvts::ButtonAttachment attachment_;
+};
+
+// A thin vertical peak meter in dBFS. It holds the highest peak for 1 s and turns its top red
+// above 0 dBFS until a click clears it.
+class LevelMeter : public juce::Component, public juce::SettableTooltipClient {
+public:
+    LevelMeter(std::atomic<float>& peak, const juce::String& name, int framesPerSecond, juce::Colour accent);
+    // Takes the peak since the last call. Call it once per editor frame.
+    void update();
+    void paint(juce::Graphics& g) override;
+    void mouseDown(const juce::MouseEvent& event) override;
+    [[nodiscard]] float heldPeak() const noexcept { return held_; }
+    [[nodiscard]] bool isClipped() const noexcept { return isClipped_; }
+
+private:
+    std::atomic<float>& peak_;
+    juce::String name_;
+    int holdFrames_;
+    float fallPerFrame_;
+    juce::Colour accent_;
+    float level_ = 0.0f;
+    float held_ = 0.0f;
+    int framesLeft_ = 0;
+    bool isClipped_ = false;
 };
 
 // Draws a control at theme::kInactiveAlpha while its setting has no effect.

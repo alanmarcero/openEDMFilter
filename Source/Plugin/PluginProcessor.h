@@ -79,6 +79,7 @@ public:
     std::atomic<bool> displayHostTempo{ false };
     std::atomic<juce::AudioPlayHead::TimeSignature> displayTimeSignature{};
     std::atomic<float> displayBeatsPerBar{ 4.0f };
+    // Each peak holds the maximum since the editor last took it with exchange(0).
     std::atomic<float> displayInputPeak{ 0.0f };
     std::atomic<float> displayOutputPeak{ 0.0f };
     std::array<std::atomic<float>, kSpectrumDisplayBins> displaySpectrum{};
@@ -194,7 +195,7 @@ private:
     void updateInputAnalysis(const juce::AudioBuffer<float>& buffer, float inputGain) noexcept;
     void updateOutputMeter(const juce::AudioBuffer<float>& buffer) noexcept;
     void updateSpectrumFrame() noexcept;
-    void updatePeakMeter(std::atomic<float>& meter, float peak, int samples) noexcept;
+    static void updatePeakMeter(std::atomic<float>& meter, float peak) noexcept;
     openedm::core::FilterEngine engine_;
     std::unique_ptr<juce::dsp::FFT> spectrumFft_;
     std::array<std::array<float, kSpectrumFftSize>, 2> spectrumFifo_{};

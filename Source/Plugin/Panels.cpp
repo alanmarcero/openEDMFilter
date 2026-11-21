@@ -30,22 +30,6 @@ constexpr const char* kBandBypassHint = "Turn off BYPASS on this filter to use t
 constexpr const char* kSweepDrivenHint
     = "Auto Sweep sets this value. To use this control, turn off AUTO SWEEP or set the sweep target to the other filter.";
 
-void drawLevelMeter(juce::Graphics& g, juce::Rectangle<int> section, float peak, juce::Colour accent) {
-    const auto bounds = section.reduced(10, 0);
-    const auto bar = juce::Rectangle<float>(static_cast<float>(bounds.getX()),
-        static_cast<float>(bounds.getBottom() - 26), static_cast<float>(bounds.getWidth()), 7.0f);
-    g.setColour(theme::kTrack);
-    g.fillRoundedRectangle(bar, 3.5f);
-    const float db = peak > 0.0f ? juce::Decibels::gainToDecibels(peak) : -60.0f;
-    const float fill = juce::jlimit(0.0f, 1.0f, (db + 48.0f) / 48.0f);
-    g.setColour(peak >= 1.0f ? juce::Colour(0xffff665e) : accent);
-    g.fillRoundedRectangle(bar.withWidth(bar.getWidth() * fill), 3.5f);
-    g.setFont(juce::FontOptions(9.0f));
-    g.setColour(theme::kTextDim);
-    const juce::String value = db <= -59.9f ? "-INF dBFS" : juce::String(db, 1) + " dBFS";
-    g.drawText(value, bounds.withY(bounds.getBottom() - 17).withHeight(12), juce::Justification::centredLeft);
-}
-
 } // namespace
 
 ResponseView::ResponseView(OpenEdmFilterProcessor& processor)
@@ -867,7 +851,9 @@ EffectsPanel::EffectsPanel(OpenEdmFilterProcessor& processor)
                    { "Crush", theme::kAccentFx, 5, {} },
                    { "Ring Mod", theme::kAccentFx, 2, {} },
                    { "FM & Spread", theme::kAccentFx, 3, {} },
-                   { "Output", theme::kAccentOut, 4, {} } } } {
+                   { "Output", theme::kAccentOut, 4, {} } } },
+      inputMeter_(processor.displayInputPeak, "Input", kRefreshHz, theme::kAccentOut),
+      outputMeter_(processor.displayOutputPeak, "Output", kRefreshHz, theme::kAccentOut) {
     crushLink_.setTooltip("Make the crush rate follow Filter A's cutoff modulation.");
     limiter_.setTooltip("Limit output peaks to the selected ceiling.");
     analogDrift_.setTooltip("Slowly moves both cutoffs up to 0.14 octave, like analog parts.");
@@ -878,31 +864,19 @@ EffectsPanel::EffectsPanel(OpenEdmFilterProcessor& processor)
                               &inputGain_, &subPreserve_, &drive_, &drivePosition_, &analogDrift_, &crushRate_, &crushBits_, &crushPosition_,
                               &crushMix_,
                               &crushLink_, &ringFrequency_, &ringMix_, &fmRate_, &fmDepth_, &stereoSpread_, &mix_, &output_,
-                              &ceiling_, &limiter_ },
+                              &ceiling_, &limiter_, &inputMeter_, &outputMeter_ },
                           [this](juce::Component* control) { addAndMakeVisible(control); });
 }
 
 void EffectsPanel::timerCallback() {
-    const float inPeak = processor_.displayInputPeak.load(std::memory_order_relaxed);
-    const float outPeak = processor_.displayOutputPeak.load(std::memory_order_relaxed);
-    if (std::abs(inPeak - lastInputPeak_) > 0.002f) {
-        lastInputPeak_ = inPeak;
-        repaint(sections_[0].area);
-    }
-    if (std::abs(outPeak - lastOutputPeak_) > 0.002f) {
-        lastOutputPeak_ = outPeak;
-        repaint(sections_[5].area);
-    }
+    inputMeter_.update();
+    outputMeter_.update();
 }
 
 void EffectsPanel::paint(juce::Graphics& g) {
     std::ranges::for_each(sections_, [&](const Section& section) {
         drawPanel(g, section.area, section.title, section.accent);
     });
-    if (getHeight() >= 120) {
-        drawLevelMeter(g, sections_[0].area, processor_.displayInputPeak.load(), theme::kAccentOut);
-        drawLevelMeter(g, sections_[5].area, processor_.displayOutputPeak.load(), theme::kAccentOut);
-    }
     g.setFont(juce::FontOptions(10.0f));
     g.setColour(theme::kTextDim);
     g.drawText("v" JucePlugin_VersionString, getLocalBounds().reduced(8, 2).removeFromTop(14), juce::Justification::topRight);
@@ -920,17 +894,21 @@ void EffectsPanel::resized() {
     });
     sections_.back().area = sections_.back().area.withRight(getWidth());
 
-    const bool roomForMeter = getHeight() >= 120;
     const auto content = [&](size_t section) {
         auto area = sections_[section].area.reduced(8, 0).withTrimmedTop(juce::jmin(34, juce::jmax(18, sections_[section].area.getHeight() / 4)));
         return area.withTrimmedBottom(4);
     };
-    layoutRow(roomForMeter ? content(0).withTrimmedBottom(20) : content(0), { &inputGain_, &subPreserve_ });
+    // A thin meter runs down the right edge of INPUT and OUTPUT at every size.
+    auto input = content(0);
+    inputMeter_.setBounds(input.removeFromRight(6));
+    layoutRow(input.withTrimmedRight(6), { &inputGain_, &subPreserve_ });
     layoutRow(content(1), { &drive_, &drivePosition_, &analogDrift_ });
     layoutRow(content(2), { &crushRate_, &crushBits_, &crushMix_, &crushPosition_, &crushLink_ });
     layoutRow(content(3), { &ringFrequency_, &ringMix_ });
     layoutRow(content(4), { &fmRate_, &fmDepth_, &stereoSpread_ });
-    layoutRow(roomForMeter ? content(5).withTrimmedBottom(20) : content(5), { &mix_, &output_, &ceiling_, &limiter_ });
+    auto output = content(5);
+    outputMeter_.setBounds(output.removeFromRight(6));
+    layoutRow(output.withTrimmedRight(6), { &mix_, &output_, &ceiling_, &limiter_ });
 }
 
 } // namespace openedm::ui
