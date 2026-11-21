@@ -1275,3 +1275,34 @@ TEST_CASE("Input and output meters show at the default and the minimum size", "[
     CHECK(output->getHeight() >= 40);
     CHECK(effects->getLocalBounds().contains(output->getBounds()));
 }
+
+TEST_CASE("CEILING, FREEZE and the whole editor dim when their switch is off", "[plugin][ui]") {
+#if JUCE_LINUX
+    if (std::getenv("DISPLAY") == nullptr) SKIP("Native editor requires a display");
+#endif
+    juce::ScopedJuceInitialiser_GUI gui;
+    OpenEdmFilterProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    auto* effects = *std::ranges::find_if(editor->getChildren(), [](auto* child) { return dynamic_cast<openedm::ui::EffectsPanel*>(child) != nullptr; });
+    auto* freeze = *std::ranges::find_if(editor->getChildren(), [](auto* child) {
+        auto* button = dynamic_cast<juce::TextButton*>(child);
+        return button != nullptr && button->getButtonText() == "FREEZE";
+    });
+    auto* spectrum = dynamic_cast<juce::TextButton*>(*std::ranges::find_if(editor->getChildren(), [](auto* child) {
+        auto* button = dynamic_cast<juce::TextButton*>(child);
+        return button != nullptr && button->getButtonText() == "SPECTRUM";
+    }));
+    auto& editorTimer = dynamic_cast<juce::Timer&>(*editor);
+    auto& effectsTimer = dynamic_cast<juce::Timer&>(*effects);
+
+    set(processor, "limiter", 0.0f);
+    effectsTimer.timerCallback();
+    CHECK_THAT(effects->findChildWithID("ceiling")->getAlpha(), WithinAbs(openedm::theme::kInactiveAlpha, 1e-6f));
+    spectrum->setToggleState(false, juce::sendNotificationSync);
+    editorTimer.timerCallback();
+    CHECK_THAT(freeze->getAlpha(), WithinAbs(openedm::theme::kInactiveAlpha, 1e-6f));
+    CHECK(dynamic_cast<juce::TextButton*>(freeze)->getTooltip().contains("SPECTRUM"));
+    set(processor, "master_bypass", 1.0f);
+    editorTimer.timerCallback();
+    CHECK_THAT(effects->getAlpha(), WithinAbs(openedm::theme::kInactiveAlpha, 1e-6f));
+}

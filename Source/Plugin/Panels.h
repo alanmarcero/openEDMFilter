@@ -146,7 +146,7 @@ private:
     const std::atomic<float>& bypassValue_;
 };
 
-class EffectsPanel : public juce::Component, private juce::Timer {
+class EffectsPanel : public juce::Component, public juce::Timer {
 public:
     explicit EffectsPanel(OpenEdmFilterProcessor& processor);
     void paint(juce::Graphics& g) override;

@@ -871,6 +871,8 @@ EffectsPanel::EffectsPanel(OpenEdmFilterProcessor& processor)
 void EffectsPanel::timerCallback() {
     inputMeter_.update();
     outputMeter_.update();
+    const bool isLimiting = processor_.parameters.getRawParameterValue(params::kLimiter)->load() > 0.5f;
+    setInactive(ceiling_, !isLimiting, "Turn on LIMIT to use the ceiling.");
 }
 
 void EffectsPanel::paint(juce::Graphics& g) {
