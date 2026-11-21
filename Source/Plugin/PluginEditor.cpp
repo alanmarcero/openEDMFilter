@@ -226,14 +226,16 @@ void OpenEdmFilterEditor::resized() {
     bounds.removeFromTop(4);
     const int gap = 4;
     const int available = bounds.getHeight() - gap * 3;
-    // The minimums keep every dial at least 32 px. The response view takes the first 60 px of spare height.
+    // The minimums keep every dial at least 32 px. Of the spare height, the response view takes the first 52 px
+    // and the effects strip the next 8 px, so the default size keeps a 96 px effects strip.
     const int responseMin = 56;
     const int sweepMin = 218;
     const int bandMin = 198;
     const int effectsMin = 88;
     const int extra = juce::jmax(0, available - (responseMin + sweepMin + bandMin + effectsMin));
-    const int responseFirst = juce::jmin(extra, 60);
-    const int rest = extra - responseFirst;
+    const int responseFirst = juce::jmin(extra, 52);
+    const int effectsFirst = juce::jmin(extra - responseFirst, 8);
+    const int rest = extra - responseFirst - effectsFirst;
     const int responseH = responseMin + responseFirst + rest * 40 / 100;
     const int sweepH = sweepMin + rest * 20 / 100;
     const int bandH = bandMin + rest * 25 / 100;
