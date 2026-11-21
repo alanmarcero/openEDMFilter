@@ -1217,9 +1217,10 @@ TEST_CASE("Response readouts sit beside their own markers and grid labels do not
     CHECK(bandB.getRight() < bandA.getX());
     CHECK_FALSE(crowded.intersects(bandA));
     CHECK(plot.contains(crowded));
-    CHECK(ResponseView::labelledDecibels(plot) == std::vector<float>{ 0.0f, 12.0f, -12.0f, -24.0f, -36.0f });
-    CHECK(ResponseView::labelledDecibels(plot.withHeight(49.0f)) == std::vector<float>{ 0.0f, -24.0f });
-    CHECK(ResponseView::labelledDecibels(plot.withHeight(32.0f)) == std::vector<float>{ 0.0f });
+    CHECK(ResponseView::labelledDecibels(plot, {}) == std::vector<float>{ 0.0f, 12.0f, -12.0f, -24.0f, -36.0f });
+    CHECK(ResponseView::labelledDecibels(plot.withHeight(49.0f), {}) == std::vector<float>{ 0.0f, -24.0f });
+    CHECK(ResponseView::labelledDecibels(plot.withHeight(32.0f), {}) == std::vector<float>{ 0.0f });
+    CHECK(ResponseView::labelledDecibels(plot, { bandB, juce::Rectangle<float>{} }) == std::vector<float>{ -12.0f, -24.0f, -36.0f });
 }
 
 TEST_CASE("Peak meters keep the maximum since the editor last read them", "[plugin]") {

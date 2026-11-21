@@ -113,13 +113,14 @@ void ResponseView::mouseUp(const juce::MouseEvent&) {
     dragResonance_ = nullptr;
 }
 
-std::vector<float> ResponseView::labelledDecibels(juce::Rectangle<float> plot) {
+std::vector<float> ResponseView::labelledDecibels(juce::Rectangle<float> plot, const std::array<juce::Rectangle<float>, 2>& readouts) {
     std::vector<float> labelled;
     std::vector<juce::Rectangle<float>> taken;
     std::ranges::for_each(std::array{ 0.0f, 12.0f, -12.0f, -24.0f, -36.0f }, [&](float db) {
         const float y = juce::jmap(db, kMaxDb, kMinDb, plot.getY(), plot.getBottom());
         const juce::Rectangle<float> label{ plot.getX() + 3.0f, y + 1.0f, 50.0f, 12.0f };
-        const bool touches = std::ranges::any_of(taken, [&](const auto& other) { return other.expanded(0.0f, 2.0f).intersects(label); });
+        const bool touches = std::ranges::any_of(taken, [&](const auto& other) { return other.expanded(0.0f, 2.0f).intersects(label); })
+            || std::ranges::any_of(readouts, [&](const auto& readout) { return readout.intersects(label); });
         if (touches || label.getBottom() > plot.getBottom())
             return;
         taken.push_back(label);
@@ -155,45 +156,6 @@ void ResponseView::paint(juce::Graphics& g) {
         return juce::jmap(juce::jlimit(kMinDb, kMaxDb, db), kMaxDb, kMinDb, plot.getY(), plot.getBottom());
     };
 
-    g.setFont(juce::FontOptions(10.0f));
-    const std::array<std::pair<double, const char*>, 8> gridLines{ {
-        { 50.0, "50" }, { 100.0, "100" }, { 200.0, "200" }, { 500.0, "500" },
-        { 1000.0, "1k" }, { 2000.0, "2k" }, { 5000.0, "5k" }, { 10000.0, "10k" } } };
-    std::ranges::for_each(gridLines, [&](const auto& line) {
-        const float x = xForHz(line.first);
-        g.setColour(theme::kPanelEdge);
-        g.drawVerticalLine(juce::roundToInt(x), plot.getY(), plot.getBottom());
-        g.setColour(theme::kTextDim.withAlpha(0.6f));
-        g.drawText(line.second, juce::Rectangle<float>(x + 3.0f, plot.getBottom() - 13.0f, 40.0f, 12.0f),
-                   juce::Justification::centredLeft);
-    });
-    const auto labelled = labelledDecibels(plot);
-    std::ranges::for_each(std::array{ 12.0f, 0.0f, -12.0f, -24.0f, -36.0f }, [&](float db) {
-        const float y = yForMagnitude(juce::Decibels::decibelsToGain(static_cast<double>(db)));
-        g.setColour(db == 0.0f ? theme::kTrack : theme::kPanelEdge);
-        g.drawHorizontalLine(juce::roundToInt(y), plot.getX(), plot.getRight());
-        if (std::ranges::find(labelled, db) == labelled.end())
-            return;
-        g.setColour(theme::kTextDim.withAlpha(0.6f));
-        g.drawText((db > 0.0f ? "+" : "") + juce::String(juce::roundToInt(db)) + " dB",
-                   juce::Rectangle<float>(plot.getX() + 3.0f, y + 1.0f, 50.0f, 12.0f), juce::Justification::centredLeft);
-    });
-
-    if (processor_.spectrumVisible.load(std::memory_order_relaxed)) {
-        juce::Path spectrum;
-        std::ranges::for_each(std::views::iota(size_t{0}, processor_.displaySpectrum.size()), [&](size_t bin) {
-            const float magnitude = processor_.displaySpectrum[bin].load(std::memory_order_relaxed);
-            const float db = juce::jlimit(-72.0f, 3.0f, juce::Decibels::gainToDecibels(magnitude, -72.0f));
-            const float x = plot.getX() + static_cast<float>(bin) / static_cast<float>(processor_.displaySpectrum.size() - 1)
-                * plot.getWidth();
-            const float y = juce::jmap(db, -72.0f, 3.0f, plot.getBottom(), plot.getY());
-            if (bin == 0) spectrum.startNewSubPath(x, y);
-            else spectrum.lineTo(x, y);
-        });
-        g.setColour(theme::kAccentSpectrum.withAlpha(0.82f));
-        g.strokePath(spectrum, juce::PathStrokeType(1.4f));
-    }
-
     const auto& state = processor_.parameters;
     const auto value = [&](size_t band, const char* suffix) {
         return state.getRawParameterValue(params::bandId(static_cast<int>(band), suffix))->load();
@@ -221,6 +183,61 @@ void ResponseView::paint(juce::Graphics& g) {
         const auto b = core::MultiModeFilter::responseAt(shapes[1], displayCutoffs[1], hz, filterRate);
         return std::abs(parallel ? a + blend * (b - a) : a * b);
     };
+
+    // The readouts go first, so the grid labels can skip any label that a readout covers.
+    const juce::Font readoutFont(juce::FontOptions(12.0f, juce::Font::bold));
+    std::array<juce::Point<float>, 2> markers;
+    std::array<juce::String, 2> labels;
+    std::array<juce::Rectangle<float>, 2> readouts;
+    std::ranges::for_each(std::views::iota(size_t{0}, size_t{2}), [&](size_t band) {
+        const double cutoff = juce::jlimit(kMinHz, kMaxHz, displayCutoffs[band]);
+        markers[band] = { xForHz(cutoff), yForMagnitude(combinedMagnitude(cutoff)) };
+        const int resPercent = juce::roundToInt(shapes[band].resonance * 100.0f);
+        labels[band] = juce::String(band == 0 ? "A  " : "B  ")
+            + params::formatHz(static_cast<float>(cutoff)) + "  (" + juce::String(resPercent) + "%)";
+        const float width = juce::GlyphArrangement::getStringWidth(readoutFont, labels[band]) + 8.0f;
+        readouts[band] = readoutBounds(markers[band], width, plot, band == 0 ? juce::Rectangle<float>{} : readouts[0]);
+    });
+
+    g.setFont(juce::FontOptions(10.0f));
+    const std::array<std::pair<double, const char*>, 8> gridLines{ {
+        { 50.0, "50" }, { 100.0, "100" }, { 200.0, "200" }, { 500.0, "500" },
+        { 1000.0, "1k" }, { 2000.0, "2k" }, { 5000.0, "5k" }, { 10000.0, "10k" } } };
+    std::ranges::for_each(gridLines, [&](const auto& line) {
+        const float x = xForHz(line.first);
+        g.setColour(theme::kPanelEdge);
+        g.drawVerticalLine(juce::roundToInt(x), plot.getY(), plot.getBottom());
+        g.setColour(theme::kTextDim.withAlpha(0.6f));
+        g.drawText(line.second, juce::Rectangle<float>(x + 3.0f, plot.getBottom() - 13.0f, 40.0f, 12.0f),
+                   juce::Justification::centredLeft);
+    });
+    const auto labelled = labelledDecibels(plot, readouts);
+    std::ranges::for_each(std::array{ 12.0f, 0.0f, -12.0f, -24.0f, -36.0f }, [&](float db) {
+        const float y = yForMagnitude(juce::Decibels::decibelsToGain(static_cast<double>(db)));
+        g.setColour(db == 0.0f ? theme::kTrack : theme::kPanelEdge);
+        g.drawHorizontalLine(juce::roundToInt(y), plot.getX(), plot.getRight());
+        if (std::ranges::find(labelled, db) == labelled.end())
+            return;
+        g.setColour(theme::kTextDim.withAlpha(0.6f));
+        g.drawText((db > 0.0f ? "+" : "") + juce::String(juce::roundToInt(db)) + " dB",
+                   juce::Rectangle<float>(plot.getX() + 3.0f, y + 1.0f, 50.0f, 12.0f), juce::Justification::centredLeft);
+    });
+
+    if (processor_.spectrumVisible.load(std::memory_order_relaxed)) {
+        juce::Path spectrum;
+        std::ranges::for_each(std::views::iota(size_t{0}, processor_.displaySpectrum.size()), [&](size_t bin) {
+            const float magnitude = processor_.displaySpectrum[bin].load(std::memory_order_relaxed);
+            const float db = juce::jlimit(-72.0f, 3.0f, juce::Decibels::gainToDecibels(magnitude, -72.0f));
+            const float x = plot.getX() + static_cast<float>(bin) / static_cast<float>(processor_.displaySpectrum.size() - 1)
+                * plot.getWidth();
+            const float y = juce::jmap(db, -72.0f, 3.0f, plot.getBottom(), plot.getY());
+            if (bin == 0) spectrum.startNewSubPath(x, y);
+            else spectrum.lineTo(x, y);
+        });
+        g.setColour(theme::kAccentSpectrum.withAlpha(0.82f));
+        g.strokePath(spectrum, juce::PathStrokeType(1.4f));
+    }
+
     const auto curve = [&](const auto& magnitudeAt) {
         juce::Path path;
         std::ranges::for_each(std::views::iota(0, kCurvePoints), [&](int point) {
@@ -251,29 +268,20 @@ void ResponseView::paint(juce::Graphics& g) {
     g.setColour(theme::kText);
     g.strokePath(combined, juce::PathStrokeType(2.0f));
 
-    g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+    g.setFont(readoutFont);
     const auto sweep = processor_.currentSweepSettings();
-    juce::Rectangle<float> previousReadout;
     std::ranges::for_each(std::views::iota(size_t{0}, size_t{2}), [&](size_t band) {
-        const double cutoff = juce::jlimit(kMinHz, kMaxHz, displayCutoffs[band]);
-        const juce::Point<float> marker{ xForHz(cutoff), yForMagnitude(combinedMagnitude(cutoff)) };
-        const int resPercent = juce::roundToInt(shapes[band].resonance * 100.0f);
-        const juce::String label = juce::String(band == 0 ? "A  " : "B  ")
-            + params::formatHz(static_cast<float>(cutoff)) + "  (" + juce::String(resPercent) + "%)";
         const auto colour = accents[band].withAlpha(shapes[band].enabled ? 1.0f : 0.3f);
         g.setColour(colour);
         // A hollow marker shows a band that Auto Sweep drives. A drag does not move it.
-        const auto dot = juce::Rectangle<float>(9.0f, 9.0f).withCentre(marker);
+        const auto dot = juce::Rectangle<float>(9.0f, 9.0f).withCentre(markers[band]);
         g.drawEllipse(dot.reduced(0.75f), 1.5f);
         if (!core::AutoSweep::appliesToBand(sweep, static_cast<int>(band)))
             g.fillEllipse(dot);
-
-        const float width = juce::GlyphArrangement::getStringWidth(g.getCurrentFont(), label) + 8.0f;
-        previousReadout = readoutBounds(marker, width, plot, previousReadout);
         g.setColour(theme::kPanel.withAlpha(0.85f));
-        g.fillRoundedRectangle(previousReadout, 3.0f);
+        g.fillRoundedRectangle(readouts[band], 3.0f);
         g.setColour(colour);
-        g.drawText(label, previousReadout, juce::Justification::centred);
+        g.drawText(labels[band], readouts[band], juce::Justification::centred);
     });
 }
 

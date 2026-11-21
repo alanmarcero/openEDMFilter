@@ -17,8 +17,9 @@ public:
     void mouseDrag(const juce::MouseEvent& event) override;
     void mouseUp(const juce::MouseEvent& event) override;
 
-    // The dB grid values whose labels fit the plot without touching, 0 dB first.
-    [[nodiscard]] static std::vector<float> labelledDecibels(juce::Rectangle<float> plot);
+    // The dB grid values whose labels fit the plot without touching each other or a readout, 0 dB first.
+    [[nodiscard]] static std::vector<float> labelledDecibels(juce::Rectangle<float> plot,
+                                                             const std::array<juce::Rectangle<float>, 2>& readouts);
     // A band readout beside its marker, inside the plot and clear of the other readout.
     [[nodiscard]] static juce::Rectangle<float> readoutBounds(juce::Point<float> marker, float width,
                                                              juce::Rectangle<float> plot, juce::Rectangle<float> other);
