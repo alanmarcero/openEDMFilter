@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.14.2
+
+- **Parameter Locking:** Add per-parameter locking across every plugin parameter, persisted in session state and preserved across preset loads and randomization.
+
 ## v1.14.1
 
 - **UI & Suite Fixes:** UI polish, full-size dial rings, 96 px effects strip, unit formatting and typed-value entry, per-slot A/B undo, inline preset confirms, uniform scaling, and screen-reader titles.
