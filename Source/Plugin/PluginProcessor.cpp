@@ -169,9 +169,55 @@ void OpenEdmFilterProcessor::editParameters(const std::function<void()>& edit, c
 
 void OpenEdmFilterProcessor::loadUserPreset(const juce::String& name, const juce::ValueTree& snapshot) {
     editHistory_.performEdit([&] {
+        const auto locked = captureLockedValues();
         editHistory_.restore(snapshot);
+        restoreLockedValues(locked);
         setPreset(name, false);
     }, "User preset");
+}
+
+bool OpenEdmFilterProcessor::isParamLocked(const juce::String& paramId) const {
+    const juce::ScopedLock lock(paramLockMutex_);
+    return lockedParams_.contains(paramId);
+}
+
+void OpenEdmFilterProcessor::setParamLocked(const juce::String& paramId, bool locked) {
+    const juce::ScopedLock lock(paramLockMutex_);
+    if (locked)
+        lockedParams_.insert(paramId);
+    else
+        lockedParams_.erase(paramId);
+}
+
+void OpenEdmFilterProcessor::unlockAllParams() {
+    const juce::ScopedLock lock(paramLockMutex_);
+    lockedParams_.clear();
+}
+
+bool OpenEdmFilterProcessor::hasAnyLockedParams() const {
+    const juce::ScopedLock lock(paramLockMutex_);
+    return !lockedParams_.empty();
+}
+
+OpenEdmFilterProcessor::LockedValueList OpenEdmFilterProcessor::captureLockedValues() const {
+    LockedValueList locked;
+    const juce::ScopedLock lock(paramLockMutex_);
+    if (lockedParams_.empty())
+        return locked;
+    for (auto* parameter : getParameters()) {
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*>(parameter)) {
+            if (lockedParams_.contains(ranged->paramID))
+                locked.emplace_back(ranged, ranged->getValue());
+        }
+    }
+    return locked;
+}
+
+void OpenEdmFilterProcessor::restoreLockedValues(const LockedValueList& locked) {
+    for (const auto& [ranged, normalized] : locked) {
+        if (!juce::approximatelyEqual(ranged->getValue(), normalized))
+            ranged->setValueNotifyingHost(normalized);
+    }
 }
 
 void OpenEdmFilterProcessor::setPreset(const juce::String& name, bool isEdited) {
@@ -554,7 +600,8 @@ void OpenEdmFilterProcessor::setCurrentProgram(int index) {
     editHistory_.performEdit([&] {
         currentProgram_ = index;
         setPreset(presets[static_cast<size_t>(index)].name, false);
-        openedm::presets::apply(presets[static_cast<size_t>(index)], parameters);
+        openedm::presets::apply(presets[static_cast<size_t>(index)], parameters,
+                                [this](const juce::String& id) { return isParamLocked(id); });
     }, "Preset");
 }
 
@@ -583,6 +630,20 @@ void OpenEdmFilterProcessor::getStateInformation(juce::MemoryBlock& destData) {
     if (auto existing = state.getChildWithName("AB"); existing.isValid())
         state.removeChild(existing, nullptr);
     state.appendChild(ab_.toValueTree(), nullptr);
+    if (auto existing = state.getChildWithName("LOCKED_PARAMS"); existing.isValid())
+        state.removeChild(existing, nullptr);
+    {
+        const juce::ScopedLock lock(paramLockMutex_);
+        if (!lockedParams_.empty()) {
+            juce::ValueTree lockedTree("LOCKED_PARAMS");
+            for (const auto& id : lockedParams_) {
+                juce::ValueTree entry("LOCK");
+                entry.setProperty("id", id, nullptr);
+                lockedTree.appendChild(entry, nullptr);
+            }
+            state.appendChild(lockedTree, nullptr);
+        }
+    }
     const auto xml = state.createXml();
     copyXmlToBinary(*xml, destData);
 }
@@ -624,6 +685,20 @@ void OpenEdmFilterProcessor::setStateInformation(const void* data, int sizeInByt
         ab_.reset(fallback);
     editHistory_.clear();
     editHistory_.selectHistory(ab_.active());
+    {
+        const juce::ScopedLock lock(paramLockMutex_);
+        lockedParams_.clear();
+        if (const auto lockedTree = state.getChildWithName("LOCKED_PARAMS"); lockedTree.isValid()) {
+            for (int i = 0; i < lockedTree.getNumChildren(); ++i) {
+                const auto entry = lockedTree.getChild(i);
+                if (entry.hasType("LOCK")) {
+                    const auto id = entry.getProperty("id").toString();
+                    if (id.isNotEmpty() && parameters.getParameter(id) != nullptr)
+                        lockedParams_.insert(id);
+                }
+            }
+        }
+    }
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() {

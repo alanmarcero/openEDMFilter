@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <utility>
@@ -18,7 +19,9 @@ const std::vector<FactoryPreset>& factoryPresets();
 const std::vector<FactoryPreset>& sweepSlopePresets();
 
 void populateComboMenu(juce::ComboBox& box, const std::vector<FactoryPreset>& items, bool fullItemText = true);
-void apply(const FactoryPreset& preset, juce::AudioProcessorValueTreeState& state);
-void applyPartial(const FactoryPreset& preset, juce::AudioProcessorValueTreeState& state);
+void apply(const FactoryPreset& preset, juce::AudioProcessorValueTreeState& state,
+           const std::function<bool(const juce::String&)>& isLocked = {});
+void applyPartial(const FactoryPreset& preset, juce::AudioProcessorValueTreeState& state,
+                  const std::function<bool(const juce::String&)>& isLocked = {});
 
 } // namespace openedm::presets

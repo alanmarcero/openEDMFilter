@@ -1,6 +1,8 @@
 #include "Controls.h"
-#include "Theme.h"
 #include "Parameters.h"
+#include "PluginProcessor.h"
+#include "Theme.h"
+#include <algorithm>
 #include <tuple>
 
 namespace openedm::ui {
@@ -16,7 +18,9 @@ constexpr float kTitleFontSize = 11.0f;
 } // namespace
 
 Knob::Knob(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent)
-    : slider_(juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow),
+    : state_(state),
+      accent_(accent),
+      slider_(juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow),
       title_({}, title.toUpperCase()),
       attachment_(std::make_unique<Apvts::SliderAttachment>(state, parameterId, slider_)) {
     setComponentID(parameterId);
@@ -39,6 +43,21 @@ Knob::Knob(Apvts& state, const juce::String& parameterId, const juce::String& ti
     title_.setBorderSize({ 1, 1, 1, 1 });
     addAndMakeVisible(slider_);
     addAndMakeVisible(title_);
+    addMouseListener(this, true);
+}
+
+Knob::~Knob() {
+    removeMouseListener(this);
+}
+
+void Knob::paintOverChildren(juce::Graphics& g) {
+    if (isParamLocked(state_, getComponentID()))
+        drawPadlockBadge(g, { static_cast<float>(getWidth()) - 13.0f, 1.0f, 11.0f, 12.0f }, accent_);
+}
+
+void Knob::mouseDown(const juce::MouseEvent& event) {
+    if (event.mods.isPopupMenu())
+        showParamLockMenu(*this, state_, { getComponentID() }, slider_.getTitle());
 }
 
 void Knob::bind(Apvts& state, const juce::String& parameterId) {
@@ -73,7 +92,9 @@ void Knob::resized() {
 }
 
 Choice::Choice(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent)
-    : title_({}, title.toUpperCase()) {
+    : state_(state),
+      accent_(accent),
+      title_({}, title.toUpperCase()) {
     if (auto* parameter = dynamic_cast<juce::AudioParameterChoice*>(state.getParameter(parameterId))) {
         box_.addItemList(parameter->choices, 1);
     }
@@ -87,6 +108,21 @@ Choice::Choice(Apvts& state, const juce::String& parameterId, const juce::String
     addAndMakeVisible(box_);
     addChildComponent(title_);
     title_.setVisible(title.isNotEmpty());
+    addMouseListener(this, true);
+}
+
+Choice::~Choice() {
+    removeMouseListener(this);
+}
+
+void Choice::paintOverChildren(juce::Graphics& g) {
+    if (isParamLocked(state_, getComponentID()))
+        drawPadlockBadge(g, { static_cast<float>(getWidth()) - 13.0f, 1.0f, 11.0f, 12.0f }, accent_);
+}
+
+void Choice::mouseDown(const juce::MouseEvent& event) {
+    if (event.mods.isPopupMenu())
+        showParamLockMenu(*this, state_, { getComponentID() }, box_.getTitle());
 }
 
 void Choice::bind(Apvts& state, const juce::String& parameterId) {
@@ -111,7 +147,10 @@ void Choice::resized() {
 }
 
 FilterTypeMenu::FilterTypeMenu(Apvts& state, int band, juce::Colour accent)
-    : original_(static_cast<juce::AudioParameterChoice&>(*state.getParameter(params::bandId(band, params::kType)))),
+    : state_(state),
+      band_(band),
+      accent_(accent),
+      original_(static_cast<juce::AudioParameterChoice&>(*state.getParameter(params::bandId(band, params::kType)))),
       response_(static_cast<juce::AudioParameterChoice&>(*state.getParameter(params::bandId(band, params::kExtendedType)))),
       originalAttachment_(original_, [this](float) { sync(); }, nullptr),
       responseAttachment_(response_, [this](float) { sync(); }, nullptr) {
@@ -136,19 +175,53 @@ FilterTypeMenu::FilterTypeMenu(Apvts& state, int band, juce::Colour accent)
     sync();
 }
 
+void FilterTypeMenu::paintOverChildren(juce::Graphics& g) {
+    if (isParamLocked(state_, params::bandId(band_, params::kType))
+        || isParamLocked(state_, params::bandId(band_, params::kExtendedType))) {
+        drawPadlockBadge(g, { static_cast<float>(getWidth()) - 13.0f, 2.0f, 11.0f, 12.0f }, accent_);
+    }
+}
+
+void FilterTypeMenu::mouseDown(const juce::MouseEvent& event) {
+    if (event.mods.isPopupMenu()) {
+        showParamLockMenu(*this, state_,
+                          { params::bandId(band_, params::kType), params::bandId(band_, params::kExtendedType) },
+                          getName());
+        return;
+    }
+    juce::ComboBox::mouseDown(event);
+}
+
 void FilterTypeMenu::sync() {
     setSelectedId(params::effectiveType(original_.getIndex(), response_.getIndex()) + 1, juce::dontSendNotification);
 }
 
 Toggle::Toggle(Apvts& state, const juce::String& parameterId, const juce::String& text, juce::Colour accent,
                const juce::String& spokenTitle)
-    : button_(text),
+    : state_(state),
+      accent_(accent),
+      button_(text),
       attachment_(state, parameterId, button_) {
     setComponentID(parameterId);
     button_.setTitle(spokenTitle.isNotEmpty() ? spokenTitle : text);
     button_.setClickingTogglesState(true);
     button_.setColour(juce::TextButton::buttonOnColourId, accent);
     addAndMakeVisible(button_);
+    addMouseListener(this, true);
+}
+
+Toggle::~Toggle() {
+    removeMouseListener(this);
+}
+
+void Toggle::paintOverChildren(juce::Graphics& g) {
+    if (isParamLocked(state_, getComponentID()))
+        drawPadlockBadge(g, { static_cast<float>(getWidth()) - 13.0f, 2.0f, 11.0f, 12.0f }, accent_);
+}
+
+void Toggle::mouseDown(const juce::MouseEvent& event) {
+    if (event.mods.isPopupMenu())
+        showParamLockMenu(*this, state_, { getComponentID() }, button_.getTitle());
 }
 
 void Toggle::resized() {
@@ -257,6 +330,75 @@ void drawCaption(juce::Graphics& g, juce::Rectangle<int> area, const juce::Strin
     g.setColour(theme::kTextDim.withAlpha(0.7f));
     g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
     g.drawText(text.toUpperCase(), area.removeFromTop(12), juce::Justification::centredLeft);
+}
+
+bool isParamLocked(Apvts& state, const juce::String& paramId) {
+    if (auto* processor = dynamic_cast<OpenEdmFilterProcessor*>(&state.processor))
+        return processor->isParamLocked(paramId);
+    return false;
+}
+
+void drawPadlockBadge(juce::Graphics& g, juce::Rectangle<float> bounds, juce::Colour accent) {
+    g.setColour(theme::kBackground.withAlpha(0.82f));
+    g.fillRoundedRectangle(bounds.expanded(1.0f), 2.5f);
+
+    const float bodyW = bounds.getWidth() * 0.72f;
+    const float bodyH = bounds.getHeight() * 0.48f;
+    const float bodyX = bounds.getCentreX() - bodyW * 0.5f;
+    const float bodyY = bounds.getBottom() - bodyH - 1.0f;
+    const float shackleW = bodyW * 0.62f;
+    const float shackleH = bounds.getHeight() * 0.40f;
+    const float shackleX = bounds.getCentreX() - shackleW * 0.5f;
+    const float shackleY = bodyY - shackleH * 0.72f;
+
+    juce::Path shackle;
+    shackle.addArc(shackleX, shackleY, shackleW, shackleH, -juce::MathConstants<float>::halfPi,
+                   juce::MathConstants<float>::halfPi, true);
+    g.setColour(accent);
+    g.strokePath(shackle, juce::PathStrokeType(1.4f));
+    g.fillRoundedRectangle(bodyX, bodyY, bodyW, bodyH, 1.5f);
+}
+
+void showParamLockMenu(juce::Component& anchor, Apvts& state, std::vector<juce::String> paramIds,
+                       const juce::String& displayName) {
+    auto* processor = dynamic_cast<OpenEdmFilterProcessor*>(&state.processor);
+    if (processor == nullptr || paramIds.empty())
+        return;
+
+    const bool locked = std::ranges::any_of(paramIds, [&](const auto& id) { return processor->isParamLocked(id); });
+    juce::String label = displayName;
+    if (label.isEmpty()) {
+        if (auto* param = state.getParameter(paramIds.front()))
+            label = param->getName(64);
+        else
+            label = paramIds.front();
+    }
+
+    juce::PopupMenu menu;
+    menu.addItem(1, (locked ? "Unlock " : "Lock ") + label);
+    if (processor->hasAnyLockedParams()) {
+        menu.addSeparator();
+        menu.addItem(2, "Unlock all parameters");
+    }
+
+    const juce::Component::SafePointer<juce::Component> safeAnchor(&anchor);
+    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&anchor),
+                       [processor, ids = std::move(paramIds), locked, safeAnchor](int result) {
+        if (result == 1) {
+            for (const auto& id : ids)
+                processor->setParamLocked(id, !locked);
+        } else if (result == 2) {
+            processor->unlockAllParams();
+        } else {
+            return;
+        }
+        if (safeAnchor != nullptr) {
+            if (auto* top = safeAnchor->getTopLevelComponent())
+                top->repaint();
+            else
+                safeAnchor->repaint();
+        }
+    });
 }
 
 } // namespace openedm::ui

@@ -80,7 +80,10 @@ private:
 class SweepPanel : public juce::Component {
 public:
     explicit SweepPanel(OpenEdmFilterProcessor& processor);
+    ~SweepPanel() override;
     void paint(juce::Graphics& g) override;
+    void paintOverChildren(juce::Graphics& g) override;
+    void mouseDown(const juce::MouseEvent& event) override;
     void resized() override;
     void refresh();
 
@@ -159,6 +162,7 @@ public:
     void mouseDoubleClick(const juce::MouseEvent& event) override;
 
 private:
+    Apvts& state_;
     juce::Colour accent_;
     juce::RangedAudioParameter& length_;
     juce::ParameterAttachment lengthWatcher_;

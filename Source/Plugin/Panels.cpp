@@ -662,7 +662,8 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
         const auto& presets = openedm::presets::sweepSlopePresets();
         if (idx >= 0 && idx < static_cast<int>(presets.size())) {
             processor_.editParameters([&] {
-                openedm::presets::applyPartial(presets[static_cast<size_t>(idx)], processor_.parameters);
+                openedm::presets::applyPartial(presets[static_cast<size_t>(idx)], processor_.parameters,
+                                               [this](const juce::String& id) { return processor_.isParamLocked(id); });
             }, "Sweep preset");
         }
     };
@@ -672,8 +673,45 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
                               &tempo_, &slopeEditor_, &cutoffStart_, &cutoffEnd_, &cutoffSlope_,
                               &resStart_, &resEnd_, &resSlope_ },
                           [this](juce::Component* control) { addAndMakeVisible(control); });
+    enabled_.addMouseListener(this, false);
+    for (auto& button : slotButtons_)
+        button.addMouseListener(this, false);
     slotWatcher_.sendInitialUpdate();
     refresh();
+}
+
+SweepPanel::~SweepPanel() {
+    enabled_.removeMouseListener(this);
+    for (auto& button : slotButtons_)
+        button.removeMouseListener(this);
+}
+
+void SweepPanel::mouseDown(const juce::MouseEvent& event) {
+    if (!event.mods.isPopupMenu())
+        return;
+    if (event.eventComponent == &enabled_) {
+        showParamLockMenu(enabled_, processor_.parameters, { params::kSweepEnabled, params::kSweepBypass }, "Auto Sweep");
+        return;
+    }
+    for (auto& button : slotButtons_) {
+        if (event.eventComponent == &button) {
+            showParamLockMenu(button, processor_.parameters, { params::kSweepSlot }, "Auto Mode");
+            return;
+        }
+    }
+}
+
+void SweepPanel::paintOverChildren(juce::Graphics& g) {
+    if (processor_.isParamLocked(params::kSweepEnabled) || processor_.isParamLocked(params::kSweepBypass)) {
+        drawPadlockBadge(g, { static_cast<float>(enabled_.getRight()) - 13.0f,
+                              static_cast<float>(enabled_.getY()) + 2.0f, 11.0f, 12.0f }, theme::kAccentA);
+    }
+    if (processor_.isParamLocked(params::kSweepSlot)) {
+        for (const auto& button : slotButtons_) {
+            drawPadlockBadge(g, { static_cast<float>(button.getRight()) - 12.0f,
+                                  static_cast<float>(button.getY()) + 2.0f, 10.0f, 11.0f }, theme::kAccentA);
+        }
+    }
 }
 
 void SweepPanel::refresh() {
@@ -848,7 +886,8 @@ void BandPanel::resized() {
 }
 
 StepGrid::StepGrid(Apvts& state, int band, juce::Colour accent)
-    : accent_(accent),
+    : state_(state),
+      accent_(accent),
       length_(*state.getParameter(params::bandId(band, "step_length"))),
       lengthWatcher_(length_, [this](float) { repaint(); }) {
     setComponentID(params::bandId(band, "step_grid"));
@@ -861,6 +900,13 @@ StepGrid::StepGrid(Apvts& state, int band, juce::Colour accent)
 }
 
 void StepGrid::mouseDown(const juce::MouseEvent& event) {
+    if (event.mods.isPopupMenu()) {
+        const auto area = getLocalBounds().toFloat().reduced(kStepGridInset);
+        const int step = juce::jlimit(0, 15, static_cast<int>((event.position.x - area.getX()) / area.getWidth() * 16.0f));
+        auto* param = values_[static_cast<size_t>(step)];
+        showParamLockMenu(*this, state_, { param->paramID }, param->getName(64));
+        return;
+    }
     lastStep_ = -1;
     mouseDrag(event);
 }
@@ -914,6 +960,8 @@ void StepGrid::paint(juce::Graphics& g) {
         g.setColour(accent_.withAlpha(step < length ? 0.9f : 0.25f));
         g.fillRect(juce::Rectangle<float>::leftTopRightBottom(left, std::min(top, centre) - 1.0f, left + width - 4.0f,
                                                               std::max(top, centre) + 1.0f));
+        if (isParamLocked(state_, parameter->paramID))
+            drawPadlockBadge(g, { left + (width - 4.0f) * 0.5f - 4.5f, area.getY() + 2.0f, 9.0f, 10.0f }, accent_);
     });
 }
 

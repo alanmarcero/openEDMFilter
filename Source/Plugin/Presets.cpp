@@ -615,10 +615,11 @@ void populateComboMenu(juce::ComboBox& box, const std::vector<FactoryPreset>& it
     });
 }
 
-void apply(const FactoryPreset& preset, juce::AudioProcessorValueTreeState& state) {
+void apply(const FactoryPreset& preset, juce::AudioProcessorValueTreeState& state,
+           const std::function<bool(const juce::String&)>& isLocked) {
     std::ranges::for_each(state.processor.getParameters(), [&](juce::AudioProcessorParameter* parameter) {
         auto* ranged = dynamic_cast<juce::RangedAudioParameter*>(parameter);
-        if (ranged == nullptr) {
+        if (ranged == nullptr || (isLocked && isLocked(ranged->paramID))) {
             return;
         }
         const auto match = std::ranges::find_if(preset.values,
@@ -631,12 +632,16 @@ void apply(const FactoryPreset& preset, juce::AudioProcessorValueTreeState& stat
     });
 }
 
-void applyPartial(const FactoryPreset& preset, juce::AudioProcessorValueTreeState& state) {
+void applyPartial(const FactoryPreset& preset, juce::AudioProcessorValueTreeState& state,
+                  const std::function<bool(const juce::String&)>& isLocked) {
     const int slot = static_cast<int>(state.getRawParameterValue(params::kSweepSlot)->load());
     std::ranges::for_each(preset.values, [&](const auto& entry) {
         const bool perSlot = std::ranges::any_of(params::kSweepFilterIds, [&](const char* id) { return juce::String(id) == entry.first; })
             || std::ranges::any_of(params::kSweepEffectIds, [&](const char* id) { return juce::String(id) == entry.first; });
         const auto id = perSlot ? params::sweepId(slot, entry.first) : juce::String(entry.first);
+        if (isLocked && isLocked(id)) {
+            return;
+        }
         if (auto* ranged = state.getParameter(id)) {
             ranged->setValueNotifyingHost(ranged->convertTo0to1(entry.second));
         }

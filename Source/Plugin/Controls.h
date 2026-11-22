@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <vector>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -11,11 +12,16 @@ using Apvts = juce::AudioProcessorValueTreeState;
 class Knob : public juce::Component {
 public:
     Knob(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent);
+    ~Knob() override;
     void resized() override;
+    void paintOverChildren(juce::Graphics& g) override;
+    void mouseDown(const juce::MouseEvent& event) override;
     void bind(Apvts& state, const juce::String& parameterId);
     void setTooltip(const juce::String& text);
 
 private:
+    Apvts& state_;
+    juce::Colour accent_;
     juce::Slider slider_;
     juce::Label title_;
     std::unique_ptr<Apvts::SliderAttachment> attachment_;
@@ -28,11 +34,16 @@ class Choice : public juce::Component {
 public:
     // An empty title draws the box alone, for compact header rows.
     Choice(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent);
+    ~Choice() override;
     void resized() override;
+    void paintOverChildren(juce::Graphics& g) override;
+    void mouseDown(const juce::MouseEvent& event) override;
     void bind(Apvts& state, const juce::String& parameterId);
     void setTooltip(const juce::String& text);
 
 private:
+    Apvts& state_;
+    juce::Colour accent_;
     juce::ComboBox box_;
     juce::Label title_;
     std::unique_ptr<Apvts::ComboBoxAttachment> attachment_;
@@ -41,7 +52,12 @@ private:
 class FilterTypeMenu : public juce::ComboBox {
 public:
     FilterTypeMenu(Apvts& state, int band, juce::Colour accent);
+    void paintOverChildren(juce::Graphics& g) override;
+    void mouseDown(const juce::MouseEvent& event) override;
 private:
+    Apvts& state_;
+    int band_;
+    juce::Colour accent_;
     juce::AudioParameterChoice& original_;
     juce::AudioParameterChoice& response_;
     juce::ParameterAttachment originalAttachment_, responseAttachment_;
@@ -53,10 +69,15 @@ public:
     // A screen reader says spokenTitle, or the text when spokenTitle is empty.
     Toggle(Apvts& state, const juce::String& parameterId, const juce::String& text, juce::Colour accent,
            const juce::String& spokenTitle = {});
+    ~Toggle() override;
     void resized() override;
+    void paintOverChildren(juce::Graphics& g) override;
+    void mouseDown(const juce::MouseEvent& event) override;
     void setTooltip(const juce::String& text);
 
 private:
+    Apvts& state_;
+    juce::Colour accent_;
     juce::TextButton button_;
     Apvts::ButtonAttachment attachment_;
 };
@@ -97,5 +118,10 @@ void drawPanel(juce::Graphics& g, juce::Rectangle<int> area, const juce::String&
 
 // Draws a small dim caption, used to name groups of controls inside a panel.
 void drawCaption(juce::Graphics& g, juce::Rectangle<int> area, const juce::String& text);
+
+[[nodiscard]] bool isParamLocked(Apvts& state, const juce::String& paramId);
+void drawPadlockBadge(juce::Graphics& g, juce::Rectangle<float> bounds, juce::Colour accent);
+void showParamLockMenu(juce::Component& anchor, Apvts& state, std::vector<juce::String> paramIds,
+                       const juce::String& displayName);
 
 } // namespace openedm::ui

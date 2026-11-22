@@ -1450,3 +1450,73 @@ TEST_CASE("Every slider, menu and button has a title for screen readers", "[plug
     CHECK(titles["A>B"] == "Copy A to B");
     CHECK(titles["LINK A"] == "Link crush rate to Filter A");
 }
+
+TEST_CASE("Every RangedAudioParameter can be locked, survives state recall, and is preserved across preset loads", "[plugin]") {
+    OpenEdmFilterProcessor processor;
+    std::vector<juce::RangedAudioParameter*> rangedParams;
+    for (auto* parameter : processor.getParameters()) {
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*>(parameter))
+            rangedParams.push_back(ranged);
+    }
+    REQUIRE(!rangedParams.empty());
+    CHECK_FALSE(processor.hasAnyLockedParams());
+
+    // Every parameter can be locked and unlocked individually.
+    for (auto* ranged : rangedParams) {
+        CHECK_FALSE(processor.isParamLocked(ranged->paramID));
+        processor.setParamLocked(ranged->paramID, true);
+        CHECK(processor.isParamLocked(ranged->paramID));
+        processor.setParamLocked(ranged->paramID, false);
+        CHECK_FALSE(processor.isParamLocked(ranged->paramID));
+    }
+
+    // Lock every parameter at a non-default value and verify state recall + factory preset preservation.
+    std::map<juce::String, float> lockedValues;
+    for (auto* ranged : rangedParams) {
+        const float rawNorm = ranged->getDefaultValue() < 0.5f ? 0.9f : 0.1f;
+        const float snappedNorm = ranged->convertTo0to1(ranged->convertFrom0to1(rawNorm));
+        ranged->setValueNotifyingHost(snappedNorm);
+        lockedValues[ranged->paramID] = ranged->getValue();
+        processor.setParamLocked(ranged->paramID, true);
+    }
+    CHECK(processor.hasAnyLockedParams());
+
+    juce::MemoryBlock saved;
+    processor.getStateInformation(saved);
+
+    OpenEdmFilterProcessor restored;
+    restored.setStateInformation(saved.getData(), static_cast<int>(saved.getSize()));
+    CHECK(restored.hasAnyLockedParams());
+    for (auto* parameter : restored.getParameters()) {
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*>(parameter)) {
+            CHECK(restored.isParamLocked(ranged->paramID));
+            CHECK_THAT(ranged->getValue(), WithinAbs(lockedValues.at(ranged->paramID), 1e-5f));
+        }
+    }
+
+    restored.setCurrentProgram(1);
+    for (auto* parameter : restored.getParameters()) {
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*>(parameter))
+            CHECK_THAT(ranged->getValue(), WithinAbs(lockedValues.at(ranged->paramID), 1e-5f));
+    }
+
+    // Unlock all, then verify user preset preserves only locked parameters and updates unlocked ones.
+    restored.unlockAllParams();
+    CHECK_FALSE(restored.hasAnyLockedParams());
+    for (auto* parameter : restored.getParameters()) {
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*>(parameter))
+            CHECK_FALSE(restored.isParamLocked(ranged->paramID));
+    }
+
+    set(restored, "a_cutoff", 500.0f);
+    set(restored, "b_cutoff", 600.0f);
+    const auto userSnapshot = restored.parameterSnapshot();
+
+    set(restored, "a_cutoff", 2400.0f);
+    set(restored, "b_cutoff", 3200.0f);
+    restored.setParamLocked("a_cutoff", true);
+    restored.loadUserPreset("LockedTest", userSnapshot);
+
+    CHECK_THAT(restored.parameters.getRawParameterValue("a_cutoff")->load(), WithinAbs(2400.0f, 0.5f));
+    CHECK_THAT(restored.parameters.getRawParameterValue("b_cutoff")->load(), WithinAbs(600.0f, 0.5f));
+}

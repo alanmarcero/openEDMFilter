@@ -8,6 +8,9 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <set>
+#include <utility>
+#include <vector>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
 
@@ -72,6 +75,11 @@ public:
     [[nodiscard]] juce::String presetName() const;
     // The loaded preset's name, with " *" after the first edit since it loaded or saved.
     [[nodiscard]] juce::String presetDisplayName() const;
+
+    [[nodiscard]] bool isParamLocked(const juce::String& paramId) const;
+    void setParamLocked(const juce::String& paramId, bool locked);
+    void unlockAllParams();
+    [[nodiscard]] bool hasAnyLockedParams() const;
 
     juce::AudioProcessorValueTreeState parameters;
 
@@ -216,6 +224,11 @@ private:
     juce::CriticalSection presetLock_;
     juce::String presetName_;
     bool presetEdited_ = false;
+    mutable juce::CriticalSection paramLockMutex_;
+    std::set<juce::String> lockedParams_;
+    using LockedValueList = std::vector<std::pair<juce::RangedAudioParameter*, float>>;
+    [[nodiscard]] LockedValueList captureLockedValues() const;
+    static void restoreLockedValues(const LockedValueList& locked);
     double processingSampleRate_ = 44100.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OpenEdmFilterProcessor)
