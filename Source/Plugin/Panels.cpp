@@ -222,7 +222,7 @@ void ResponseView::paint(juce::Graphics& g) {
         readouts[band] = readoutBounds(markers[band], width, plot, band == 0 ? juce::Rectangle<float>{} : readouts[0]);
     });
 
-    g.setFont(juce::FontOptions(11.0f));
+    g.setFont(juce::FontOptions(11.5f));
     const std::array<std::pair<double, const char*>, 8> gridLines{ {
         { 50.0, "50" }, { 100.0, "100" }, { 200.0, "200" }, { 500.0, "500" },
         { 1000.0, "1k" }, { 2000.0, "2k" }, { 5000.0, "5k" }, { 10000.0, "10k" } } };
@@ -230,10 +230,10 @@ void ResponseView::paint(juce::Graphics& g) {
         const float x = xForHz(line.first);
         g.setColour(theme::kPanelEdge);
         g.drawVerticalLine(juce::roundToInt(x), plot.getY(), plot.getBottom());
-        const juce::Rectangle<float> labelRect(x + 3.0f, plot.getBottom() - 14.0f, 40.0f, 13.0f);
+        const juce::Rectangle<float> labelRect(x + 3.0f, plot.getBottom() - 14.0f, 44.0f, 14.0f);
         if (std::ranges::any_of(readouts, [&](const auto& readout) { return readout.intersects(labelRect); }))
             return;
-        g.setColour(theme::kTextDim.withAlpha(0.7f));
+        g.setColour(theme::kTextDim.withAlpha(0.82f));
         g.drawText(line.second, labelRect, juce::Justification::centredLeft);
     });
     const auto labelled = labelledDecibels(plot, readouts);
@@ -243,9 +243,9 @@ void ResponseView::paint(juce::Graphics& g) {
         g.drawHorizontalLine(juce::roundToInt(y), plot.getX(), plot.getRight());
         if (std::ranges::find(labelled, db) == labelled.end())
             return;
-        g.setColour(theme::kTextDim.withAlpha(0.6f));
+        g.setColour(theme::kTextDim.withAlpha(0.88f));
         g.drawText((db > 0.0f ? "+" : "") + juce::String(juce::roundToInt(db)) + " dB",
-                   juce::Rectangle<float>(plot.getX() + 3.0f, y + 1.0f, 50.0f, 12.0f), juce::Justification::centredLeft);
+                   juce::Rectangle<float>(plot.getX() + 3.0f, y + 1.0f, 52.0f, 13.0f), juce::Justification::centredLeft);
     });
 
     if (processor_.spectrumVisible.load(std::memory_order_relaxed)) {
@@ -519,7 +519,7 @@ void SweepSlopeEditor::paint(juce::Graphics& g) {
     const int bars = std::max(1, settings.bars);
     const int divisions = std::min(bars, 8);
     const int barsPerDivision = std::max(1, bars / divisions);
-    g.setFont(juce::FontOptions(11.0f));
+    g.setFont(juce::FontOptions(12.0f));
     std::ranges::for_each(std::views::iota(0, divisions + 1), [&](int div) {
         const float fraction = static_cast<float>(div) / static_cast<float>(divisions);
         const float x = plot.getX() + fraction * plot.getWidth();
@@ -527,9 +527,9 @@ void SweepSlopeEditor::paint(juce::Graphics& g) {
         g.drawVerticalLine(juce::roundToInt(x), plot.getY(), plot.getBottom());
         if (div < divisions) {
             const int barNumber = div * barsPerDivision + 1;
-            g.setColour(theme::kTextDim.withAlpha(0.75f));
+            g.setColour(theme::kTextDim.withAlpha(0.92f));
             g.drawText("B" + juce::String(barNumber),
-                       juce::Rectangle<float>(x + 2.0f, plot.getBottom() + 1.0f, 36.0f, 14.0f),
+                       juce::Rectangle<float>(x + 2.0f, plot.getBottom() + 1.0f, 40.0f, 15.0f),
                        juce::Justification::centredLeft);
         }
     });
@@ -615,25 +615,25 @@ void SweepSlopeEditor::paint(juce::Graphics& g) {
 
     // Header overlay showing live bar, time signature, BPM and slope endpoints
     const auto headerBar = getLocalBounds().toFloat().reduced(8.0f, 2.0f).removeFromTop(16.0f);
-    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    g.setFont(juce::FontOptions(11.5f, juce::Font::bold));
     g.setColour(theme::kAccentA.withAlpha(activeAlpha));
     const juce::String cutSummary = "CUT " + params::formatHz(settings.cutoffStartHz) + " -> " + params::formatHz(settings.cutoffEndHz);
-    g.drawText(cutSummary, headerBar.withWidth(170.0f), juce::Justification::centredLeft);
+    g.drawText(cutSummary, headerBar.withWidth(185.0f), juce::Justification::centredLeft);
 
     g.setColour(theme::kAccentB.withAlpha(activeAlpha));
     const juce::String resSummary = "RES " + juce::String(juce::roundToInt(settings.resonanceStart * 100.0f)) + "% -> "
         + juce::String(juce::roundToInt(settings.resonanceEnd * 100.0f)) + "%";
-    g.drawText(resSummary, headerBar.withTrimmedLeft(170.0f).withWidth(120.0f), juce::Justification::centredLeft);
+    g.drawText(resSummary, headerBar.withTrimmedLeft(185.0f).withWidth(140.0f), juce::Justification::centredLeft);
 
     const auto signature = processor_.displayTimeSignature.load();
     const float currentBar = phase * static_cast<float>(bars) + 1.0f;
     const float bpm = processor_.displayBpm.load();
-    g.setFont(juce::FontOptions(11.5f, juce::Font::bold));
-    g.setColour(theme::kText.withAlpha(activeAlpha * 0.9f));
+    g.setFont(juce::FontOptions(12.5f, juce::Font::bold));
+    g.setColour(theme::kText.withAlpha(activeAlpha));
     const juce::String clockSummary = "BAR " + juce::String(currentBar, 1) + "/" + juce::String(bars)
         + "  " + juce::String(signature.numerator) + "/" + juce::String(signature.denominator)
         + "  " + juce::String(juce::roundToInt(bpm)) + " BPM";
-    g.drawText(clockSummary, getLocalBounds().toFloat().reduced(8.0f, 2.0f).removeFromBottom(16.0f), juce::Justification::centredRight);
+    g.drawText(clockSummary, getLocalBounds().toFloat().reduced(8.0f, 2.0f).removeFromBottom(17.0f), juce::Justification::centredRight);
 }
 
 SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
@@ -805,21 +805,24 @@ void SweepPanel::resized() {
     auto bounds = getLocalBounds().reduced(12, 6);
     // The slot buttons share the title row, so each knob row below keeps 62 px.
     auto header = bounds.removeFromTop(40);
-    slopePresetBox_.setBounds(header.removeFromRight(126).withSizeKeepingCentre(126, 36));
-    header.removeFromRight(5);
+    const int gap = header.getWidth() >= 1100 ? 8 : 5;
+    slopePresetBox_.setBounds(header.removeFromRight(128).withSizeKeepingCentre(128, 36));
+    header.removeFromRight(gap);
     target_.setBounds(header.removeFromRight(88));
-    header.removeFromRight(5);
-    mode_.setBounds(header.removeFromRight(98));
-    header.removeFromRight(5);
-    bars_.setBounds(header.removeFromRight(92));
-    barsLabel_.setBounds(header.removeFromRight(42));
+    header.removeFromRight(gap);
+    mode_.setBounds(header.removeFromRight(100));
+    header.removeFromRight(gap);
+    bars_.setBounds(header.removeFromRight(88));
+    header.removeFromRight(4);
+    barsLabel_.setBounds(header.removeFromRight(36));
     const auto titleFont = juce::Font(juce::FontOptions(13.0f, juce::Font::bold));
     header.removeFromLeft(juce::GlyphArrangement::getStringWidthInt(titleFont, juce::String(kSweepTitle).toUpperCase()) + 22);
-    enabled_.setBounds(header.removeFromLeft(95).withSizeKeepingCentre(95, 36));
-    header.removeFromLeft(5);
+    header.removeFromLeft(gap);
+    enabled_.setBounds(header.removeFromLeft(96).withSizeKeepingCentre(96, 36));
+    header.removeFromLeft(gap);
     std::ranges::for_each(slotButtons_, [&](juce::TextButton& button) {
         button.setBounds(header.removeFromLeft(64).withSizeKeepingCentre(64, 36));
-        header.removeFromLeft(4);
+        header.removeFromLeft(5);
     });
 
     bounds.removeFromTop(6);
@@ -1186,12 +1189,12 @@ EffectsPanel::EffectsPanel(OpenEdmFilterProcessor& processor)
       output_(processor.parameters, params::kOutput, "Gain", theme::kAccentOut),
       ceiling_(processor.parameters, params::kCeiling, "Ceiling", theme::kAccentOut),
       limiter_(processor.parameters, params::kLimiter, "LIMIT", theme::kAccentOut),
-      sections_{ { { "Input", theme::kAccentOut, 2, {} },
-                   { "Drive", theme::kAccentFx, 3, {} },
-                   { "Crush", theme::kAccentFx, 5, {} },
-                   { "Ring Mod", theme::kAccentFx, 2, {} },
-                   { "FM & Spread", theme::kAccentFx, 3, {} },
-                   { "Output", theme::kAccentOut, 4, {} } } },
+      sections_{ { { "Input", theme::kAccentOut, 22, {} },
+                   { "Drive", theme::kAccentFx, 29, {} },
+                   { "Crush", theme::kAccentFx, 51, {} },
+                   { "Ring Mod", theme::kAccentFx, 18, {} },
+                   { "FM & Spread", theme::kAccentFx, 27, {} },
+                   { "Output", theme::kAccentOut, 40, {} } } },
       inputMeter_(processor.displayInputPeak, "Input", kRefreshHz, theme::kAccentOut),
       outputMeter_(processor.displayOutputPeak, "Output", kRefreshHz, theme::kAccentOut) {
     crushLink_.setTooltip("Make the crush rate follow Filter A's cutoff modulation.");
@@ -1250,22 +1253,26 @@ void EffectsPanel::paint(juce::Graphics& g) {
     std::ranges::for_each(sections_, [&](const Section& section) {
         drawPanel(g, section.area, section.title, section.accent);
     });
-    g.setFont(juce::FontOptions(11.5f));
+    g.setFont(juce::FontOptions(12.0f));
     g.setColour(theme::kTextDim);
-    g.drawText("v" JucePlugin_VersionString, getLocalBounds().reduced(10, 3).removeFromTop(16), juce::Justification::centredRight);
+    const auto outputHeader = sections_.back().area.withHeight(20).withY(sections_.back().area.getY() + 8).reduced(12, 0);
+    g.drawText("v" JucePlugin_VersionString, outputHeader, juce::Justification::centredRight);
 }
 
 void EffectsPanel::resized() {
     auto bounds = getLocalBounds();
-    const int totalUnits = std::accumulate(sections_.begin(), sections_.end(), 0,
+    int remainingUnits = std::accumulate(sections_.begin(), sections_.end(), 0,
         [](int units, const Section& section) { return units + section.units; });
-    const int gaps = kSectionGap * static_cast<int>(sections_.size() - 1);
-    const int unitWidth = (bounds.getWidth() - gaps) / totalUnits;
-    std::ranges::for_each(sections_, [&](Section& section) {
-        section.area = bounds.removeFromLeft(section.units * unitWidth);
+    int remainingWidth = bounds.getWidth() - kSectionGap * static_cast<int>(sections_.size() - 1);
+    for (size_t i = 0; i < sections_.size(); ++i) {
+        const int sectionWidth = (i + 1 == sections_.size())
+            ? remainingWidth
+            : (remainingWidth * sections_[i].units + remainingUnits / 2) / remainingUnits;
+        sections_[i].area = bounds.removeFromLeft(sectionWidth);
         bounds.removeFromLeft(kSectionGap);
-    });
-    sections_.back().area = sections_.back().area.withRight(getWidth());
+        remainingWidth -= sectionWidth;
+        remainingUnits -= sections_[i].units;
+    }
 
     const auto content = [&](size_t section) {
         auto area = sections_[section].area.reduced(8, 0).withTrimmedTop(juce::jmin(34, juce::jmax(18, sections_[section].area.getHeight() / 4)));
@@ -1273,14 +1280,14 @@ void EffectsPanel::resized() {
     };
     auto input = content(0);
     inputMeter_.setBounds(input.removeFromRight(kMeterWidth));
-    layoutRow(input.withTrimmedRight(3), { &inputGain_, &subPreserve_ });
+    layoutRow(input.withTrimmedRight(4), { &inputGain_, &subPreserve_ });
     layoutRow(content(1), { &drive_, &drivePosition_, &analogDrift_ });
     layoutRow(content(2), { &crushRate_, &crushBits_, &crushMix_, &crushPosition_, &crushLink_ });
     layoutRow(content(3), { &ringFrequency_, &ringMix_ });
     layoutRow(content(4), { &fmRate_, &fmDepth_, &stereoSpread_ });
     auto output = content(5);
     outputMeter_.setBounds(output.removeFromRight(kMeterWidth));
-    layoutRow(output.withTrimmedRight(3), { &mix_, &output_, &ceiling_, &limiter_ });
+    layoutRow(output.withTrimmedRight(4), { &mix_, &output_, &ceiling_, &limiter_ });
 }
 
 } // namespace openedm::ui

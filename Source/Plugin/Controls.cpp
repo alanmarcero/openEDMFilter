@@ -11,9 +11,9 @@ namespace {
 
 constexpr int kTitleHeight = 15;
 constexpr int kValueHeight = 15;
-constexpr int kControlHeight = 40;
+constexpr int kControlHeight = 36;
 constexpr int kCellGap = 4;
-constexpr float kTitleFontSize = 11.0f;
+constexpr float kTitleFontSize = 11.5f;
 
 } // namespace
 
@@ -337,9 +337,9 @@ void drawPanel(juce::Graphics& g, juce::Rectangle<int> area, const juce::String&
 }
 
 void drawCaption(juce::Graphics& g, juce::Rectangle<int> area, const juce::String& text) {
-    g.setColour(theme::kTextDim.withAlpha(0.85f));
-    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-    g.drawText(text.toUpperCase(), area.removeFromTop(15), juce::Justification::centredLeft);
+    g.setColour(theme::kTextDim);
+    g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+    g.drawText(text.toUpperCase(), area.removeFromTop(16), juce::Justification::centredLeft);
 }
 
 bool isParamLocked(Apvts& state, const juce::String& paramId) {

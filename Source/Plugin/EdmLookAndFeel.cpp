@@ -160,7 +160,7 @@ juce::Font EdmLookAndFeel::getPopupMenuFont() {
 
 juce::Label* EdmLookAndFeel::createSliderTextBox(juce::Slider& slider) {
     auto* label = LookAndFeel_V4::createSliderTextBox(slider);
-    label->setFont(juce::FontOptions(11.5f));
+    label->setFont(juce::FontOptions(12.0f));
     return label;
 }
 

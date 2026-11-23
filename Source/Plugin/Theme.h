@@ -20,6 +20,6 @@ inline const juce::Colour kAccentSpectrum{ 0xff5ce1ff };
 inline const juce::Colour kBypassEngaged = kTextDim;
 
 // Alpha for a control that has no effect now or cannot act.
-inline constexpr float kInactiveAlpha = 0.4f;
+inline constexpr float kInactiveAlpha = 0.6f;
 
 } // namespace openedm::theme

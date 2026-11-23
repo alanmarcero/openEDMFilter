@@ -1106,9 +1106,9 @@ TEST_CASE("The look and feel draws disabled buttons, dials and menus dimmed", "[
         return total;
     };
 
-    CHECK(ink(button, false) < 0.6f * ink(button, true));
-    CHECK(ink(dial, false) < 0.6f * ink(dial, true));
-    CHECK(ink(menu, false) < 0.6f * ink(menu, true));
+    CHECK(ink(button, false) < 0.7f * ink(button, true));
+    CHECK(ink(dial, false) < 0.7f * ink(dial, true));
+    CHECK(ink(menu, false) < 0.7f * ink(menu, true));
 }
 
 TEST_CASE("AUTO SWEEP replaces the sweep BYPASS and engaged bypass draws as off", "[plugin][ui]") {
