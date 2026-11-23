@@ -236,7 +236,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{ id("step_pulses"), 4 }, name + "Euclidean Pulses", 0, 16, 4));
         layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{ id("step_rotation"), 4 }, name + "Step Rotation", 0, 15, 0));
         addFloat(layout, id("step_beats"), name + "Beats per Step", { 0.0625f, 4.0f }, 0.25f,
-            { [](float value, int) { return juce::String(value, 4) + " beats"; }, kParseNumber }, 4);
+            { [](float value, int) {
+                auto text = juce::String(value, 4).trimCharactersAtEnd("0").trimCharactersAtEnd(".");
+                return text == "1" ? juce::String("1 beat") : text + " beats";
+            }, kParseNumber }, 4);
         addFloat(layout, id("step_depth"), name + "Step Depth", { -1.0f, 1.0f }, 0.0f, kFormatBipolar, 4);
         addFloat(layout, id("lane2_depth"), name + "R/S Mod Depth", { -1.0f, 1.0f }, 1.0f, kFormatBipolar, 4);
         addFloat(layout, id("lane2_phase"), name + "R/S Phase Offset", { 0.0f, 1.0f }, 0.0f, kFormatPercent, 4);

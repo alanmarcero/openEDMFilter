@@ -42,9 +42,14 @@ public:
     void setTooltip(const juce::String& text);
 
 private:
+    class LockableComboBox : public juce::ComboBox {
+    public:
+        void mouseDown(const juce::MouseEvent& event) override;
+    };
+
     Apvts& state_;
     juce::Colour accent_;
-    juce::ComboBox box_;
+    LockableComboBox box_;
     juce::Label title_;
     std::unique_ptr<Apvts::ComboBoxAttachment> attachment_;
 };
@@ -122,6 +127,8 @@ void drawCaption(juce::Graphics& g, juce::Rectangle<int> area, const juce::Strin
 [[nodiscard]] bool isParamLocked(Apvts& state, const juce::String& paramId);
 void drawPadlockBadge(juce::Graphics& g, juce::Rectangle<float> bounds, juce::Colour accent);
 void showParamLockMenu(juce::Component& anchor, Apvts& state, std::vector<juce::String> paramIds,
-                       const juce::String& displayName);
+                       const juce::String& displayName,
+                       std::vector<juce::String> groupParamIds = {},
+                       const juce::String& groupDisplayName = {});
 
 } // namespace openedm::ui

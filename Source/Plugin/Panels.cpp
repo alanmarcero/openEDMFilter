@@ -41,6 +41,7 @@ constexpr const char* kSweepDrivenHint
 ResponseView::ResponseView(OpenEdmFilterProcessor& processor)
     : processor_(processor) {
     setMouseCursor(juce::MouseCursor::CrosshairCursor);
+    setTooltip("Drag a filter dot to set cutoff (horizontal) and resonance (vertical).");
     startTimerHz(kRefreshHz);
 }
 
@@ -79,13 +80,29 @@ float ResponseView::displayResonance(int band) const {
 }
 
 void ResponseView::mouseDown(const juce::MouseEvent& event) {
+    if (processor_.parameters.getRawParameterValue(params::kMasterBypass)->load() > 0.5f)
+        return;
     // Auto Sweep overrides a swept band's cutoff and resonance, so a click moves only a band it leaves free.
     const auto sweep = processor_.currentSweepSettings();
+    const auto isBypassed = [&](int band) {
+        return processor_.parameters.getRawParameterValue(params::bandId(band, params::kBypass))->load() > 0.5f;
+    };
     const auto isFree = [&](int band) { return !core::AutoSweep::appliesToBand(sweep, band); };
     if (!isFree(0) && !isFree(1))
         return;
+    const auto isActiveFree = [&](int band) { return isFree(band) && !isBypassed(band); };
     const auto distanceTo = [&](int band) { return std::abs(event.position.x - xForHz(displayCutoff(band))); };
-    const int band = !isFree(1) || (isFree(0) && distanceTo(0) <= distanceTo(1)) ? 0 : 1;
+    int band = 0;
+    if (isActiveFree(0) && isActiveFree(1))
+        band = distanceTo(0) <= distanceTo(1) ? 0 : 1;
+    else if (isActiveFree(0))
+        band = 0;
+    else if (isActiveFree(1))
+        band = 1;
+    else if (isFree(0) && isFree(1))
+        band = distanceTo(0) <= distanceTo(1) ? 0 : 1;
+    else
+        band = isFree(0) ? 0 : 1;
     dragCutoff_ = processor_.parameters.getParameter(params::bandId(band, params::kCutoff));
     dragResonance_ = processor_.parameters.getParameter(params::bandId(band, params::kResonance));
     resonanceAtDragStart_ = dragResonance_->getValue();
@@ -291,6 +308,7 @@ void ResponseView::paint(juce::Graphics& g) {
 SweepSlopeEditor::SweepSlopeEditor(OpenEdmFilterProcessor& processor)
     : processor_(processor) {
     setMouseCursor(juce::MouseCursor::CrosshairCursor);
+    setTooltip("Drag start, curve, or end handles to shape cutoff and resonance sweeps. Double-click a curve handle to reset. Right-click a handle to lock.");
     startTimerHz(kRefreshHz);
 }
 
@@ -367,16 +385,29 @@ juce::Point<float> SweepSlopeEditor::handlePosition(Handle handle, const core::A
     return plot.getCentre();
 }
 
-void SweepSlopeEditor::mouseDown(const juce::MouseEvent& event) {
-    const auto settings = processor_.currentSweepSettings();
+SweepSlopeEditor::Handle SweepSlopeEditor::nearestHandle(juce::Point<float> position,
+                                                         const core::AutoSweepSettings& settings) const {
     const std::array<Handle, 6> handles{
         Handle::CutoffStart, Handle::CutoffSlope, Handle::CutoffEnd,
         Handle::ResStart, Handle::ResSlope, Handle::ResEnd
     };
-    activeHandle_ = *std::ranges::min_element(handles, [&](Handle a, Handle b) {
-        return event.position.getDistanceFrom(handlePosition(a, settings))
-             < event.position.getDistanceFrom(handlePosition(b, settings));
+    return *std::ranges::min_element(handles, [&](Handle a, Handle b) {
+        return position.getDistanceFrom(handlePosition(a, settings))
+             < position.getDistanceFrom(handlePosition(b, settings));
     });
+}
+
+void SweepSlopeEditor::mouseDown(const juce::MouseEvent& event) {
+    const auto settings = processor_.currentSweepSettings();
+    const Handle nearest = nearestHandle(event.position, settings);
+    if (event.mods.isPopupMenu()) {
+        if (const char* id = parameterIdForHandle(nearest)) {
+            const auto paramId = params::sweepId(processor_.currentSweepSlot(), id);
+            showParamLockMenu(*this, processor_.parameters, { paramId }, {});
+        }
+        return;
+    }
+    activeHandle_ = nearest;
     if (const char* id = parameterIdForHandle(activeHandle_)) {
         dragSlot_ = processor_.currentSweepSlot();
         activeParameter_ = processor_.parameters.getParameter(params::sweepId(dragSlot_, id));
@@ -580,11 +611,11 @@ void SweepSlopeEditor::paint(juce::Graphics& g) {
     // Header overlay showing live bar, time signature, BPM and slope endpoints
     const auto headerBar = getLocalBounds().toFloat().reduced(8.0f, 2.0f).removeFromTop(14.0f);
     g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
-    g.setColour(theme::kAccentA);
+    g.setColour(theme::kAccentA.withAlpha(activeAlpha));
     const juce::String cutSummary = "CUT " + params::formatHz(settings.cutoffStartHz) + " -> " + params::formatHz(settings.cutoffEndHz);
     g.drawText(cutSummary, headerBar.withWidth(155.0f), juce::Justification::centredLeft);
 
-    g.setColour(theme::kAccentB);
+    g.setColour(theme::kAccentB.withAlpha(activeAlpha));
     const juce::String resSummary = "RES " + juce::String(juce::roundToInt(settings.resonanceStart * 100.0f)) + "% -> "
         + juce::String(juce::roundToInt(settings.resonanceEnd * 100.0f)) + "%";
     g.drawText(resSummary, headerBar.withTrimmedLeft(155.0f).withWidth(105.0f), juce::Justification::centredLeft);
@@ -592,7 +623,7 @@ void SweepSlopeEditor::paint(juce::Graphics& g) {
     const auto signature = processor_.displayTimeSignature.load();
     const float currentBar = phase * static_cast<float>(bars) + 1.0f;
     const float bpm = processor_.displayBpm.load();
-    g.setColour(theme::kTextDim);
+    g.setColour(theme::kTextDim.withAlpha(activeAlpha));
     const juce::String clockSummary = "BAR " + juce::String(currentBar, 1) + "/" + juce::String(bars)
         + "  " + juce::String(signature.numerator) + "/" + juce::String(signature.denominator)
         + "  " + juce::String(juce::roundToInt(bpm)) + " BPM";
@@ -652,6 +683,7 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
     barsLabel_.setFont(juce::FontOptions(11.0f, juce::Font::bold));
     barsLabel_.setColour(juce::Label::textColourId, theme::kTextDim);
     barsLabel_.setJustificationType(juce::Justification::centredRight);
+    barsLabel_.setBorderSize({ 1, 1, 1, 1 });
     slopePresetBox_.setComponentID("sweepPreset");
     slopePresetBox_.setTitle("Sweep preset");
     slopePresetBox_.setTextWhenNothingSelected("Sweep Preset...");
@@ -703,13 +735,13 @@ void SweepPanel::mouseDown(const juce::MouseEvent& event) {
 
 void SweepPanel::paintOverChildren(juce::Graphics& g) {
     if (processor_.isParamLocked(params::kSweepEnabled) || processor_.isParamLocked(params::kSweepBypass)) {
-        drawPadlockBadge(g, { static_cast<float>(enabled_.getRight()) - 13.0f,
-                              static_cast<float>(enabled_.getY()) + 2.0f, 11.0f, 12.0f }, theme::kAccentA);
+        drawPadlockBadge(g, { static_cast<float>(enabled_.getRight()) - 11.0f,
+                              static_cast<float>(enabled_.getY()) + 2.0f, 9.0f, 10.0f }, theme::kAccentA);
     }
     if (processor_.isParamLocked(params::kSweepSlot)) {
         for (const auto& button : slotButtons_) {
-            drawPadlockBadge(g, { static_cast<float>(button.getRight()) - 12.0f,
-                                  static_cast<float>(button.getY()) + 2.0f, 10.0f, 11.0f }, theme::kAccentA);
+            drawPadlockBadge(g, { static_cast<float>(button.getRight()) - 11.0f,
+                                  static_cast<float>(button.getY()) + 2.0f, 9.0f, 10.0f }, theme::kAccentA);
         }
     }
 }
@@ -767,14 +799,14 @@ void SweepPanel::resized() {
     auto bounds = getLocalBounds().reduced(12, 6);
     // The slot buttons share the title row, so each knob row below keeps 62 px.
     auto header = bounds.removeFromTop(40);
-    slopePresetBox_.setBounds(header.removeFromRight(138).withSizeKeepingCentre(138, 36));
+    slopePresetBox_.setBounds(header.removeFromRight(126).withSizeKeepingCentre(126, 36));
     header.removeFromRight(5);
     target_.setBounds(header.removeFromRight(88));
     header.removeFromRight(5);
     mode_.setBounds(header.removeFromRight(98));
     header.removeFromRight(5);
     bars_.setBounds(header.removeFromRight(92));
-    barsLabel_.setBounds(header.removeFromRight(40));
+    barsLabel_.setBounds(header.removeFromRight(34));
     const auto titleFont = juce::Font(juce::FontOptions(13.0f, juce::Font::bold));
     header.removeFromLeft(juce::GlyphArrangement::getStringWidthInt(titleFont, juce::String(kSweepTitle).toUpperCase()) + 22);
     enabled_.setBounds(header.removeFromLeft(95).withSizeKeepingCentre(95, 36));
@@ -830,7 +862,12 @@ BandPanel::BandPanel(Apvts& state, int band)
       envDepth_(state, params::bandId(band, params::kEnvDepth), "Depth", accent_),
       envListen_(state, params::bandId(band, params::kEnvInput), "Listen", accent_),
       bypassValue_(*state.getRawParameterValue(params::bandId(band, params::kBypass))),
-      masterBypassValue_(*state.getRawParameterValue(params::kMasterBypass)) {
+      masterBypassValue_(*state.getRawParameterValue(params::kMasterBypass)),
+      typeValue_(*state.getRawParameterValue(params::bandId(band, params::kType))),
+      extTypeValue_(*state.getRawParameterValue(params::bandId(band, params::kExtendedType))),
+      resoValue_(*state.getRawParameterValue(params::bandId(band, params::kResonance))),
+      lfoDepthValue_(*state.getRawParameterValue(params::bandId(band, params::kLfoDepth))),
+      envDepthValue_(*state.getRawParameterValue(params::bandId(band, params::kEnvDepth))) {
     std::ranges::for_each(std::initializer_list<juce::Component*>{
                               &bypass_, &type_, &slope_, &cutoff_, &resonance_, &width_, &lfoShape_, &lfoRate_,
                               &lfoDepth_, &envSource_, &envAttack_, &envRelease_, &envDepth_, &envListen_ },
@@ -843,11 +880,29 @@ BandPanel::BandPanel(Apvts& state, int band)
 void BandPanel::refresh(bool isSweepDriven) {
     const bool isAllBypassed = masterBypassValue_.load() > 0.5f;
     const bool isBypassed = bypassValue_.load() > 0.5f;
+    const int effType = params::effectiveType(juce::roundToInt(typeValue_.load()), juce::roundToInt(extTypeValue_.load()));
+    const bool isWidthUnused = (effType == 0 || effType == 1) && !isSweepDriven && resoValue_.load() <= 0.0005f;
+    const bool isLfoOff = std::abs(lfoDepthValue_.load()) <= 0.0005f;
+    const bool isEnvOff = std::abs(envDepthValue_.load()) <= 0.0005f;
     std::ranges::for_each(getChildren(), [&](juce::Component* control) {
         const bool isBandOff = isBypassed && control != &bypass_;
         const bool isDriven = isSweepDriven && (control == &cutoff_ || control == &resonance_);
-        const auto* ownHint = isBandOff ? kBandBypassHint : kSweepDrivenHint;
-        setInactive(*control, isAllBypassed || isBandOff || isDriven, isAllBypassed ? kAllBypassHint : ownHint);
+        const bool isUnusedWidth = control == &width_ && isWidthUnused;
+        const bool isUnusedLfo = isLfoOff && (control == &lfoShape_ || control == &lfoRate_);
+        const bool isUnusedEnv = isEnvOff && (control == &envListen_ || control == &envSource_
+                                              || control == &envAttack_ || control == &envRelease_);
+        juce::String ownHint;
+        if (isBandOff)
+            ownHint = kBandBypassHint;
+        else if (isDriven)
+            ownHint = kSweepDrivenHint;
+        else if (isUnusedWidth)
+            ownHint = "Turn up Resonance (or choose Band Pass / Notch / Shelf / Bell) to use Width.";
+        else if (isUnusedLfo)
+            ownHint = "Turn LFO Depth away from 0% to use this control.";
+        else if (isUnusedEnv)
+            ownHint = "Turn Envelope Depth away from 0% to use this control.";
+        setInactive(*control, isAllBypassed || ownHint.isNotEmpty(), isAllBypassed ? kAllBypassHint : ownHint);
     });
 }
 
@@ -887,12 +942,14 @@ void BandPanel::resized() {
 
 StepGrid::StepGrid(Apvts& state, int band, juce::Colour accent)
     : state_(state),
+      band_(band),
       accent_(accent),
       length_(*state.getParameter(params::bandId(band, "step_length"))),
       lengthWatcher_(length_, [this](float) { repaint(); }) {
     setComponentID(params::bandId(band, "step_grid"));
     setTitle(juce::String(band == 0 ? "Filter A" : "Filter B") + " step values");
     setTooltip("Drag across the bars to draw step values. Double-click a bar to reset it to 0.");
+    setMouseCursor(juce::MouseCursor::CrosshairCursor);
     std::ranges::for_each(std::views::iota(size_t{ 0 }, values_.size()), [&](size_t step) {
         values_[step] = state.getParameter(params::bandId(band, "step_") + juce::String(step + 1));
         stepAttachments_.push_back(std::make_unique<juce::ParameterAttachment>(*values_[step], [this](float) { repaint(); }));
@@ -904,7 +961,12 @@ void StepGrid::mouseDown(const juce::MouseEvent& event) {
         const auto area = getLocalBounds().toFloat().reduced(kStepGridInset);
         const int step = juce::jlimit(0, 15, static_cast<int>((event.position.x - area.getX()) / area.getWidth() * 16.0f));
         auto* param = values_[static_cast<size_t>(step)];
-        showParamLockMenu(*this, state_, { param->paramID }, param->getName(64));
+        std::vector<juce::String> allIds;
+        allIds.reserve(values_.size());
+        for (const auto* stepParam : values_)
+            allIds.push_back(stepParam->paramID);
+        showParamLockMenu(*this, state_, { param->paramID }, param->getName(64),
+                          std::move(allIds), band_ == 0 ? "Filter A steps" : "Filter B steps");
         return;
     }
     lastStep_ = -1;
@@ -982,7 +1044,8 @@ BandModulation::BandModulation(Apvts& state, int band)
       lanePhase_(state, params::bandId(band, "lane2_phase"), "Phase", accent_),
       laneOffset_(state, params::bandId(band, "lane2_offset"), "Offset", accent_),
       stepModeValue_(*state.getRawParameterValue(params::bandId(band, "step_mode"))),
-      midiSourceValue_(*state.getRawParameterValue(params::bandId(band, "midi_source"))) {
+      midiSourceValue_(*state.getRawParameterValue(params::bandId(band, "midi_source"))),
+      bypassValue_(*state.getRawParameterValue(params::bandId(band, params::kBypass))) {
     std::ranges::for_each(std::initializer_list<juce::Component*>{
                               &stepMode_, &stepLength_, &stepBeats_, &stepPulses_, &stepRotation_, &stepDepth_, &steps_,
                               &midiSource_, &midiCc_, &midiDepth_, &laneDepth_, &lanePhase_, &laneOffset_ },
@@ -1015,12 +1078,15 @@ void BandModulation::resized() {
 
 void BandModulation::refresh(bool isLinked, bool isAllBypassed) {
     // Step mode 0 is Off and 2 is Euclidean. MIDI source 0 is Off and 3 is CC.
+    const bool isBypassed = bypassValue_.load() > 0.5f;
     const int stepMode = juce::roundToInt(stepModeValue_.load());
     const int midiSource = juce::roundToInt(midiSourceValue_.load());
     const std::array<juce::Component*, 4> stepControls{ &stepLength_, &stepBeats_, &stepRotation_, &stepDepth_ };
     const std::array<juce::Component*, 3> laneControls{ &laneDepth_, &lanePhase_, &laneOffset_ };
     // The hint says what turns a control on. It is empty while the control has an effect.
     const auto ownHint = [&](juce::Component* control) -> juce::String {
+        if (isBypassed)
+            return kBandBypassHint;
         if (stepMode == 0 && std::ranges::find(stepControls, control) != stepControls.end())
             return "Choose Steps or Euclidean mode to use this control.";
         if (control == &stepPulses_ && stepMode != 2)
@@ -1052,7 +1118,8 @@ ModulationPage::ModulationPage(Apvts& state)
       bandB_(state, 1),
       routingValue_(*state.getRawParameterValue("routing")),
       channelsValue_(*state.getRawParameterValue("stereo_mode")),
-      masterBypassValue_(*state.getRawParameterValue(params::kMasterBypass)) {
+      masterBypassValue_(*state.getRawParameterValue(params::kMasterBypass)),
+      fmDepthValue_(*state.getRawParameterValue(params::kFmDepth)) {
     setComponentID("modulationPage");
     std::ranges::for_each(std::initializer_list<juce::Component*>{ &routing_, &blend_, &channels_, &fmShape_, &fmTarget_, &bandA_, &bandB_ },
                           [this](juce::Component* control) { addAndMakeVisible(control); });
@@ -1077,10 +1144,15 @@ void ModulationPage::resized() {
 void ModulationPage::refresh() {
     const bool isAllBypassed = masterBypassValue_.load() > 0.5f;
     const bool isSerial = routingValue_.load() < 0.5f;
+    const bool isFmOff = fmDepthValue_.load() <= 0.0005f;
     std::ranges::for_each(std::initializer_list<juce::Component*>{ &routing_, &blend_, &channels_, &fmShape_, &fmTarget_ },
                           [&](juce::Component* control) {
         const bool isBlendUnused = control == &blend_ && isSerial;
-        setInactive(*control, isAllBypassed || isBlendUnused, isAllBypassed ? kAllBypassHint : "Choose Parallel routing to use the blend.");
+        const bool isFmUnused = isFmOff && (control == &fmShape_ || control == &fmTarget_);
+        const juce::String ownHint = isBlendUnused
+            ? "Choose Parallel routing to use the blend."
+            : (isFmUnused ? "Turn up FM Depth on the Effects strip to use this control." : juce::String{});
+        setInactive(*control, isAllBypassed || ownHint.isNotEmpty(), isAllBypassed ? kAllBypassHint : ownHint);
     });
     const bool isLinked = channelsValue_.load() < 0.5f;
     bandA_.refresh(isLinked, isAllBypassed);
@@ -1128,17 +1200,35 @@ EffectsPanel::EffectsPanel(OpenEdmFilterProcessor& processor)
                               &crushLink_, &ringFrequency_, &ringMix_, &fmRate_, &fmDepth_, &stereoSpread_, &mix_, &output_,
                               &ceiling_, &limiter_, &inputMeter_, &outputMeter_ },
                           [this](juce::Component* control) { addAndMakeVisible(control); });
+    timerCallback();
 }
 
 void EffectsPanel::timerCallback() {
     inputMeter_.update();
     outputMeter_.update();
-    const auto isOn = [this](const char* id) { return processor_.parameters.getRawParameterValue(id)->load() > 0.5f; };
-    const bool isAllBypassed = isOn(params::kMasterBypass);
-    const bool isLimiting = isOn(params::kLimiter);
+    const auto raw = [this](const char* id) { return processor_.parameters.getRawParameterValue(id)->load(); };
+    const bool isAllBypassed = raw(params::kMasterBypass) > 0.5f;
+    const bool isLimiting = raw(params::kLimiter) > 0.5f;
+    const bool isDriveOff = raw(params::kDrive) <= 0.0005f;
+    const auto sweep = processor_.currentSweepSettings();
+    const bool hasSweepCrush = sweep.enabled && (sweep.crush.start > 0.0005f || sweep.crush.end > 0.0005f);
+    const bool isCrushOff = raw(params::kCrushMix) <= 0.0005f && !hasSweepCrush;
+    const bool isRingOff = raw(params::kRingMix) <= 0.0005f;
+    const bool isFmOff = raw(params::kFmDepth) <= 0.0005f;
     std::ranges::for_each(getChildren(), [&](juce::Component* control) {
-        const bool isCeilingUnused = control == &ceiling_ && !isLimiting;
-        setInactive(*control, isAllBypassed || isCeilingUnused, isAllBypassed ? kAllBypassHint : "Turn on LIMIT to use the ceiling.");
+        juce::String ownHint;
+        if (control == &ceiling_ && !isLimiting)
+            ownHint = "Turn on LIMIT to use the ceiling.";
+        else if (control == &drivePosition_ && isDriveOff)
+            ownHint = "Turn up Drive Amount to use Position.";
+        else if (isCrushOff && (control == &crushRate_ || control == &crushBits_
+                                || control == &crushPosition_ || control == &crushLink_))
+            ownHint = "Turn up Crush Mix or enable Sweep Crush to use this control.";
+        else if (control == &ringFrequency_ && isRingOff)
+            ownHint = "Turn up Ring Mod Mix to use Freq.";
+        else if (control == &fmRate_ && isFmOff)
+            ownHint = "Turn up FM Depth to use Rate.";
+        setInactive(*control, isAllBypassed || ownHint.isNotEmpty(), isAllBypassed ? kAllBypassHint : ownHint);
     });
 }
 

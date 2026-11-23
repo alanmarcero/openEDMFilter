@@ -52,7 +52,8 @@ Knob::~Knob() {
 
 void Knob::paintOverChildren(juce::Graphics& g) {
     if (isParamLocked(state_, getComponentID()))
-        drawPadlockBadge(g, { static_cast<float>(getWidth()) - 13.0f, 1.0f, 11.0f, 12.0f }, accent_);
+        drawPadlockBadge(g, { static_cast<float>(getWidth()) - 13.0f,
+                              static_cast<float>(slider_.getY()) + 1.0f, 11.0f, 12.0f }, accent_);
 }
 
 void Knob::mouseDown(const juce::MouseEvent& event) {
@@ -91,6 +92,12 @@ void Knob::resized() {
     slider_.setBounds(bounds);
 }
 
+void Choice::LockableComboBox::mouseDown(const juce::MouseEvent& event) {
+    if (event.mods.isPopupMenu())
+        return;
+    juce::ComboBox::mouseDown(event);
+}
+
 Choice::Choice(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent)
     : state_(state),
       accent_(accent),
@@ -105,6 +112,7 @@ Choice::Choice(Apvts& state, const juce::String& parameterId, const juce::String
     title_.setFont(juce::FontOptions(kTitleFontSize, juce::Font::bold));
     title_.setColour(juce::Label::textColourId, theme::kTextDim);
     title_.setJustificationType(juce::Justification::centred);
+    title_.setBorderSize({ 1, 1, 1, 1 });
     addAndMakeVisible(box_);
     addChildComponent(title_);
     title_.setVisible(title.isNotEmpty());
@@ -117,7 +125,8 @@ Choice::~Choice() {
 
 void Choice::paintOverChildren(juce::Graphics& g) {
     if (isParamLocked(state_, getComponentID()))
-        drawPadlockBadge(g, { static_cast<float>(getWidth()) - 13.0f, 1.0f, 11.0f, 12.0f }, accent_);
+        drawPadlockBadge(g, { static_cast<float>(box_.getRight()) - 30.0f,
+                              static_cast<float>(box_.getY()) + 2.0f, 11.0f, 12.0f }, accent_);
 }
 
 void Choice::mouseDown(const juce::MouseEvent& event) {
@@ -178,7 +187,7 @@ FilterTypeMenu::FilterTypeMenu(Apvts& state, int band, juce::Colour accent)
 void FilterTypeMenu::paintOverChildren(juce::Graphics& g) {
     if (isParamLocked(state_, params::bandId(band_, params::kType))
         || isParamLocked(state_, params::bandId(band_, params::kExtendedType))) {
-        drawPadlockBadge(g, { static_cast<float>(getWidth()) - 13.0f, 2.0f, 11.0f, 12.0f }, accent_);
+        drawPadlockBadge(g, { static_cast<float>(getWidth()) - 30.0f, 2.0f, 11.0f, 12.0f }, accent_);
     }
 }
 
@@ -216,7 +225,8 @@ Toggle::~Toggle() {
 
 void Toggle::paintOverChildren(juce::Graphics& g) {
     if (isParamLocked(state_, getComponentID()))
-        drawPadlockBadge(g, { static_cast<float>(getWidth()) - 13.0f, 2.0f, 11.0f, 12.0f }, accent_);
+        drawPadlockBadge(g, { static_cast<float>(button_.getRight()) - 11.0f,
+                              static_cast<float>(button_.getY()) + 2.0f, 9.0f, 10.0f }, accent_);
 }
 
 void Toggle::mouseDown(const juce::MouseEvent& event) {
@@ -339,8 +349,11 @@ bool isParamLocked(Apvts& state, const juce::String& paramId) {
 }
 
 void drawPadlockBadge(juce::Graphics& g, juce::Rectangle<float> bounds, juce::Colour accent) {
-    g.setColour(theme::kBackground.withAlpha(0.82f));
-    g.fillRoundedRectangle(bounds.expanded(1.0f), 2.5f);
+    const auto pill = bounds.expanded(1.0f);
+    g.setColour(theme::kBackground.withAlpha(0.92f));
+    g.fillRoundedRectangle(pill, 2.5f);
+    g.setColour(accent.withAlpha(0.6f));
+    g.drawRoundedRectangle(pill, 2.5f, 1.0f);
 
     const float bodyW = bounds.getWidth() * 0.72f;
     const float bodyH = bounds.getHeight() * 0.48f;
@@ -360,12 +373,16 @@ void drawPadlockBadge(juce::Graphics& g, juce::Rectangle<float> bounds, juce::Co
 }
 
 void showParamLockMenu(juce::Component& anchor, Apvts& state, std::vector<juce::String> paramIds,
-                       const juce::String& displayName) {
+                       const juce::String& displayName,
+                       std::vector<juce::String> groupParamIds,
+                       const juce::String& groupDisplayName) {
     auto* processor = dynamic_cast<OpenEdmFilterProcessor*>(&state.processor);
     if (processor == nullptr || paramIds.empty())
         return;
 
     const bool locked = std::ranges::any_of(paramIds, [&](const auto& id) { return processor->isParamLocked(id); });
+    const bool groupLocked = !groupParamIds.empty()
+        && std::ranges::all_of(groupParamIds, [&](const auto& id) { return processor->isParamLocked(id); });
     juce::String label = displayName;
     if (label.isEmpty()) {
         if (auto* param = state.getParameter(paramIds.front()))
@@ -376,6 +393,8 @@ void showParamLockMenu(juce::Component& anchor, Apvts& state, std::vector<juce::
 
     juce::PopupMenu menu;
     menu.addItem(1, (locked ? "Unlock " : "Lock ") + label);
+    if (!groupParamIds.empty())
+        menu.addItem(3, (groupLocked ? "Unlock all " : "Lock all ") + groupDisplayName);
     if (processor->hasAnyLockedParams()) {
         menu.addSeparator();
         menu.addItem(2, "Unlock all parameters");
@@ -383,10 +402,14 @@ void showParamLockMenu(juce::Component& anchor, Apvts& state, std::vector<juce::
 
     const juce::Component::SafePointer<juce::Component> safeAnchor(&anchor);
     menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&anchor),
-                       [processor, ids = std::move(paramIds), locked, safeAnchor](int result) {
+                       [processor, ids = std::move(paramIds), locked,
+                        groupIds = std::move(groupParamIds), groupLocked, safeAnchor](int result) {
         if (result == 1) {
             for (const auto& id : ids)
                 processor->setParamLocked(id, !locked);
+        } else if (result == 3) {
+            for (const auto& id : groupIds)
+                processor->setParamLocked(id, !groupLocked);
         } else if (result == 2) {
             processor->unlockAllParams();
         } else {

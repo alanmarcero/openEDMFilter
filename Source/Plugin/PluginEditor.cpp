@@ -44,14 +44,17 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     presetBrowser_->onRenamed = [this](const juce::String& from, const juce::String& to) { processor_.renamePreset(from, to); };
     addChildComponent(*presetBrowser_);
 
-    suiteBar_.onUndo = [this] { processor_.undoEdit(); };
-    suiteBar_.onRedo = [this] { processor_.redoEdit(); };
-    suiteBar_.onShowA = [this] { if (processor_.abSlot() != 0) processor_.toggleAB(); };
-    suiteBar_.onShowB = [this] { if (processor_.abSlot() != 1) processor_.toggleAB(); };
-    suiteBar_.onCopyAToB = [this] { processor_.copyBetweenSlots(0, 1); };
-    suiteBar_.onCopyBToA = [this] { processor_.copyBetweenSlots(1, 0); };
+    suiteBar_.onUndo = [this] { presetBrowser_->disarm(); processor_.undoEdit(); };
+    suiteBar_.onRedo = [this] { presetBrowser_->disarm(); processor_.redoEdit(); };
+    suiteBar_.onShowA = [this] { presetBrowser_->disarm(); if (processor_.abSlot() != 0) processor_.toggleAB(); };
+    suiteBar_.onShowB = [this] { presetBrowser_->disarm(); if (processor_.abSlot() != 1) processor_.toggleAB(); };
+    suiteBar_.onCopyAToB = [this] { presetBrowser_->disarm(); processor_.copyBetweenSlots(0, 1); };
+    suiteBar_.onCopyBToA = [this] { presetBrowser_->disarm(); processor_.copyBetweenSlots(1, 0); };
     suiteBar_.onPresets = [this] {
+        presetBrowser_->disarm();
         presetBrowserVisible_ = !presetBrowserVisible_;
+        if (presetBrowserVisible_)
+            presetBrowser_->selectPreset(processor_.presetName());
         resized();
     };
     suiteBar_.setActiveSlot(processor_.abSlot());
@@ -62,19 +65,28 @@ OpenEdmFilterEditor::OpenEdmFilterEditor(OpenEdmFilterProcessor& processorToEdit
     presetBox_.setTitle("Preset");
     presetBox_.setColour(juce::ComboBox::outlineColourId, theme::kPanelEdge);
     presetBox_.setText(processor_.presetDisplayName(), juce::dontSendNotification);
-    presetBox_.onChange = [this] { processor_.setCurrentProgram(presetBox_.getSelectedId() - 1); };
+    presetBox_.onChange = [this] {
+        presetBrowser_->disarm();
+        processor_.setCurrentProgram(presetBox_.getSelectedId() - 1);
+    };
 
     prevPresetBtn_.setComponentID("prevPreset");
     prevPresetBtn_.setTitle("Previous preset");
     prevPresetBtn_.setTooltip("Previous preset");
     prevPresetBtn_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentA);
-    prevPresetBtn_.onClick = [this] { presetBrowser_->loadNeighbour(processor_.presetName(), -1); };
+    prevPresetBtn_.onClick = [this] {
+        presetBrowser_->disarm();
+        presetBrowser_->loadNeighbour(processor_.presetName(), -1);
+    };
 
     nextPresetBtn_.setComponentID("nextPreset");
     nextPresetBtn_.setTitle("Next preset");
     nextPresetBtn_.setTooltip("Next preset");
     nextPresetBtn_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentA);
-    nextPresetBtn_.onClick = [this] { presetBrowser_->loadNeighbour(processor_.presetName(), 1); };
+    nextPresetBtn_.onClick = [this] {
+        presetBrowser_->disarm();
+        presetBrowser_->loadNeighbour(processor_.presetName(), 1);
+    };
 
     advancedButton_.setComponentID("advancedModulation");
     advancedButton_.setTitle("Modulation page");
@@ -134,6 +146,7 @@ bool OpenEdmFilterEditor::keyPressed(const juce::KeyPress& key) {
     const bool isZ = code == 'z' || code == 'Z';
     if (!key.getModifiers().isCommandDown() || !isZ)
         return false;
+    presetBrowser_->disarm();
     if (key.getModifiers().isShiftDown())
         processor_.redoEdit();
     else
@@ -148,8 +161,10 @@ bool OpenEdmFilterEditor::keyPressed(const juce::KeyPress& key, juce::Component*
 }
 
 void OpenEdmFilterEditor::timerCallback() {
-    if (const auto shown = processor_.presetDisplayName(); presetBox_.getText() != shown)
+    if (const auto shown = processor_.presetDisplayName(); presetBox_.getText() != shown) {
         presetBox_.setText(shown, juce::dontSendNotification);
+        presetBrowser_->selectPreset(processor_.presetName());
+    }
     suiteBar_.setHistoryEnabled(processor_.canUndoEdit(), processor_.canRedoEdit());
     suiteBar_.setActiveSlot(processor_.abSlot());
     const auto sweep = processor_.currentSweepSettings();
@@ -201,7 +216,7 @@ void OpenEdmFilterEditor::resized() {
     if (!applyingStateSize_)
         processor_.setEditorSize(getWidth(), getHeight());
 
-    const int margin = getWidth() < 1100 ? 8 : 12;
+    const int margin = getWidth() <= 1100 ? 8 : 12;
     auto bounds = getLocalBounds().reduced(margin);
     headerHeight_ = 40;
     auto header = bounds.removeFromTop(headerHeight_);

@@ -9,7 +9,7 @@ namespace openedm::ui {
 
 // Live response curve of both filters, including LFO, envelope, FM and multi-bar auto-sweep movement.
 // Dragging a band's marker sets its cutoff (horizontal) and resonance (vertical).
-class ResponseView : public juce::Component, private juce::Timer {
+class ResponseView : public juce::Component, public juce::SettableTooltipClient, private juce::Timer {
 public:
     explicit ResponseView(OpenEdmFilterProcessor& processor);
     void paint(juce::Graphics& g) override;
@@ -39,7 +39,7 @@ private:
 
 // Interactive multi-bar slope editor for cutoff and resonance trajectories.
 // Dragging the start, midpoint or end handles edits the cutoff and resonance slopes in real time.
-class SweepSlopeEditor : public juce::Component, private juce::Timer {
+class SweepSlopeEditor : public juce::Component, public juce::SettableTooltipClient, private juce::Timer {
 public:
     explicit SweepSlopeEditor(OpenEdmFilterProcessor& processor);
     void paint(juce::Graphics& g) override;
@@ -69,6 +69,7 @@ private:
     [[nodiscard]] float normalizedForY(float y) const;
     [[nodiscard]] std::pair<float, float> handlePhases(openedm::core::SweepMode mode, int bars) const;
     [[nodiscard]] juce::Point<float> handlePosition(Handle handle, const openedm::core::AutoSweepSettings& settings) const;
+    [[nodiscard]] Handle nearestHandle(juce::Point<float> position, const openedm::core::AutoSweepSettings& settings) const;
 
     OpenEdmFilterProcessor& processor_;
     Handle activeHandle_ = Handle::None;
@@ -149,6 +150,11 @@ private:
     juce::Rectangle<int> envelopeArea_;
     const std::atomic<float>& bypassValue_;
     const std::atomic<float>& masterBypassValue_;
+    const std::atomic<float>& typeValue_;
+    const std::atomic<float>& extTypeValue_;
+    const std::atomic<float>& resoValue_;
+    const std::atomic<float>& lfoDepthValue_;
+    const std::atomic<float>& envDepthValue_;
 };
 
 // Sixteen bipolar step values for one filter. A drag across the bars draws them.
@@ -163,6 +169,7 @@ public:
 
 private:
     Apvts& state_;
+    int band_;
     juce::Colour accent_;
     juce::RangedAudioParameter& length_;
     juce::ParameterAttachment lengthWatcher_;
@@ -198,6 +205,7 @@ private:
     Knob laneOffset_;
     const std::atomic<float>& stepModeValue_;
     const std::atomic<float>& midiSourceValue_;
+    const std::atomic<float>& bypassValue_;
     juce::Rectangle<int> stepsArea_;
     juce::Rectangle<int> gridArea_;
     juce::Rectangle<int> midiArea_;
@@ -222,6 +230,7 @@ private:
     const std::atomic<float>& routingValue_;
     const std::atomic<float>& channelsValue_;
     const std::atomic<float>& masterBypassValue_;
+    const std::atomic<float>& fmDepthValue_;
     juce::Rectangle<int> globalArea_;
 };
 

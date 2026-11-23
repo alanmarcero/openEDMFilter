@@ -30,12 +30,15 @@ public:
     std::function<juce::ValueTree()> captureState;
 
     void setSearchText(const juce::String& text);
+    void selectPreset(const juce::String& name);
+    void disarm();
     // Loads the row before or after the named preset in list order and wraps at the ends.
     void loadNeighbour(const juce::String& currentName, int direction);
     [[nodiscard]] juce::StringArray listedNames() const;
 
     void paint(juce::Graphics& g) override;
     void resized() override;
+    void visibilityChanged() override;
 
 private:
     struct Row {
@@ -51,7 +54,6 @@ private:
     void selectedRowsChanged(int lastRow) override;
 
     void timerCallback() override;
-    void disarm();
     void rebuild();
     void loadRow(int row);
     void updateButtons();

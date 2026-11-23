@@ -124,6 +124,22 @@ void PresetBrowser::disarm() {
     remove_.setButtonText("DELETE");
 }
 
+void PresetBrowser::visibilityChanged() {
+    disarm();
+}
+
+void PresetBrowser::selectPreset(const juce::String& name) {
+    for (int i = 0; i < static_cast<int>(rows_.size()); ++i) {
+        if (rows_[static_cast<size_t>(i)].name.equalsIgnoreCase(name)) {
+            if (list_.getSelectedRow() != i)
+                list_.selectRow(i);
+            else
+                name_.setText(rows_[static_cast<size_t>(i)].name, juce::dontSendNotification);
+            return;
+        }
+    }
+}
+
 void PresetBrowser::setSearchText(const juce::String& text) {
     search_.setText(text, juce::dontSendNotification);
     rebuild();
