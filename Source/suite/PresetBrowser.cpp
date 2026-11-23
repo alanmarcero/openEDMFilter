@@ -4,7 +4,7 @@
 namespace suite {
 
 namespace {
-constexpr int kRowHeight = 24;
+constexpr int kRowHeight = 26;
 constexpr int kStarWidth = 28;
 } // namespace
 
@@ -158,12 +158,12 @@ void PresetBrowser::paint(juce::Graphics& g) {
     g.setColour(colours_.edge);
     g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), 8.0f, 1.0f);
     g.setColour(colours_.accent);
-    g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
-    g.drawText("PRESETS", 16, 6, getWidth() - 24, 18, juce::Justification::centredLeft);
+    g.setFont(juce::FontOptions(15.0f, juce::Font::bold));
+    g.drawText("PRESETS", 16, 5, getWidth() - 24, 22, juce::Justification::centredLeft);
 }
 
 void PresetBrowser::resized() {
-    auto bounds = getLocalBounds().reduced(8).withTrimmedTop(24);
+    auto bounds = getLocalBounds().reduced(8).withTrimmedTop(28);
     search_.setBounds(bounds.removeFromTop(28));
     bounds.removeFromTop(4);
     auto buttons = bounds.removeFromBottom(36);
@@ -242,12 +242,12 @@ void PresetBrowser::paintListBoxItem(int rowNumber, juce::Graphics& g, int width
     g.fillEllipse(juce::Rectangle<float>(8.0f, 8.0f).withCentre({ 14.0f, height * 0.5f }));
     g.setColour(selected ? colours_.text : (row.factory ? colours_.dim : colours_.text));
     g.setFont(juce::FontOptions(13.0f));
-    auto text = juce::Rectangle<int>(kStarWidth, 0, width - kStarWidth - (row.factory ? 64 : 8), height);
+    auto text = juce::Rectangle<int>(kStarWidth, 0, width - kStarWidth - (row.factory ? 74 : 8), height);
     g.drawText(row.name, text, juce::Justification::centredLeft, true);
     if (row.factory) {
-        g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+        g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
         g.setColour(colours_.dim);
-        g.drawText("FACTORY", width - 68, 0, 60, height, juce::Justification::centredRight);
+        g.drawText("FACTORY", width - 78, 0, 70, height, juce::Justification::centredRight);
     }
 }
 

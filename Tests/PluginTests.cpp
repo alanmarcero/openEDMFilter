@@ -1288,11 +1288,11 @@ TEST_CASE("Input and output meters show at the default and the minimum size", "[
     auto* output = effects->findChildWithID("outputMeter");
 
     CHECK(input->isVisible());
-    CHECK(effects->getHeight() == 96);
+    CHECK(effects->getHeight() == 116);
     CHECK(input->getHeight() >= 40);
     CHECK(output->getHeight() >= 40);
     editor->setSize(OpenEdmFilterProcessor::kMinEditorWidth, OpenEdmFilterProcessor::kMinEditorHeight);
-    CHECK(effects->getHeight() == 88);
+    CHECK(effects->getHeight() == 104);
     CHECK(input->getHeight() >= 40);
     CHECK(output->getHeight() >= 40);
     CHECK(effects->getLocalBounds().contains(output->getBounds()));

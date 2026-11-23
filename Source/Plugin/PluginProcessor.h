@@ -19,9 +19,9 @@ public:
     static constexpr size_t kSpectrumDisplayBins = 128;
 
     static constexpr int kDefaultEditorWidth = 1180;
-    static constexpr int kDefaultEditorHeight = 700;
+    static constexpr int kDefaultEditorHeight = 720;
     static constexpr int kMinEditorWidth = 1100;
-    static constexpr int kMinEditorHeight = 640;
+    static constexpr int kMinEditorHeight = 664;
     static constexpr int kMaxEditorWidth = 1800;
     static constexpr int kMaxEditorHeight = 1200;
 

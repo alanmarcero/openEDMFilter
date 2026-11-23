@@ -34,7 +34,7 @@ private:
 EdmLookAndFeel::EdmLookAndFeel() {
     setColour(juce::ResizableWindow::backgroundColourId, theme::kBackground);
     setColour(juce::Label::textColourId, theme::kText);
-    setColour(juce::Slider::textBoxTextColourId, theme::kTextDim);
+    setColour(juce::Slider::textBoxTextColourId, theme::kText);
     setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
     setColour(juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
     setColour(juce::Slider::textBoxHighlightColourId, theme::kTrack);

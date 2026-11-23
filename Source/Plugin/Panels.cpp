@@ -23,10 +23,10 @@ constexpr int kRefreshHz = 30;
 constexpr float kResonanceDragPixels = 150.0f;
 constexpr float kSlopeDragPixels = 90.0f;
 constexpr double kFallbackSampleRate = 44100.0;
-constexpr int kCaptionHeight = 14;
+constexpr int kCaptionHeight = 16;
 constexpr int kSectionGap = 10;
 constexpr const char* kSweepTitle = "Auto Sweep & Tempo Sync";
-constexpr int kKnobHeight = 62;
+constexpr int kKnobHeight = 76;
 constexpr int kMeterWidth = 5;
 constexpr float kStepGridInset = 4.0f;
 constexpr const char* kAllBypassHint = "Turn off BYPASS ALL to use this control.";
@@ -153,14 +153,17 @@ juce::Rectangle<float> ResponseView::readoutBounds(juce::Point<float> marker, fl
                                                    juce::Rectangle<float> other) {
     constexpr float height = 16.0f;
     constexpr float offset = 10.0f;
+    constexpr float pad = 2.0f;
+    const float maxBottom = plot.getBottom() - 16.0f;
     const bool fitsRight = marker.x + offset + width <= plot.getRight();
     const float x = fitsRight ? marker.x + offset : marker.x - offset - width;
     const juce::Rectangle<float> beside{ juce::jlimit(plot.getX(), plot.getRight() - width, x),
-                                         juce::jlimit(plot.getY(), plot.getBottom() - height, marker.y - height / 2.0f), width, height };
-    if (!beside.intersects(other))
+                                         juce::jlimit(plot.getY(), std::max(plot.getY(), maxBottom - height), marker.y - height / 2.0f),
+                                         width, height };
+    if (!beside.intersects(other.expanded(pad)))
         return beside;
-    const float below = other.getBottom() + 2.0f;
-    return beside.withY(below + height <= plot.getBottom() ? below : other.getY() - height - 2.0f);
+    const float below = other.getBottom() + pad;
+    return beside.withY(below + height <= maxBottom ? below : std::max(plot.getY(), other.getY() - height - pad));
 }
 
 void ResponseView::paint(juce::Graphics& g) {
@@ -219,7 +222,7 @@ void ResponseView::paint(juce::Graphics& g) {
         readouts[band] = readoutBounds(markers[band], width, plot, band == 0 ? juce::Rectangle<float>{} : readouts[0]);
     });
 
-    g.setFont(juce::FontOptions(10.0f));
+    g.setFont(juce::FontOptions(11.0f));
     const std::array<std::pair<double, const char*>, 8> gridLines{ {
         { 50.0, "50" }, { 100.0, "100" }, { 200.0, "200" }, { 500.0, "500" },
         { 1000.0, "1k" }, { 2000.0, "2k" }, { 5000.0, "5k" }, { 10000.0, "10k" } } };
@@ -227,9 +230,11 @@ void ResponseView::paint(juce::Graphics& g) {
         const float x = xForHz(line.first);
         g.setColour(theme::kPanelEdge);
         g.drawVerticalLine(juce::roundToInt(x), plot.getY(), plot.getBottom());
-        g.setColour(theme::kTextDim.withAlpha(0.6f));
-        g.drawText(line.second, juce::Rectangle<float>(x + 3.0f, plot.getBottom() - 13.0f, 40.0f, 12.0f),
-                   juce::Justification::centredLeft);
+        const juce::Rectangle<float> labelRect(x + 3.0f, plot.getBottom() - 14.0f, 40.0f, 13.0f);
+        if (std::ranges::any_of(readouts, [&](const auto& readout) { return readout.intersects(labelRect); }))
+            return;
+        g.setColour(theme::kTextDim.withAlpha(0.7f));
+        g.drawText(line.second, labelRect, juce::Justification::centredLeft);
     });
     const auto labelled = labelledDecibels(plot, readouts);
     std::ranges::for_each(std::array{ 12.0f, 0.0f, -12.0f, -24.0f, -36.0f }, [&](float db) {
@@ -326,7 +331,7 @@ const char* SweepSlopeEditor::parameterIdForHandle(Handle handle) noexcept {
 }
 
 juce::Rectangle<float> SweepSlopeEditor::plotArea() const {
-    return getLocalBounds().toFloat().reduced(10.0f, 18.0f).withTrimmedTop(4.0f).withTrimmedBottom(14.0f);
+    return getLocalBounds().toFloat().reduced(10.0f, 18.0f).withTrimmedTop(5.0f).withTrimmedBottom(18.0f);
 }
 
 float SweepSlopeEditor::yForHz(float hz) const {
@@ -514,7 +519,7 @@ void SweepSlopeEditor::paint(juce::Graphics& g) {
     const int bars = std::max(1, settings.bars);
     const int divisions = std::min(bars, 8);
     const int barsPerDivision = std::max(1, bars / divisions);
-    g.setFont(juce::FontOptions(9.5f));
+    g.setFont(juce::FontOptions(11.0f));
     std::ranges::for_each(std::views::iota(0, divisions + 1), [&](int div) {
         const float fraction = static_cast<float>(div) / static_cast<float>(divisions);
         const float x = plot.getX() + fraction * plot.getWidth();
@@ -522,9 +527,9 @@ void SweepSlopeEditor::paint(juce::Graphics& g) {
         g.drawVerticalLine(juce::roundToInt(x), plot.getY(), plot.getBottom());
         if (div < divisions) {
             const int barNumber = div * barsPerDivision + 1;
-            g.setColour(theme::kTextDim.withAlpha(0.65f));
+            g.setColour(theme::kTextDim.withAlpha(0.75f));
             g.drawText("B" + juce::String(barNumber),
-                       juce::Rectangle<float>(x + 2.0f, plot.getBottom() + 1.0f, 32.0f, 12.0f),
+                       juce::Rectangle<float>(x + 2.0f, plot.getBottom() + 1.0f, 36.0f, 14.0f),
                        juce::Justification::centredLeft);
         }
     });
@@ -609,25 +614,26 @@ void SweepSlopeEditor::paint(juce::Graphics& g) {
     drawHandle(Handle::ResEnd, theme::kAccentB, false);
 
     // Header overlay showing live bar, time signature, BPM and slope endpoints
-    const auto headerBar = getLocalBounds().toFloat().reduced(8.0f, 2.0f).removeFromTop(14.0f);
-    g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+    const auto headerBar = getLocalBounds().toFloat().reduced(8.0f, 2.0f).removeFromTop(16.0f);
+    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
     g.setColour(theme::kAccentA.withAlpha(activeAlpha));
     const juce::String cutSummary = "CUT " + params::formatHz(settings.cutoffStartHz) + " -> " + params::formatHz(settings.cutoffEndHz);
-    g.drawText(cutSummary, headerBar.withWidth(155.0f), juce::Justification::centredLeft);
+    g.drawText(cutSummary, headerBar.withWidth(170.0f), juce::Justification::centredLeft);
 
     g.setColour(theme::kAccentB.withAlpha(activeAlpha));
     const juce::String resSummary = "RES " + juce::String(juce::roundToInt(settings.resonanceStart * 100.0f)) + "% -> "
         + juce::String(juce::roundToInt(settings.resonanceEnd * 100.0f)) + "%";
-    g.drawText(resSummary, headerBar.withTrimmedLeft(155.0f).withWidth(105.0f), juce::Justification::centredLeft);
+    g.drawText(resSummary, headerBar.withTrimmedLeft(170.0f).withWidth(120.0f), juce::Justification::centredLeft);
 
     const auto signature = processor_.displayTimeSignature.load();
     const float currentBar = phase * static_cast<float>(bars) + 1.0f;
     const float bpm = processor_.displayBpm.load();
-    g.setColour(theme::kTextDim.withAlpha(activeAlpha));
+    g.setFont(juce::FontOptions(11.5f, juce::Font::bold));
+    g.setColour(theme::kText.withAlpha(activeAlpha * 0.9f));
     const juce::String clockSummary = "BAR " + juce::String(currentBar, 1) + "/" + juce::String(bars)
         + "  " + juce::String(signature.numerator) + "/" + juce::String(signature.denominator)
         + "  " + juce::String(juce::roundToInt(bpm)) + " BPM";
-    g.drawText(clockSummary, getLocalBounds().toFloat().reduced(8.0f, 1.0f).removeFromBottom(13.0f), juce::Justification::centredRight);
+    g.drawText(clockSummary, getLocalBounds().toFloat().reduced(8.0f, 2.0f).removeFromBottom(16.0f), juce::Justification::centredRight);
 }
 
 SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
@@ -680,8 +686,8 @@ SweepPanel::SweepPanel(OpenEdmFilterProcessor& processor)
         button.onClick = [this, i] { slotWatcher_.setValueAsCompleteGesture(static_cast<float>(i)); };
         addAndMakeVisible(button);
     }
-    barsLabel_.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-    barsLabel_.setColour(juce::Label::textColourId, theme::kTextDim);
+    barsLabel_.setFont(juce::FontOptions(12.5f, juce::Font::bold));
+    barsLabel_.setColour(juce::Label::textColourId, theme::kText);
     barsLabel_.setJustificationType(juce::Justification::centredRight);
     barsLabel_.setBorderSize({ 1, 1, 1, 1 });
     slopePresetBox_.setComponentID("sweepPreset");
@@ -791,8 +797,8 @@ void SweepPanel::paint(juce::Graphics& g) {
     drawCaption(g, editorArea_, "Slope editor (drag start / curve / end)");
     drawCaption(g, cutoffArea_, "Cutoff sweep");
     drawCaption(g, resArea_, "Resonance sweep");
-    drawCaption(g, crushArea_, "Bitcrush mix / onset = sweep position");
-    drawCaption(g, glitchArea_, "Glitch mix / tempo-synced beat repeat");
+    drawCaption(g, crushArea_, "Bitcrush mix / sweep onset");
+    drawCaption(g, glitchArea_, "Glitch mix / beat repeat");
 }
 
 void SweepPanel::resized() {
@@ -806,7 +812,7 @@ void SweepPanel::resized() {
     mode_.setBounds(header.removeFromRight(98));
     header.removeFromRight(5);
     bars_.setBounds(header.removeFromRight(92));
-    barsLabel_.setBounds(header.removeFromRight(34));
+    barsLabel_.setBounds(header.removeFromRight(42));
     const auto titleFont = juce::Font(juce::FontOptions(13.0f, juce::Font::bold));
     header.removeFromLeft(juce::GlyphArrangement::getStringWidthInt(titleFont, juce::String(kSweepTitle).toUpperCase()) + 22);
     enabled_.setBounds(header.removeFromLeft(95).withSizeKeepingCentre(95, 36));
@@ -1164,12 +1170,12 @@ EffectsPanel::EffectsPanel(OpenEdmFilterProcessor& processor)
       inputGain_(processor.parameters, params::kInputGain, "Gain", theme::kAccentOut),
       subPreserve_(processor.parameters, params::kSubPreserve, "Sub Keep", theme::kAccentOut),
       drive_(processor.parameters, params::kDrive, "Amount", theme::kAccentFx),
-      drivePosition_(processor.parameters, params::kDrivePosition, "Position", theme::kAccentFx),
+      drivePosition_(processor.parameters, params::kDrivePosition, "Drive Pos", theme::kAccentFx),
       analogDrift_(processor.parameters, params::kAnalogDrift, "Drift", theme::kAccentFx),
       crushRate_(processor.parameters, params::kCrushRate, "Rate", theme::kAccentFx),
       crushBits_(processor.parameters, params::kCrushBits, "Bits", theme::kAccentFx),
       crushMix_(processor.parameters, params::kCrushMix, "Mix", theme::kAccentFx),
-      crushPosition_(processor.parameters, params::kCrushPosition, "Position", theme::kAccentFx),
+      crushPosition_(processor.parameters, params::kCrushPosition, "Crush Pos", theme::kAccentFx),
       crushLink_(processor.parameters, params::kCrushLink, "LINK A", theme::kAccentFx, "Link crush rate to Filter A"),
       ringFrequency_(processor.parameters, params::kRingFrequency, "Freq", theme::kAccentFx),
       ringMix_(processor.parameters, params::kRingMix, "Mix", theme::kAccentFx),
@@ -1220,7 +1226,7 @@ void EffectsPanel::timerCallback() {
         if (control == &ceiling_ && !isLimiting)
             ownHint = "Turn on LIMIT to use the ceiling.";
         else if (control == &drivePosition_ && isDriveOff)
-            ownHint = "Turn up Drive Amount to use Position.";
+            ownHint = "Turn up Drive Amount to use Drive Pos.";
         else if (isCrushOff && (control == &crushRate_ || control == &crushBits_
                                 || control == &crushPosition_ || control == &crushLink_))
             ownHint = "Turn up Crush Mix or enable Sweep Crush to use this control.";
@@ -1244,9 +1250,9 @@ void EffectsPanel::paint(juce::Graphics& g) {
     std::ranges::for_each(sections_, [&](const Section& section) {
         drawPanel(g, section.area, section.title, section.accent);
     });
-    g.setFont(juce::FontOptions(10.0f));
+    g.setFont(juce::FontOptions(11.5f));
     g.setColour(theme::kTextDim);
-    g.drawText("v" JucePlugin_VersionString, getLocalBounds().reduced(8, 2).removeFromTop(14), juce::Justification::topRight);
+    g.drawText("v" JucePlugin_VersionString, getLocalBounds().reduced(10, 3).removeFromTop(16), juce::Justification::centredRight);
 }
 
 void EffectsPanel::resized() {
