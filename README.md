@@ -52,4 +52,4 @@ OpenVST Manager installs VST3 and AU. Install LV2 and the standalone app from th
 
 ## License
 
-openEDMFilter uses the MIT license. See [LICENSE](LICENSE).
+openEDMFilter uses AGPL-3.0. See [LICENSE](LICENSE).
