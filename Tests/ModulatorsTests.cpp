@@ -171,4 +171,8 @@ TEST_CASE("Step and Euclidean modulation wrap and respect pulses and rotation", 
     REQUIRE(StepModulator::valueAt(settings, 0.125) == -1.0f);
     settings.pulses = 99;
     REQUIRE(StepModulator::valueAt(settings, 0.125) == 1.0f);
+    settings.mode = StepMode::Steps;
+    settings.values = { 0.25f, 0.5f, 0.75f, 1.0f };
+    REQUIRE(std::isfinite(StepModulator::valueAt(settings, std::numeric_limits<double>::quiet_NaN())));
+    REQUIRE(std::isfinite(StepModulator::valueAt(settings, std::numeric_limits<double>::infinity())));
 }

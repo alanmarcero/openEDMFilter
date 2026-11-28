@@ -46,8 +46,9 @@ float Lfo::valueAt(LfoShape shape, double phase) noexcept {
 float StepModulator::valueAt(const StepSettings& settings, double phase) noexcept {
     if (settings.mode == StepMode::Off) return 0.0f;
     const int length = std::clamp(settings.length, 1, 16);
-    const double wrapped = phase - std::floor(phase);
-    const int step = std::min(length - 1, static_cast<int>(wrapped * length));
+    const double safePhase = std::isfinite(phase) ? phase : 0.0;
+    const double wrapped = safePhase - std::floor(safePhase);
+    const int step = std::clamp(static_cast<int>(wrapped * length), 0, length - 1);
     const int rotation = ((settings.rotation % length) + length) % length;
     const int index = (step + length - rotation) % length;
     if (settings.mode == StepMode::Steps) return std::clamp(settings.values[static_cast<size_t>(index)], -1.0f, 1.0f);

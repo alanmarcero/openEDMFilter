@@ -126,6 +126,8 @@ void ParameterUndo::performEdit(const std::function<void()>& edit, const juce::S
 }
 
 void ParameterUndo::parameterGestureChanged(int, bool starting) {
+    if (auto* mm = juce::MessageManager::getInstanceWithoutCreating(); mm != nullptr && !mm->isThisTheMessageThread())
+        return;
     if (applying_)
         return;
     if (starting) {

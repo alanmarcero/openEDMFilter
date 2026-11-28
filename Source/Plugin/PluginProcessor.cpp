@@ -90,8 +90,9 @@ OpenEdmFilterProcessor::OpenEdmFilterProcessor()
 }
 
 void OpenEdmFilterProcessor::prepareToPlay(double sampleRate, int) {
-    processingSampleRate_ = sampleRate;
-    engine_.prepare(sampleRate);
+    const double clampedRate = std::clamp(std::isfinite(sampleRate) ? sampleRate : 48000.0, 8000.0, 384000.0);
+    processingSampleRate_ = clampedRate;
+    engine_.prepare(clampedRate);
     spectrumFft_ = std::make_unique<juce::dsp::FFT>(kSpectrumFftOrder);
     spectrumWindowSum_ = 0.0f;
     for (int sample = 0; sample < kSpectrumFftSize; ++sample) {
@@ -419,7 +420,7 @@ void OpenEdmFilterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce
                                band.width->load() },
             band.cutoff->load(),
             static_cast<core::LfoShape>(choice(band.lfoShape)),
-            params::kLfoBeats[static_cast<size_t>(choice(band.lfoRate))],
+            params::kLfoBeats[static_cast<size_t>(std::clamp(choice(band.lfoRate), 0, static_cast<int>(params::kLfoBeats.size()) - 1))],
             band.lfoDepth->load(),
             band.envSource->load(),
             band.envAttack->load(),

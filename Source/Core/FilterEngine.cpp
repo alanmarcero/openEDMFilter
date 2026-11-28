@@ -28,11 +28,12 @@ float onePoleCoefficient(double seconds, double sampleRate) noexcept {
 } // namespace
 
 void FilterEngine::prepare(double sampleRate) noexcept {
-    sampleRate_ = sampleRate * Oversampler::kFactor;
+    const double hostRate = std::clamp(std::isfinite(sampleRate) ? sampleRate : 48000.0, 8000.0, 384000.0);
+    sampleRate_ = hostRate * Oversampler::kFactor;
     parameterSmoothing_ = onePoleCoefficient(kParameterSmoothingSeconds, sampleRate_);
     fadeSamples_ = std::max(1, static_cast<int>(kTopologyFadeSeconds * sampleRate_));
     oversampledLimiter_.prepare(sampleRate_);
-    truePeakGuard_.prepare(sampleRate);
+    truePeakGuard_.prepare(hostRate);
     stutter_.prepare(sampleRate_);
     reset();
 }
