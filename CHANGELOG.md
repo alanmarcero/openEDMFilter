@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.14.4
+
+- Guards parameter undo gesture tracking to the message thread.
+- Sanitizes non-finite step modulator phases, clamps LFO rate indices, and bounds sample rates to `[8000, 384000]` Hz.
+
 ## v1.14.3
 
 - Improves lock controls, preset sync, tooltips, and editor layout.
